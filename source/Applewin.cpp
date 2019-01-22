@@ -353,10 +353,6 @@ static void ContinueExecution(void)
 	{
 		g_dwCyclesThisFrame -= dwClksPerFrame;
 
-#if USE_RETROACHIEVEMENTS
-        RA_RenderOverlayFrame(FrameGetDC());
-#endif
-
 		if (g_bFullSpeed)
 			VideoRedrawScreenDuringFullSpeed(g_dwCyclesThisFrame);
 		else
@@ -515,12 +511,19 @@ void EnterMessageLoop(void)
             else
             {
 #if USE_RETROACHIEVEMENTS
-                RA_SetPaused(true);
+                VideoRefreshScreen();
 #endif
-			    if (g_nAppMode == MODE_PAUSED)
-				    Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
-			    else if (g_nAppMode == MODE_LOGO)
-				    Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+                if (g_nAppMode == MODE_PAUSED)
+                {
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(true);
+#endif
+                    Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
+                }
+                else if (g_nAppMode == MODE_LOGO)
+                {
+                    Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+                }
             }
 		}
 	}
