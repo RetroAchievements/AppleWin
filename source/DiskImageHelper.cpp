@@ -1734,7 +1734,7 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR* pszImageFilename,
 
         PathAppend(path, StrCat(filename, extension));
 
-        if (!PathFileExists(*pszImageFilename) &&
+        if (!PathFileExists(path) &&
             !CopyFile(*pszImageFilename, path, true))
             return eIMAGE_ERROR_UNABLE_TO_OPEN;
 
