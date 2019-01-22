@@ -63,6 +63,7 @@ extern void LoadROM(char* sFullPath);
 //  Installs these shared functions into the DLL
 extern void RA_InitShared();
 
+void RA_InitSystem();
 void RA_InitUI();
 void RA_InitMemory();
 int RA_PrepareLoadNewRom(const char *file_name, FileType file_type);

@@ -2526,6 +2526,10 @@ static void GetWidthHeight(int& nWidth, int& nHeight)
 						    + (GetSystemMetrics(SM_CYFIXEDFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER)) * 2	// NB. No SM_CYPADDEDBORDER
 						    + GetSystemMetrics(SM_CYCAPTION);
 
+#if USE_RETROACHIEVEMENTS
+    nHeight += GetSystemMetrics(SM_CYMENU);
+#endif
+
 #if 0	// GH#571
 	LogOutput("g_nViewportCX                       = %d\n", g_nViewportCX);
 	LogOutput("VIEWPORTX                           = %d (const)\n", VIEWPORTX);
@@ -2673,6 +2677,18 @@ void FrameCreateWindow(void)
 		HWND_DESKTOP,
 		(HMENU)0,
 		g_hInstance, NULL );
+
+#if USE_RETROACHIEVEMENTS
+    // Create an empty menu bar to hold the RetroAchievements menu
+
+    HMENU hMenubar;
+    HMENU hMenu;
+
+    hMenubar = CreateMenu();
+    hMenu = CreateMenu();
+
+    SetMenu(g_hFrameWindow, hMenubar);
+#endif
 
 	InitCommonControls();
 	tooltipwindow = CreateWindow(

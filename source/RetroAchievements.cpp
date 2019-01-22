@@ -179,22 +179,23 @@ void RA_InitShared()
     RA_InstallSharedFunctions(&GameIsActive, &CauseUnpause, &CausePause, &RebuildMenu, &GetEstimatedGameTitle, &ResetEmulation, &LoadROM);
 }
 
-static HDC main_hdc;
-void RA_InitUI()
+void RA_InitSystem()
 {
     RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
     RA_InitShared();
-    //RebuildMenu();
     RA_AttemptLogin(true);
-    //RebuildMenu();
     RA_InitMemory();
+}
 
-    /*if (main_hdc)
-    {
+static HDC main_hdc;
+void RA_InitUI()
+{
+    RebuildMenu();
+
+    if (main_hdc)
         ReleaseDC(g_hFrameWindow, main_hdc);
-    }*/
 
-    //main_hdc = GetDC(g_hFrameWindow);
+    main_hdc = GetDC(g_hFrameWindow);
 }
 
 void RA_InitMemory()

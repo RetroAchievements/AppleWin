@@ -1815,7 +1815,7 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 static void RepeatInitialization(void)
 {
 #if USE_RETROACHIEVEMENTS
-    RA_InitUI();
+    RA_InitSystem();
     LogFileOutput("Init: RA_InitUI()\n");
 #endif
 
@@ -1930,6 +1930,10 @@ static void RepeatInitialization(void)
 		LogFileOutput("Main: FrameCreateWindow() - pre\n");
 		FrameCreateWindow();	// g_hFrameWindow is now valid
 		LogFileOutput("Main: FrameCreateWindow() - post\n");
+        
+#if USE_RETROACHIEVEMENTS
+        RA_InitUI();
+#endif
 
 		// Allow the 4 hardcoded slots to be configurated as empty
 		if (g_cmdLine.bSlotEmpty[SLOT1])
