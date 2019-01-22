@@ -216,6 +216,9 @@ int RA_PrepareLoadNewRom(const char *file_name, FileType file_type)
 {
     FILE *f = fopen(file_name, "rb");
 
+    if (!f)
+        return false;
+
     char basename[_MAX_FNAME];
     _splitpath(file_name, NULL, NULL, basename, NULL);
     strcpy(loading_file.name, basename);
