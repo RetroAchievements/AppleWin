@@ -58,6 +58,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "Debugger/Debug.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 //#define ENABLE_MENU 0
 #define DEBUG_KEY_MESSAGES 0
 
@@ -168,7 +172,7 @@ static FULLSCREEN_SCALE_TYPE	g_win_fullscreen_scale = 1;
 static int						g_win_fullscreen_offsetx = 0;
 static int						g_win_fullscreen_offsety = 0;
 
-static bool g_bFrameActive = false;
+bool g_bFrameActive = false;
 
 static std::string driveTooltip;
 
@@ -917,6 +921,10 @@ static void DrawStatusArea (HDC passdc, int drawflags)
 		return;
 	}
 
+#if USE_RETROACHIEVEMENTS
+    drawflags &= ~DRAW_TITLE;
+#endif
+
 	FrameReleaseDC();
 	HDC  dc     = (passdc ? passdc : GetDC(g_hFrameWindow));
 	int  x      = buttonx;
@@ -1091,6 +1099,11 @@ LRESULT CALLBACK FrameWndProc (
       break;
 
     case WM_CLOSE:
+#if USE_RETROACHIEVEMENTS
+        if (!RA_ConfirmQuit())
+            return 0;
+#endif
+
       LogFileOutput("WM_CLOSE\n");
       if (g_bIsFullScreen && g_bRestart)
 		  g_bRestartFullScreen = true;
@@ -1388,15 +1401,24 @@ LRESULT CALLBACK FrameWndProc (
 					g_nAppMode = MODE_PAUSED;
 					SoundCore_SetFade(FADE_OUT);
 					RevealCursor();
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(true);
+#endif
 					break;
 				case MODE_PAUSED:
 					g_nAppMode = MODE_RUNNING;
 					SoundCore_SetFade(FADE_IN);
 					// Don't call FrameShowCursor(FALSE) else ClipCursor() won't be called
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(false);
+#endif
 					break;
 				case MODE_STEPPING:
 					SoundCore_SetFade(FADE_OUT);
 					DebugStopStepping();
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(false);
+#endif
 					break;
 			}
 			DrawStatusArea((HDC)0,DRAW_TITLE);
@@ -1964,6 +1986,14 @@ LRESULT CALLBACK FrameWndProc (
 		break;
 	}
 
+#if USE_RETROACHIEVEMENTS
+    case WM_COMMAND:
+    {
+        RA_HandleMenuEvent(wparam);
+        break;
+    }
+#endif
+
   }	// switch(message)
  
   return DefWindowProc(window,message,wparam,lparam);
@@ -2064,13 +2094,21 @@ static void ProcessButtonClick(int button, bool bFromButtonUI /*=false*/)
 		else if ((g_nAppMode == MODE_RUNNING) || (g_nAppMode == MODE_DEBUG) || (g_nAppMode == MODE_STEPPING) || (g_nAppMode == MODE_PAUSED))
 		{
 			if (ConfirmReboot(bFromButtonUI))
-			{
+            {
+#if USE_RETROACHIEVEMENTS
+                if (RA_ConfirmLoadNewRom(false))
+                {
+#endif
 				ResetMachineState();
 
 				// NB. Don't exit debugger or stepping
 
 				if (g_nAppMode == MODE_DEBUG)
 					DebugDisplay(TRUE);
+
+#if USE_RETROACHIEVEMENTS
+                }
+#endif
 			}
 		}
 
@@ -2313,6 +2351,11 @@ void ResetMachineState ()
 #endif
 
   SoundCore_SetFade(FADE_NONE);
+
+#if USE_RETROACHIEVEMENTS
+  RA_ProcessReset();
+#endif
+
   LogFileTimeUntilFirstKeyReadReset();
 }
 
@@ -2526,6 +2569,10 @@ static void GetWidthHeight(int& nWidth, int& nHeight)
 						    + (GetSystemMetrics(SM_CYFIXEDFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER)) * 2	// NB. No SM_CYPADDEDBORDER
 						    + GetSystemMetrics(SM_CYCAPTION);
 
+#if USE_RETROACHIEVEMENTS
+    nHeight += GetSystemMetrics(SM_CYMENU);
+#endif
+
 #if 0	// GH#571
 	LogOutput("g_nViewportCX                       = %d\n", g_nViewportCX);
 	LogOutput("VIEWPORTX                           = %d (const)\n", VIEWPORTX);
@@ -2673,6 +2720,12 @@ void FrameCreateWindow(void)
 		HWND_DESKTOP,
 		(HMENU)0,
 		g_hInstance, NULL );
+
+#if USE_RETROACHIEVEMENTS
+    // Create an empty menu bar to hold the RetroAchievements menu
+    HMENU hMenubar = CreateMenu();
+    SetMenu(g_hFrameWindow, hMenubar);
+#endif
 
 	InitCommonControls();
 	tooltipwindow = CreateWindow(

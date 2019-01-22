@@ -61,8 +61,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "Tfe/Tfe.h"
 
-static const UINT VERSIONSTRING_SIZE = 16;
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
 
+static const UINT VERSIONSTRING_SIZE = 16;
 static UINT16 g_AppleWinVersion[4] = {0};
 static UINT16 g_OldAppleWinVersion[4] = {0};
 TCHAR VERSIONSTRING[VERSIONSTRING_SIZE] = "xx.yy.zz.ww";
@@ -190,6 +193,7 @@ bool GetHookAltGrControl(void)
 static void ResetToLogoMode(void)
 {
 	g_nAppMode = MODE_LOGO;
+
 	SetLoadedSaveStateFlag(false);
 }
 
@@ -354,6 +358,13 @@ static void ContinueExecution(void)
 			VideoRedrawScreenDuringFullSpeed(g_dwCyclesThisFrame);
 		else
 			VideoRefreshScreen(); // Just copy the output of our Apple framebuffer to the system Back Buffer
+
+#if USE_RETROACHIEVEMENTS
+		RA_HandleHTTPResults();
+
+		if (g_nAppMode == MODE_RUNNING || g_nAppMode == MODE_STEPPING)
+			RA_DoAchievementsFrame();
+#endif
 	}
 
 	if ((g_nAppMode == MODE_RUNNING && !g_bFullSpeed) || bModeStepping_WaitTimer)
@@ -403,6 +414,14 @@ void UseClockMultiplier(double clockMultiplier)
 
 void SetCurrentCLK6502(void)
 {
+#if USE_RETROACHIEVEMENTS
+	if (g_dwSpeed < SPEED_NORMAL)
+	{
+		if (!RA_WarnDisableHardcore("set the speed below 100%"))
+			g_dwSpeed = SPEED_NORMAL;
+	}
+#endif
+
 	static DWORD dwPrevSpeed = (DWORD) -1;
 	static VideoRefreshRate_e prevVideoRefreshRate = VR_NONE;
 
@@ -453,17 +472,23 @@ void EnterMessageLoop(void)
 				if (PeekMessage(&message,0,0,0,PM_REMOVE))
 				{
 					if (message.message == WM_QUIT)
+					{
 						return;
+					}
 
 					TranslateMessage(&message);
 					DispatchMessage(&message);
 				}
 				else if (g_nAppMode == MODE_STEPPING)
 				{
+#if USE_RETROACHIEVEMENTS
+					if (!RA_WarnDisableHardcore("switch to stepping mode"))
+						g_nAppMode = MODE_RUNNING;
+#endif
+
 					DebugContinueStepping();
 				}
-				else
-				{
+				else			{
 					ContinueExecution();
 					if (g_nAppMode != MODE_DEBUG)
 					{
@@ -476,11 +501,34 @@ void EnterMessageLoop(void)
 		else
 		{
 			if (g_nAppMode == MODE_DEBUG)
+			{
+#if USE_RETROACHIEVEMENTS
+				if (!RA_WarnDisableHardcore("switch to debug mode"))
+				{
+					g_nAppMode = MODE_RUNNING;
+					continue;
+				}
+#endif
+
 				DebuggerUpdate();
-			else if (g_nAppMode == MODE_PAUSED)
-				Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
-			else if (g_nAppMode == MODE_LOGO)
-				Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+			}
+			else
+			{
+				if (g_nAppMode == MODE_PAUSED)
+				{
+#if USE_RETROACHIEVEMENTS
+					VideoRefreshScreen();
+#endif
+					Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
+				}
+				else if (g_nAppMode == MODE_LOGO)
+				{
+#if USE_RETROACHIEVEMENTS
+					VideoDisplayLogo();
+#endif
+					Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+				}
+			}
 		}
 	}
 }
@@ -717,6 +765,7 @@ void LoadConfiguration(void)
 
 	//
 
+#if !USE_RETROACHIEVEMENTS
 	TCHAR szFilename[MAX_PATH];
 
 	RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_PREF_HDV_START_DIR), 1, szFilename, MAX_PATH, TEXT(""));
@@ -753,6 +802,7 @@ void LoadConfiguration(void)
 
 	RegLoadString(TEXT(REG_CONFIG), TEXT(REGVALUE_PRINTER_FILENAME), 1, szFilename, MAX_PATH, TEXT(""));
 	Printer_SetFilename(szFilename);	// If not in Registry than default will be used
+#endif
 
 	REGLOAD_DEFAULT(TEXT(REGVALUE_PRINTER_IDLE_LIMIT), &dwTmp, 10);
 	Printer_SetIdleLimit(dwTmp);
@@ -1097,7 +1147,7 @@ static std::string GetFullPath(LPCSTR szFileName)
 	return strPathName;
 }
 
-static bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
+bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 {
 	Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(slot));
 
@@ -1105,15 +1155,17 @@ static bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 	if (strPathName.empty()) return false;
 
 	ImageError_e Error = disk2Card.InsertDisk(nDrive, strPathName.c_str(), IMAGE_USE_FILES_WRITE_PROTECT_STATUS, IMAGE_DONT_CREATE);
+
 	return Error == eIMAGE_ERROR_NONE;
 }
 
-static bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
+bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
 {
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
 	BOOL bRes = HD_Insert(nDrive, strPathName.c_str());
+
 	return bRes ? true : false;
 }
 
@@ -1317,11 +1369,17 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 			EnterMessageLoop();
 			LogFileOutput("Main: LeaveMessageLoop()\n");
 
-			if (g_bRestart)
-			{
-				g_cmdLine.bSetFullScreen = g_bRestartFullScreen;
-				g_bRestartFullScreen = false;
-			}
+            if (g_bRestart)
+            {
+                g_cmdLine.bSetFullScreen = g_bRestartFullScreen;
+                g_bRestartFullScreen = false;
+            }
+#if USE_RETROACHIEVEMENTS
+            else
+            {
+                RA_Shutdown();
+            }
+#endif
 
 			MB_Reset();
 			LogFileOutput("Main: MB_Reset()\n");
@@ -1719,11 +1777,11 @@ static void GetAppleWinVersion(void)
             unsigned long major     = g_AppleWinVersion[0] = pFixedFileInfo->dwFileVersionMS >> 16;
             unsigned long minor     = g_AppleWinVersion[1] = pFixedFileInfo->dwFileVersionMS & 0xffff;
             unsigned long fix       = g_AppleWinVersion[2] = pFixedFileInfo->dwFileVersionLS >> 16;
-			unsigned long fix_minor = g_AppleWinVersion[3] = pFixedFileInfo->dwFileVersionLS & 0xffff;
-			StringCbPrintf(VERSIONSTRING, VERSIONSTRING_SIZE, "%d.%d.%d.%d", major, minor, fix, fix_minor);
-		}
+            unsigned long fix_minor = g_AppleWinVersion[3] = pFixedFileInfo->dwFileVersionLS & 0xffff;
+            StringCbPrintf(VERSIONSTRING, VERSIONSTRING_SIZE, "%d.%d.%d.%d", major, minor, fix, fix_minor);
+        }
 
-		delete [] pVerInfoBlock;
+        delete [] pVerInfoBlock;
     }
 
 	LogFileOutput("AppleWin version: %s\n",  VERSIONSTRING);
@@ -1844,6 +1902,14 @@ static void RepeatInitialization(void)
 		LogFileOutput("Main: FrameCreateWindow() - pre\n");
 		FrameCreateWindow();	// g_hFrameWindow is now valid
 		LogFileOutput("Main: FrameCreateWindow() - post\n");
+        
+#if USE_RETROACHIEVEMENTS
+		RA_InitSystem();
+		LogFileOutput("Init: RA_InitSystem()\n");
+
+		RA_InitUI();
+		LogFileOutput("Main: RA_InitUI()\n");
+#endif
 
 		// Allow the 4 hardcoded slots to be configurated as empty
 		if (g_cmdLine.bSlotEmpty[SLOT1])
@@ -1885,6 +1951,11 @@ static void RepeatInitialization(void)
 
 		MemInitialize();
 		LogFileOutput("Main: MemInitialize()\n");
+
+#if USE_RETROACHIEVEMENTS
+		RA_ProcessReset();
+		LogFileOutput("Main: RA_ProcessReset()\n");
+#endif
 
 		// Show About dialog after creating main window (need g_hFrameWindow)
 		if (bShowAboutDlg)

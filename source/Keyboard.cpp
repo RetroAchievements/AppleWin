@@ -283,8 +283,10 @@ void KeybQueueKeypress (WPARAM key, Keystroke_e bASCII)
 		// Note: VK_CANCEL is Control-Break
 		if ((key == VK_CANCEL) && (GetKeyState(VK_CONTROL) < 0))
 		{
+#if !USE_RETROACHIEVEMENTS
 			g_bFreshReset = true;
 			CtrlReset();
+#endif
 			return;
 		}
 
