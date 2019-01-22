@@ -761,6 +761,7 @@ void LoadConfiguration(void)
 
 	//
 
+#if !USE_RETROACHIEVEMENTS
 	TCHAR szFilename[MAX_PATH];
 
 	RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_PREF_HDV_START_DIR), 1, szFilename, MAX_PATH, TEXT(""));
@@ -797,6 +798,7 @@ void LoadConfiguration(void)
 
 	RegLoadString(TEXT(REG_CONFIG), TEXT(REGVALUE_PRINTER_FILENAME), 1, szFilename, MAX_PATH, TEXT(""));
 	Printer_SetFilename(szFilename);	// If not in Registry than default will be used
+#endif
 
 	REGLOAD_DEFAULT(TEXT(REGVALUE_PRINTER_IDLE_LIMIT), &dwTmp, 10);
 	Printer_SetIdleLimit(dwTmp);
