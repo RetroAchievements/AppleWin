@@ -1807,10 +1807,6 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 	FrameRegisterClass();
 	LogFileOutput("Init: FrameRegisterClass()\n");
 
-#if USE_RETROACHIEVEMENTS
-    RA_InitUI();
-#endif
-
 	ImageInitialize();
 	LogFileOutput("Init: ImageInitialize()\n");
 }
@@ -1818,12 +1814,19 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 // DO INITIALIZATION THAT MUST BE REPEATED FOR A RESTART
 static void RepeatInitialization(void)
 {
+#if USE_RETROACHIEVEMENTS
+    RA_InitUI();
+    LogFileOutput("Init: RA_InitUI()\n");
+#endif
+
 		ResetToLogoMode();
 
 		// NB. g_OldAppleWinVersion needed by LoadConfiguration() -> Config_Load_Video()
 		const bool bShowAboutDlg = CheckOldAppleWinVersion();	// Post: g_OldAppleWinVersion
 
 #if USE_RETROACHIEVEMENTS
+        // RA initialization must occur prior to the LoadConfiguration() call.
+
         if (RA_HardcoreModeIsActive())
         {
             if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)
@@ -1847,8 +1850,6 @@ static void RepeatInitialization(void)
             }
         }
 
-        // Should be called before LoadConfiguration() in order to avoid
-        // displaying a warning when resetting to Hardcore mode.
         if (g_dwSpeed < SPEED_NORMAL)
         {
             g_dwSpeed = SPEED_NORMAL;
@@ -1869,6 +1870,7 @@ static void RepeatInitialization(void)
         }
 
         RA_OnReset();
+        LogFileOutput("Main: RA_OnReset()\n");
 #endif
 
 		LoadConfiguration();
