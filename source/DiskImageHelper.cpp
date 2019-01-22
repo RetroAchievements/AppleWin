@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 #include "Common.h"
 
+#include <Shlwapi.h>
+
 #include "zlib.h"
 #include "unzip.h"
 
@@ -1706,9 +1708,73 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
 
 	TCHAR szFilename[MAX_PATH] = { 0 };
 	DWORD uNameLen = GetFullPathName(pszImageFilename, MAX_PATH, szFilename, NULL);
-	pImageInfo->szFilename = szFilename;
+	pImageInfo->szFilename = std::string(szFilename);
+
 	if (uNameLen == 0 || uNameLen >= MAX_PATH)
 		Err = eIMAGE_ERROR_FAILED_TO_GET_PATHNAME;
+
+    // Intercept write-enabled images to point to a local copy
+    if (!pImageInfo->bWriteProtected)
+    {
+        // Create a local runtime copy or load an existing one
+        HMODULE hModule = GetModuleHandle(NULL);
+        CHAR path[MAX_PATH];
+        GetModuleFileName(hModule, path, MAX_PATH);
+
+        if (!PathRemoveFileSpec(path))
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        PathAppend(path, "SAVE");
+
+        CreateDirectory(path, NULL);
+
+        CHAR filename[_MAX_FNAME];
+        CHAR extension[_MAX_EXT];
+        _splitpath(pszImageFilename, NULL, NULL, filename, extension);
+
+        PathAppend(path, StrCat(filename, extension));
+
+        CHAR old_path[MAX_PATH], new_path[MAX_PATH];
+        PathCanonicalize(old_path, pszImageFilename);
+        PathCanonicalize(new_path, path);
+        if (!strcmp(old_path, new_path))
+        {
+            return eIMAGE_ERROR_NONE;
+        }
+
+        if (!PathFileExists(path) &&
+            !CopyFile(pszImageFilename, path, true))
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        ZeroMemory((void *) pszImageFilename, sizeof(pszImageFilename));
+        strcpy((char *) pszImageFilename, path);
+
+        CloseHandle(pImageInfo->hFile);
+        pImageInfo->hFile = CreateFile(pszImageFilename,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ,
+            (LPSECURITY_ATTRIBUTES)NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+
+        if (!pImageInfo->hFile)
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        // This omits some of the error detection done as part of CheckNormalFile(),
+        // and assumes that the save copy matches the original.
+        delete[] pImageInfo->pImageBuffer;
+        pImageInfo->pImageBuffer = new BYTE[pImageInfo->uImageSize];
+
+        DWORD dwBytesRead;
+        BOOL bRes = ReadFile(pImageInfo->hFile, pImageInfo->pImageBuffer, pImageInfo->uImageSize, &dwBytesRead, NULL);
+        if (!bRes || pImageInfo->uImageSize != dwBytesRead)
+        {
+            delete[] pImageInfo->pImageBuffer;
+            pImageInfo->pImageBuffer = NULL;
+            return eIMAGE_ERROR_BAD_SIZE;
+        }
+    }
 
 	return eIMAGE_ERROR_NONE;
 }

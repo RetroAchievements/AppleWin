@@ -41,6 +41,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../resource/resource.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 /*
 Memory map:
 
@@ -180,8 +184,17 @@ static UINT g_uSlot = 7;
 
 static void HD_SaveLastDiskImage(const int iDrive);
 
-static void HD_CleanupDrive(const int iDrive)
+static bool HD_CleanupDrive(const int iDrive)
 {
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == HARDDISK_1 && loaded_title != NULL &&
+        loaded_title->file_type == FileType::HARD_DISK)
+    {
+        if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
+            return false;
+    }
+#endif
+
 	if (g_HardDisk[iDrive].imagehandle)
 	{
 		ImageClose(g_HardDisk[iDrive].imagehandle);
@@ -195,6 +208,18 @@ static void HD_CleanupDrive(const int iDrive)
 	g_HardDisk[iDrive].strFilenameInZip.clear();
 
 	HD_SaveLastDiskImage(iDrive);
+
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == HARDDISK_1)
+    {
+#if !RA_RELOAD_MULTI_DISK
+        if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
+#endif
+        RA_ClearTitle();
+    }
+#endif
+
+    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -413,6 +438,11 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 	if (Error == eIMAGE_ERROR_NONE)
 	{
 		GetImageTitle(pszImageFilename.c_str(), g_HardDisk[iDrive].imagename, g_HardDisk[iDrive].fullname);
+
+#if USE_RETROACHIEVEMENTS
+        if (iDrive == HARDDISK_1)
+            RA_CommitLoadNewRom();
+#endif
 	}
 
 	HD_SaveLastDiskImage(iDrive);
@@ -471,10 +501,12 @@ bool HD_Select(const int iDrive)
 	return HD_SelectImage(iDrive, TEXT(""));
 }
 
-void HD_Unplug(const int iDrive)
+bool HD_Unplug(const int iDrive)
 {
 	if (g_HardDisk[iDrive].hd_imageloaded)
-		HD_CleanupDrive(iDrive);
+		return HD_CleanupDrive(iDrive);
+
+    return true;
 }
 
 bool HD_IsDriveUnplugged(const int iDrive)
@@ -858,7 +890,9 @@ bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, co
 	// Unplug all HDDs first in case HDD-2 is to be plugged in as HDD-1
 	for (UINT i=0; i<NUM_HARDDISKS; i++)
 	{
-		HD_Unplug(i);
+		if (!HD_Unplug(i))
+			return false;
+
 		g_HardDisk[i].clear();
 	}
 

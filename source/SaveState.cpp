@@ -53,6 +53,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/Config.h"
 #include "Configuration/IPropertySheet.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 
 #define DEFAULT_SNAPSHOT_NAME "SaveState.aws.yaml"
 
@@ -335,7 +339,7 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 
 //---
 
-static void ParseUnit(void)
+static void ParseUnit(bool loading_state = false)
 {
 	yamlHelper.GetMapStartEvent();
 
@@ -357,6 +361,10 @@ static void ParseUnit(void)
 	}
 	else if (unit == GetSnapshotUnitSlotsName())
 	{
+#if USE_RETROACHIEVEMENTS
+		// Disable loading slots with save states RA due to conflicts with the toolkit
+		if (!loading_state)
+#endif
 		ParseSlots(yamlLoadHelper, unitVersion);
 	}
 	else
@@ -371,11 +379,35 @@ static void Snapshot_LoadState_v2(void)
 
 	try
 	{
-		if (!yamlHelper.InitParser( g_strSaveStatePathname.c_str() ))
-			throw std::string("Failed to initialize parser or open file");
+		std::string err_msg = "";
+		int res = yamlHelper.InitParser(g_strSaveStatePathname.c_str());
+		if (!res)
+		{
+			err_msg = "Failed to initialize parser or open file";
+		}
+		else
+		{
+			UINT version = ParseFileHdr();
+			if (version != SS_FILE_VER)
+				err_msg = "Version mismatch";
+		}
 
-		if (ParseFileHdr() != SS_FILE_VER)
-			throw std::string("Version mismatch");
+		if (err_msg != "")
+		{
+			MessageBox(g_hFrameWindow,
+				err_msg.c_str(),
+				TEXT("Load State"),
+				MB_ICONEXCLAMATION | MB_SETFOREGROUND);
+
+			return;
+		}
+
+#if USE_RETROACHIEVEMENTS
+		if (!RA_WarnDisableHardcore("load a state"))
+		{
+			return;
+		}
+#endif
 
 		//
 
@@ -432,7 +464,7 @@ static void Snapshot_LoadState_v2(void)
 		while(yamlHelper.GetScalar(scalar))
 		{
 			if (scalar == SS_YAML_KEY_UNIT)
-				ParseUnit();
+				ParseUnit(true);
 			else
 				throw std::string("Unknown top-level scalar: " + scalar);
 		}
@@ -458,6 +490,10 @@ static void Snapshot_LoadState_v2(void)
 		DebugReset();
 		if (g_nAppMode == MODE_DEBUG)
 			DebugDisplay(TRUE);
+
+#if USE_RETROACHIEVEMENTS
+        RA_OnLoadState(g_strSaveStatePathname.c_str());
+#endif
 	}
 	catch(std::string szMessage)
 	{
@@ -564,6 +600,10 @@ void Snapshot_SaveState(void)
 			if (g_CardMgr.QuerySlot(SLOT7) == CT_GenericHDD)
 				HD_SaveSnapshot(yamlSaveHelper);
 		}
+
+#if USE_RETROACHIEVEMENTS
+        RA_OnSaveState(g_strSaveStatePathname.c_str());
+#endif
 	}
 	catch(std::string szMessage)
 	{

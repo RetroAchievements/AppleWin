@@ -44,6 +44,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "YamlHelper.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 	#define  SW_80COL         (g_uVideoMode & VF_80COL)
 	#define  SW_DHIRES        (g_uVideoMode & VF_DHIRES)
 	#define  SW_HIRES         (g_uVideoMode & VF_HIRES)
@@ -386,19 +390,19 @@ void VideoDestroy () {
 
 //===========================================================================
 
-static void VideoDrawLogoBitmap(HDC hDstDC, int xoff, int yoff, int srcw, int srch, int scale)
+static void VideoDrawLogoBitmap(HDC hDstDC, int srcw, int srch)
 {
 	HDC hSrcDC = CreateCompatibleDC( hDstDC );
 	SelectObject( hSrcDC, g_hLogoBitmap );
-	StretchBlt(
-		hDstDC,   // hdcDest
-		xoff, yoff,  // nXDest, nYDest
-		scale * srcw, scale * srch, // nWidth, nHeight
-		hSrcDC,   // hdcSrc
-		0, 0,     // nXSrc, nYSrc
-		srcw, srch,
-		SRCCOPY   // dwRop
-	);
+
+    BitBlt(
+        hDstDC,   // hdcDest
+        0, 0,  // nXDest, nYDest
+        srcw, srch, // nWidth, nHeight
+        hSrcDC,   // hdcSrc
+        0, 0,     // nXSrc, nYSrc
+        SRCCOPY   // dwRop
+    );
 
 	DeleteObject( hSrcDC );
 }
@@ -408,8 +412,17 @@ void VideoDisplayLogo ()
 {
 	int nLogoX = 0, nLogoY = 0;
 	int scale = GetViewportScale();
+    int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
 
-	HDC hFrameDC = FrameGetDC();
+    HDC hFrameDC = FrameGetDC();
+
+    // Double buffer the frame in order to avoid flickering
+    HDC hMainDC = hFrameDC;
+    HDC hMainDCBuffer = CreateCompatibleDC(hFrameDC);
+    HBITMAP hBitmapBuffer = CreateCompatibleBitmap(hFrameDC, width, height);
+    SelectObject(hMainDCBuffer, hBitmapBuffer);
+
+    hFrameDC = hMainDCBuffer;
 
 	// DRAW THE LOGO
 	SelectObject(hFrameDC, GetStockObject(NULL_PEN));
@@ -419,16 +432,7 @@ void VideoDisplayLogo ()
 		BITMAP bm;
 		if (GetObject(g_hLogoBitmap, sizeof(bm), &bm))
 		{
-			nLogoX = (g_nViewportCX - scale*bm.bmWidth )/2;
-			nLogoY = (g_nViewportCY - scale*bm.bmHeight)/2;
-
-			if( IsFullScreen() )
-			{
-				nLogoX += GetFullScreenOffsetX();
-				nLogoY += GetFullScreenOffsetY();
-			}
-
-			VideoDrawLogoBitmap( hFrameDC, nLogoX, nLogoY, bm.bmWidth, bm.bmHeight, scale );
+			VideoDrawLogoBitmap( hFrameDC, bm.bmWidth, bm.bmHeight );
 		}
 	}
 
@@ -449,7 +453,7 @@ void VideoDisplayLogo ()
 #define  DRAWVERSION(x,y,c)                 \
 	SetTextColor(hFrameDC,c);               \
 	TextOut(hFrameDC,                       \
-		scale*540+x+xoff,scale*358+y+yoff,  \
+		width - 30, height - 40,  \
 		szVersion,                          \
 		strlen(szVersion));
 
@@ -472,7 +476,16 @@ void VideoDisplayLogo ()
 
 #undef  DRAWVERSION
 
-	DeleteObject(font);
+#if USE_RETROACHIEVEMENTS
+    RA_RenderOverlayFrame(hFrameDC);
+#endif
+
+    StretchBlt(hMainDC, xoff, yoff, width*scale, height*scale,
+        hFrameDC, 0, 0, width, height, SRCCOPY);
+
+    DeleteObject(hBitmapBuffer);
+    DeleteObject(font);
+    DeleteDC(hMainDCBuffer);
 }
 
 //===========================================================================
@@ -580,23 +593,59 @@ void VideoRefreshScreen ( uint32_t uRedrawWholeScreenVideoMode /* =0*/, bool bRe
 
 	if (hFrameDC)
 	{
+
 		int xSrc = GetFrameBufferBorderWidth();
 		int ySrc = GetFrameBufferBorderHeight();
+		int wSrc = GetFrameBufferBorderlessWidth();
+		int hSrc = GetFrameBufferBorderlessHeight();
 
 		int xdest = IsFullScreen() ? GetFullScreenOffsetX() : 0;
 		int ydest = IsFullScreen() ? GetFullScreenOffsetY() : 0;
 		int wdest = g_nViewportCX;
 		int hdest = g_nViewportCY;
 
-		SetStretchBltMode(hFrameDC, COLORONCOLOR);
+#if USE_RETROACHIEVEMENTS
+        // Double buffer the frame in order to render both graphics and overlay without flickering
+
+        HDC hMainDC = hFrameDC;
+        HDC hMainDCBuffer = CreateCompatibleDC(hFrameDC);
+        HBITMAP hBitmapBuffer = CreateCompatibleBitmap(hFrameDC, wSrc, hSrc);
+        SelectObject(hMainDCBuffer, hBitmapBuffer);
+
+        hFrameDC = hMainDCBuffer;
+        BitBlt(hFrameDC, 0, 0, wSrc, hSrc, g_hDeviceDC, xSrc, ySrc, SRCCOPY);
+#else
+        // No need to double buffer, render the graphics directly
+
+        SetStretchBltMode(hFrameDC, COLORONCOLOR);
 		StretchBlt(
 			hFrameDC, 
 			xdest, ydest,
 			wdest, hdest,
 			g_hDeviceDC,
 			xSrc, ySrc,
-			GetFrameBufferBorderlessWidth(), GetFrameBufferBorderlessHeight(),
+			wSrc, hSrc,
 			SRCCOPY);
+#endif
+
+#if USE_RETROACHIEVEMENTS
+        // Finally draw the buffered frame
+
+        RA_RenderOverlayFrame(hFrameDC);
+
+        SetStretchBltMode(hMainDC, COLORONCOLOR);
+        StretchBlt(
+            hMainDC,
+            xdest, ydest,
+            wdest, hdest,
+            hFrameDC,
+            0, 0,
+            wSrc, hSrc,
+            SRCCOPY);
+
+        DeleteObject(hBitmapBuffer);
+        DeleteDC(hMainDCBuffer);
+#endif
 	}
 
 #ifdef NO_DIRECT_X

@@ -9,6 +9,7 @@
 	extern int        g_nViewportCY;
 	extern BOOL       g_bConfirmReboot; // saved PageConfig REGSAVE
 	extern BOOL       g_bMultiMon;
+	extern bool       g_bFrameActive;
 
 
 // Emulator
@@ -19,6 +20,7 @@
 
 
 // Prototypes
+    void ResetMachineState();
 	void CtrlReset();
 
 	void    FrameCreateWindow(void);
@@ -45,6 +47,8 @@
 		UINT   message,
 		WPARAM wparam,
 		LPARAM lparam );
+
+    static bool ConfirmReboot(bool bFromButtonUI);
 
 	int GetFullScreenOffsetX(void);
 	int GetFullScreenOffsetY(void);

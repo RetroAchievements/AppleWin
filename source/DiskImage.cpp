@@ -60,7 +60,9 @@ ImageError_e ImageOpen(	const std::string & pszImageFilename,
 	if (bExpectFloppy)	pImageInfo->pImageHelper = &sg_DiskImageHelper;
 	else				pImageInfo->pImageHelper = &sg_HardDiskImageHelper;
 
-	ImageError_e Err = pImageInfo->pImageHelper->Open(pszImageFilename.c_str(), pImageInfo, bCreateIfNecessary, strFilenameInZip);
+    const char* image_filename = pszImageFilename.c_str();
+
+	ImageError_e Err = pImageInfo->pImageHelper->Open(image_filename, pImageInfo, bCreateIfNecessary, strFilenameInZip);
 	if (Err != eIMAGE_ERROR_NONE)
 	{
 		ImageClose(*ppImageInfo, true);

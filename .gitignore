@@ -9,9 +9,9 @@
 *.VC.db
 
 # Build results
-[Dd]ebug/
+[Dd]ebug*/
 [Dd]ebugPublic/
-[Rr]elease/
+[Rr]elease*/
 [Rr]eleases/
 x64/
 x86/
@@ -183,3 +183,6 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+# Generated version header
+source/BuildVer.h

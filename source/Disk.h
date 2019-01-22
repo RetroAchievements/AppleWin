@@ -23,6 +23,7 @@ along with AppleWin; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#include <vector>
 #include "Card.h"
 #include "DiskLog.h"
 #include "DiskFormatTrack.h"
@@ -54,6 +55,7 @@ public:
 	{
 		m_imagename.clear();
 		m_fullname.clear();
+        m_fullpath.clear();
 		m_strFilenameInZip.clear();
 		m_imagehandle = NULL;
 		m_bWriteProtected = false;
@@ -71,7 +73,8 @@ public:
 
 public:
 	std::string m_imagename;	// <FILENAME> (ie. no extension)
-	std::string m_fullname;	// <FILENAME.EXT> or <FILENAME.zip>  : This is persisted to the snapshot file
+	std::string m_fullname;	// <FILENAME.EXT> or <FILENAME.zip>
+    std::string m_fullpath;	// The absolute path of the image, persisted to the snapshot file
 	std::string m_strFilenameInZip;					// ""             or <FILENAME.EXT>
 	ImageInfo* m_imagehandle;						// Init'd by InsertDisk() -> ImageOpen()
 	bool m_bWriteProtected;
@@ -138,7 +141,7 @@ public:
 	void GetLightStatus (Disk_Status_e* pDisk1Status, Disk_Status_e* pDisk2Status);
 
 	ImageError_e InsertDisk(const int drive, LPCTSTR pszImageFilename, const bool bForceWriteProtected, const bool bCreateIfNecessary);
-	void EjectDisk(const int drive);
+	bool EjectDisk(const int drive);
 
 	bool IsConditionForFullSpeed(void);
 	void NotifyInvalidImage(const int drive, LPCTSTR pszImageFilename, const ImageError_e Error);
@@ -179,7 +182,7 @@ private:
 	void CheckSpinning(const ULONG uExecutedCycles);
 	Disk_Status_e GetDriveLightStatus(const int drive);
 	bool IsDriveValid(const int drive);
-	void EjectDiskInternal(const int drive);
+	bool EjectDiskInternal(const int drive);
 	void AllocTrack(const int drive, const UINT minSize=NIBBLES_PER_TRACK);
 	void ReadTrack(const int drive, ULONG uExecutedCycles);
 	void WriteTrack(const int drive);

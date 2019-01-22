@@ -45,6 +45,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../resource/resource.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 // About m_enhanceDisk:
 // . In general m_enhanceDisk==false is used for authentic disk access speed, whereas m_enhanceDisk==true is for enhanced speed.
 // Details:
@@ -332,12 +336,22 @@ void Disk2InterfaceCard::ReadTrack(const int drive, ULONG uExecutedCycles)
 
 //===========================================================================
 
-void Disk2InterfaceCard::EjectDiskInternal(const int drive)
+bool Disk2InterfaceCard::EjectDiskInternal(const int drive)
 {
 	FloppyDisk* pFloppy = &m_floppyDrive[drive].m_disk;
 
 	if (pFloppy->m_imagehandle)
 	{
+#if USE_RETROACHIEVEMENTS
+        if (drive == DRIVE_1 && loaded_title != NULL &&
+            loaded_title->file_type == FileType::FLOPPY_DISK)
+        {
+            if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
+            {
+                return false;
+            }
+        }
+#endif
 		FlushCurrentTrack(drive);
 
 		ImageClose(pFloppy->m_imagehandle);
@@ -354,17 +368,31 @@ void Disk2InterfaceCard::EjectDiskInternal(const int drive)
 	pFloppy->m_imagename.clear();
 	pFloppy->m_fullname.clear();
 	pFloppy->m_strFilenameInZip = "";
+
+    return true;
 }
 
-void Disk2InterfaceCard::EjectDisk(const int drive)
+bool Disk2InterfaceCard::EjectDisk(const int drive)
 {
 	if (!IsDriveValid(drive))
-		return;
+		return false;
 
 	EjectDiskInternal(drive);
 
 	SaveLastDiskImage(drive);
 	Video_ResetScreenshotCounter("");
+
+#if USE_RETROACHIEVEMENTS
+    if (drive == DRIVE_1)
+    {
+#if !RA_RELOAD_MULTI_DISK
+        if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
+#endif
+        RA_ClearTitle();
+    }
+#endif
+
+    return true;
 }
 
 //===========================================================================
@@ -605,8 +633,13 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	FloppyDrive* pDrive = &m_floppyDrive[drive];
 	FloppyDisk* pFloppy = &pDrive->m_disk;
 
-	if (pFloppy->m_imagehandle)
-		EjectDisk(drive);
+    if (pFloppy->m_imagehandle)
+    {
+        bool ejectResult = EjectDisk(drive);
+
+        if (!ejectResult)
+            return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+    }
 
 	// Reset the disk's attributes, but preserve the drive's attributes (GH#138/Platoon, GH#640)
 	// . Changing the disk (in the drive) doesn't affect the drive's attributes.
@@ -629,10 +662,24 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 
 		if (!strcmp(pszOtherPathname.c_str(), szCurrentPathname))
 		{
-			EjectDisk(!drive);
+			bool ejectResult = EjectDisk(!drive);
+
+            if (!ejectResult)
+                return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+
 			FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES);
 		}
 	}
+
+#if USE_RETROACHIEVEMENTS
+    if (drive == DRIVE_1)
+    {
+        if (!RA_PrepareLoadNewRom(pszImageFilename, FileType::FLOPPY_DISK))
+        {
+            return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+        }
+    }
+#endif
 
 	ImageError_e Error = ImageOpen(pszImageFilename,
 		&pFloppy->m_imagehandle,
@@ -655,7 +702,13 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	if (Error == eIMAGE_ERROR_NONE)
 	{
 		GetImageTitle(pszImageFilename, pFloppy->m_imagename, pFloppy->m_fullname);
+        pFloppy->m_fullpath = std::string(pszImageFilename);
 		Video_ResetScreenshotCounter(pFloppy->m_imagename);
+
+#if USE_RETROACHIEVEMENTS
+        if (drive == DRIVE_1)
+            RA_CommitLoadNewRom();
+#endif
 	}
 	else
 	{
@@ -1831,7 +1884,7 @@ std::string Disk2InterfaceCard::GetSnapshotCardName(void)
 void Disk2InterfaceCard::SaveSnapshotFloppy(YamlSaveHelper& yamlSaveHelper, UINT unit)
 {
 	YamlSaveHelper::Label label(yamlSaveHelper, "%s:\n", SS_YAML_KEY_FLOPPY);
-	yamlSaveHelper.SaveString(SS_YAML_KEY_FILENAME, m_floppyDrive[unit].m_disk.m_fullname);
+	yamlSaveHelper.SaveString(SS_YAML_KEY_FILENAME, DiskGetFullPathName(unit));
 	yamlSaveHelper.SaveHexUint16(SS_YAML_KEY_BYTE, m_floppyDrive[unit].m_disk.m_byte);
 	yamlSaveHelper.SaveHexUint16(SS_YAML_KEY_NIBBLES, m_floppyDrive[unit].m_disk.m_nibbles);
 	yamlSaveHelper.SaveHexUint32(SS_YAML_KEY_BIT_OFFSET, m_floppyDrive[unit].m_disk.m_bitOffset);	// v4
@@ -2067,7 +2120,10 @@ bool Disk2InterfaceCard::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT
 	// Eject all disks first in case Drive-2 contains disk to be inserted into Drive-1
 	for (UINT i=0; i<NUM_DRIVES; i++)
 	{
-		EjectDisk(i);	// Remove any disk & update Registry to reflect empty drive
+		// Remove any disk & update Registry to reflect empty drive
+		if (!EjectDisk(i))
+			return false;
+
 		m_floppyDrive[i].clear();
 	}
 
