@@ -58,6 +58,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "Debugger/Debug.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 //#define ENABLE_MENU 0
 #define DEBUG_KEY_MESSAGES 0
 
@@ -1963,6 +1967,11 @@ LRESULT CALLBACK FrameWndProc (
 		ScreenWindowResize(false);
 		break;
 	}
+
+#if USE_RETROACHIEVEMENTS
+    case WM_COMMAND:
+        return RA_HandleMenuEvent(wparam);
+#endif
 
   }	// switch(message)
  

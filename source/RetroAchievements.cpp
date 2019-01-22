@@ -131,10 +131,6 @@ void RebuildMenu()
     if (index >= 0)
         DeleteMenu(hMainMenu, index, MF_BYPOSITION);
 
-    index = GetMenuItemIndex(hMainMenu, "&Debug");
-    if (index >= 0)
-        DeleteMenu(hMainMenu, index, MF_BYPOSITION);
-
     // embed RA
     AppendMenu(hMainMenu, MF_POPUP | MF_STRING, (UINT_PTR)RA_CreatePopupMenu(), TEXT("&RetroAchievements"));
 
@@ -184,13 +180,13 @@ void RA_InitSystem()
     RA_Init(g_hFrameWindow, RA_AppleWin, "9.9.9");
     RA_InitShared();
     RA_AttemptLogin(true);
-    RA_InitMemory();
 }
 
 static HDC main_hdc;
 void RA_InitUI()
 {
     RebuildMenu();
+    RA_InitMemory();
 
     if (main_hdc)
         ReleaseDC(g_hFrameWindow, main_hdc);
