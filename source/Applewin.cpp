@@ -361,7 +361,7 @@ static void ContinueExecution(void)
 #if USE_RETROACHIEVEMENTS
         RA_HandleHTTPResults();
 
-        if (RA_GameIsActive())
+        if (GameIsActive())
             RA_DoAchievementsFrame();
 #endif
 	}
@@ -1141,7 +1141,7 @@ static std::string GetFullPath(LPCSTR szFileName)
 	return strPathName;
 }
 
-static bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
+bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 {
 	Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(slot));
 
@@ -1833,13 +1833,17 @@ static void RepeatInitialization(void)
             {
                 if (loaded_title != NULL)
                 {
+                    Disk2InterfaceCard& disk2CardSlot5 = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT5));
+                    Disk2InterfaceCard& disk2CardSlot6 = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT6));
+
                     switch (loaded_title->file_type)
                     {
                     case FileType::FLOPPY_DISK:
                         HD_Unplug(HARDDISK_1);
                         break;
                     case FileType::HARD_DISK:
-                        DiskEject(DRIVE_1);
+                        disk2CardSlot5.EjectDisk(DRIVE_1);
+                        disk2CardSlot6.EjectDisk(DRIVE_1);
                         break;
                     default:
                         // Prioritize floppy disks

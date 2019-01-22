@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 #include "Common.h"
 
+#include <Shlwapi.h>
+
 #include "zlib.h"
 #include "unzip.h"
 
@@ -1675,7 +1677,7 @@ void CImageHelperBase::SetImageInfo(ImageInfo* pImageInfo, FileType_e eFileGZip,
 
 //-------------------------------------
 
-ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
+ImageError_e CImageHelperBase::Open(	LPCTSTR* pszImageFilename,
 										ImageInfo* pImageInfo,
 										const bool bCreateIfNecessary,
 										std::string& strFilenameInZip)
@@ -1683,19 +1685,19 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
 	pImageInfo->hFile = INVALID_HANDLE_VALUE;
 
 	ImageError_e Err;
-    const size_t uStrLen = strlen(pszImageFilename);
+    const size_t uStrLen = strlen(*pszImageFilename);
 
-    if (uStrLen > GZ_SUFFIX_LEN && _stricmp(pszImageFilename+uStrLen-GZ_SUFFIX_LEN, GZ_SUFFIX) == 0)
+    if (uStrLen > GZ_SUFFIX_LEN && _stricmp((const TCHAR*)pszImageFilename+uStrLen-GZ_SUFFIX_LEN, GZ_SUFFIX) == 0)
 	{
-		Err = CheckGZipFile(pszImageFilename, pImageInfo);
+		Err = CheckGZipFile(*pszImageFilename, pImageInfo);
 	}
-    else if (uStrLen > ZIP_SUFFIX_LEN && _stricmp(pszImageFilename+uStrLen-ZIP_SUFFIX_LEN, ZIP_SUFFIX) == 0)
+    else if (uStrLen > ZIP_SUFFIX_LEN && _stricmp((const TCHAR*)pszImageFilename+uStrLen-ZIP_SUFFIX_LEN, ZIP_SUFFIX) == 0)
 	{
-		Err = CheckZipFile(pszImageFilename, pImageInfo, strFilenameInZip);
+		Err = CheckZipFile(*pszImageFilename, pImageInfo, strFilenameInZip);
 	}
 	else
 	{
-		Err = CheckNormalFile(pszImageFilename, pImageInfo, bCreateIfNecessary);
+		Err = CheckNormalFile(*pszImageFilename, pImageInfo, bCreateIfNecessary);
 	}
 
 	if (pImageInfo->pImageType == NULL && Err == eIMAGE_ERROR_NONE)
@@ -1705,10 +1707,50 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
 		return Err;
 
 	TCHAR szFilename[MAX_PATH] = { 0 };
-	DWORD uNameLen = GetFullPathName(pszImageFilename, MAX_PATH, szFilename, NULL);
+	DWORD uNameLen = GetFullPathName(*pszImageFilename, MAX_PATH, (LPSTR)pImageInfo->szFilename.c_str(), NULL);
 	pImageInfo->szFilename = szFilename;
+
 	if (uNameLen == 0 || uNameLen >= MAX_PATH)
 		Err = eIMAGE_ERROR_FAILED_TO_GET_PATHNAME;
+
+    if (!pImageInfo->bWriteProtected)
+    {
+        // Create a local runtime copy or load an existing one
+        HMODULE hModule = GetModuleHandle(NULL);
+        CHAR path[MAX_PATH];
+        GetModuleFileName(hModule, path, MAX_PATH);
+
+        if (!PathRemoveFileSpec(path))
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        PathAppend(path, "SAVE");
+
+        CreateDirectory(path, NULL);
+
+        CHAR filename[_MAX_FNAME];
+        CHAR extension[_MAX_EXT];
+        _splitpath(*pszImageFilename, NULL, NULL, filename, extension);
+
+        PathAppend(path, StrCat(filename, extension));
+
+        if (!PathFileExists(*pszImageFilename) &&
+            !CopyFile(*pszImageFilename, path, true))
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        ZeroMemory((void *) *pszImageFilename, sizeof(*pszImageFilename));
+        strcpy((char *) *pszImageFilename, path);
+
+        pImageInfo->hFile = CreateFile(*pszImageFilename,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ,
+            (LPSECURITY_ATTRIBUTES)NULL,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL);
+
+        if (!pImageInfo->hFile)
+            return eIMAGE_ERROR_UNABLE_TO_OPEN;
+    }
 
 	return eIMAGE_ERROR_NONE;
 }

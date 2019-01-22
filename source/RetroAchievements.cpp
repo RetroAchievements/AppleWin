@@ -171,7 +171,7 @@ void ResetEmulation()
 void LoadROM(const char* sFullPath)
 {
     // Assume that the image is a floppy disk
-    DoDiskInsert(DRIVE_1, sFullPath);
+    DoDiskInsert(5, DRIVE_1, sFullPath);
 }
 
 void RA_InitShared()
@@ -181,7 +181,7 @@ void RA_InitShared()
 
 void RA_InitSystem()
 {
-    RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
+    RA_Init(g_hFrameWindow, RA_AppleWin, "9.9.9");
     RA_InitShared();
     RA_AttemptLogin(true);
     RA_InitMemory();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include "Card.h"
 #include "SaveState_Structs_common.h"
 #include "Common.h"
@@ -34,7 +35,7 @@ extern AppMode_e g_nAppMode;
 bool GetLoadedSaveStateFlag(void);
 void SetLoadedSaveStateFlag(const bool bFlag);
 bool GetHookAltGrControl(void);
-bool DoDiskInsert(const int nDrive, LPCSTR szFileName);
+bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName);
 bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName);
 
 extern std::string g_sProgramDir;

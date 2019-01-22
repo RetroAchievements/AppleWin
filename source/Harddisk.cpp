@@ -421,7 +421,7 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 #if USE_RETROACHIEVEMENTS
     if (iDrive == HARDDISK_1)
     {
-        if (!RA_PrepareLoadNewRom(pszImageFilename, FileType::HARD_DISK))
+        if (!RA_PrepareLoadNewRom(pszImageFilename.c_str(), FileType::HARD_DISK))
         {
             return false;
         }

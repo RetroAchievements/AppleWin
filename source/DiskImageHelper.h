@@ -304,7 +304,7 @@ public:
 			delete m_vecImageTypes[i];
 	}
 
-	ImageError_e Open(LPCTSTR pszImageFilename, ImageInfo* pImageInfo, const bool bCreateIfNecessary, std::string& strFilenameInZip);
+	ImageError_e Open(LPCTSTR* pszImageFilename, ImageInfo* pImageInfo, const bool bCreateIfNecessary, std::string& strFilenameInZip);
 	void Close(ImageInfo* pImageInfo, const bool bDeleteFile);
 
 	virtual CImageBase* Detect(LPBYTE pImage, DWORD dwSize, const TCHAR* pszExt, DWORD& dwOffset, ImageInfo* pImageInfo) = 0;

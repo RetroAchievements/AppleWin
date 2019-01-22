@@ -343,7 +343,7 @@ bool Disk2InterfaceCard::EjectDiskInternal(const int drive)
 	if (pFloppy->m_imagehandle)
 	{
 #if USE_RETROACHIEVEMENTS
-        if (iDrive == DRIVE_1 && loaded_title != NULL &&
+        if (drive == DRIVE_1 && loaded_title != NULL &&
             loaded_title->file_type == FileType::FLOPPY_DISK)
         {
             if (!RA_ConfirmLoadNewRom(false))
@@ -383,7 +383,7 @@ bool Disk2InterfaceCard::EjectDisk(const int drive)
 	Video_ResetScreenshotCounter("");
 
 #if USE_RETROACHIEVEMENTS
-    if (iDrive == DRIVE_1)
+    if (drive == DRIVE_1)
     {
 #if !RA_RELOAD_MULTI_DISK
         if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
@@ -672,7 +672,7 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	}
 
 #if USE_RETROACHIEVEMENTS
-    if (iDrive == DRIVE_1)
+    if (drive == DRIVE_1)
     {
         if (!RA_PrepareLoadNewRom(pszImageFilename, FileType::FLOPPY_DISK))
         {
