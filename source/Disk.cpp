@@ -671,6 +671,16 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 		}
 	}
 
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == DRIVE_1)
+    {
+        if (!RA_PrepareLoadNewRom(pszImageFilename, FileType::FLOPPY_DISK))
+        {
+            return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+        }
+    }
+#endif
+
 	ImageError_e Error = ImageOpen(pszImageFilename,
 		&pFloppy->m_imagehandle,
 		&pFloppy->m_bWriteProtected,
@@ -693,6 +703,10 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	{
 		GetImageTitle(pszImageFilename, pFloppy->m_imagename, pFloppy->m_fullname);
 		Video_ResetScreenshotCounter(pFloppy->m_imagename);
+
+#if USE_RETROACHIEVEMENTS
+            RA_CommitLoadNewRom();
+#endif
 	}
 	else
 	{

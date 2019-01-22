@@ -1148,24 +1148,7 @@ static bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
-#if USE_RETROACHIEVEMENTS
-    if (nDrive == DRIVE_1)
-    {
-        if (!RA_PrepareLoadNewRom(strPathName.c_str(), FileType::FLOPPY_DISK))
-        {
-            return false;
-        }
-    }
-#endif
-
 	ImageError_e Error = disk2Card.InsertDisk(nDrive, strPathName.c_str(), IMAGE_USE_FILES_WRITE_PROTECT_STATUS, IMAGE_DONT_CREATE);
-
-#if USE_RETROACHIEVEMENTS
-    if (Error == eIMAGE_ERROR_NONE)
-    {
-        RA_CommitLoadNewRom();
-    }
-#endif
 
 	return Error == eIMAGE_ERROR_NONE;
 }
@@ -1175,24 +1158,7 @@ bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
-#if USE_RETROACHIEVEMENTS
-    if (nDrive == HARDDISK_1)
-    {
-        if (!RA_PrepareLoadNewRom(strPathName.c_str(), FileType::HARD_DISK))
-        {
-            return false;
-        }
-    }
-#endif
-
 	BOOL bRes = HD_Insert(nDrive, strPathName.c_str());
-
-#if USE_RETROACHIEVEMENTS
-    if (bRes)
-    {
-        RA_CommitLoadNewRom();
-    }
-#endif
 
 	return bRes ? true : false;
 }
