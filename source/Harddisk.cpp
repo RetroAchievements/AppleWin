@@ -418,16 +418,6 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 		}
 	}
 
-#if USE_RETROACHIEVEMENTS
-    if (iDrive == HARDDISK_1)
-    {
-        if (!RA_PrepareLoadNewRom(pszImageFilename.c_str(), FileType::HARD_DISK))
-        {
-            return false;
-        }
-    }
-#endif
-
 	const bool bCreateIfNecessary = false;		// NB. Don't allow creation of HDV files
 	const bool bExpectFloppy = false;
 	const bool bIsHarddisk = true;
