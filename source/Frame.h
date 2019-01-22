@@ -19,6 +19,7 @@
 
 
 // Prototypes
+    void ResetMachineState();
 	void CtrlReset();
 
 	void    FrameCreateWindow(void);
@@ -45,6 +46,8 @@
 		UINT   message,
 		WPARAM wparam,
 		LPARAM lparam );
+
+    static bool ConfirmReboot(bool bFromButtonUI);
 
 	int GetFullScreenOffsetX(void);
 	int GetFullScreenOffsetY(void);

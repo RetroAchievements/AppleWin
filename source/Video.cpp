@@ -44,6 +44,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "YamlHelper.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 	#define  SW_80COL         (g_uVideoMode & VF_80COL)
 	#define  SW_DHIRES        (g_uVideoMode & VF_DHIRES)
 	#define  SW_HIRES         (g_uVideoMode & VF_HIRES)
@@ -580,6 +584,15 @@ void VideoRefreshScreen ( uint32_t uRedrawWholeScreenVideoMode /* =0*/, bool bRe
 
 	if (hFrameDC)
 	{
+#if USE_RETROACHIEVEMENTS
+        HDC hdc_main = hFrameDC;
+        HDC hdc_buffer = CreateCompatibleDC(hFrameDC);
+        HBITMAP hbm_buffer = CreateCompatibleBitmap(hFrameDC, g_nViewportCX, g_nViewportCY);
+        SelectObject(hdc_buffer, hbm_buffer);
+
+        hFrameDC = hdc_buffer;
+#endif
+
 		int xSrc = GetFrameBufferBorderWidth();
 		int ySrc = GetFrameBufferBorderHeight();
 
@@ -597,6 +610,14 @@ void VideoRefreshScreen ( uint32_t uRedrawWholeScreenVideoMode /* =0*/, bool bRe
 			xSrc, ySrc,
 			GetFrameBufferBorderlessWidth(), GetFrameBufferBorderlessHeight(),
 			SRCCOPY);
+
+#if USE_RETROACHIEVEMENTS
+        RA_RenderOverlayFrame(hFrameDC);
+        BitBlt(hdc_main, 0, 0, wdest, hdest, hFrameDC, 0, 0, SRCCOPY);
+
+        DeleteObject(hbm_buffer);
+        DeleteDC(hdc_buffer);
+#endif
 	}
 
 #ifdef NO_DIRECT_X

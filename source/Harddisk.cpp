@@ -41,6 +41,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../resource/resource.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 /*
 Memory map:
 
@@ -180,8 +184,17 @@ static UINT g_uSlot = 7;
 
 static void HD_SaveLastDiskImage(const int iDrive);
 
-static void HD_CleanupDrive(const int iDrive)
+static bool HD_CleanupDrive(const int iDrive)
 {
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == HARDDISK_1 && loaded_title != NULL &&
+        loaded_title->file_type == FileType::HARD_DISK)
+    {
+        if (!RA_ConfirmLoadNewRom(false))
+            return false;
+    }
+#endif
+
 	if (g_HardDisk[iDrive].imagehandle)
 	{
 		ImageClose(g_HardDisk[iDrive].imagehandle);
@@ -195,6 +208,18 @@ static void HD_CleanupDrive(const int iDrive)
 	g_HardDisk[iDrive].strFilenameInZip = "";
 
 	HD_SaveLastDiskImage(iDrive);
+
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == HARDDISK_1)
+    {
+#if !RA_RELOAD_MULTI_DISK
+        if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
+#endif
+        RA_OnGameClose(FileType::HARD_DISK);
+    }
+#endif
+
+    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -471,10 +496,12 @@ bool HD_Select(const int iDrive)
 	return HD_SelectImage(iDrive, TEXT(""));
 }
 
-void HD_Unplug(const int iDrive)
+bool HD_Unplug(const int iDrive)
 {
 	if (g_HardDisk[iDrive].hd_imageloaded)
-		HD_CleanupDrive(iDrive);
+		return HD_CleanupDrive(iDrive);
+
+    return true;
 }
 
 bool HD_IsDriveUnplugged(const int iDrive)

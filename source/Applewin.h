@@ -34,6 +34,8 @@ extern AppMode_e g_nAppMode;
 bool GetLoadedSaveStateFlag(void);
 void SetLoadedSaveStateFlag(const bool bFlag);
 bool GetHookAltGrControl(void);
+bool DoDiskInsert(const int nDrive, LPCSTR szFileName);
+bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName);
 
 extern std::string g_sProgramDir;
 extern std::string g_sCurrentDir;

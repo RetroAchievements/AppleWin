@@ -45,6 +45,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "../SoundCore.h"	// SoundCore_SetFade()
 #include "../Video.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "../RetroAchievements.h"
+#endif
+
 //	#define DEBUG_COMMAND_HELP  1
 //	#define DEBUG_ASM_HASH 1
 #define ALLOW_INPUT_LOWERCASE 1
@@ -8549,6 +8553,13 @@ static void InitDisasm(void)
 void DebugBegin ()
 {
 	// This is called every time the debugger is entered.
+
+#if USE_RETROACHIEVEMENTS
+    if (!RA_WarnDisableHardcore("use debugging functions"))
+    {
+        return;
+    }
+#endif
 
 	GetDebuggerMemDC();
 

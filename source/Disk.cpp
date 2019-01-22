@@ -45,6 +45,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../resource/resource.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 // About m_enhanceDisk:
 // . In general m_enhanceDisk==false is used for authentic disk access speed, whereas m_enhanceDisk==true is for enhanced speed.
 // Details:
@@ -332,12 +336,22 @@ void Disk2InterfaceCard::ReadTrack(const int drive, ULONG uExecutedCycles)
 
 //===========================================================================
 
-void Disk2InterfaceCard::EjectDiskInternal(const int drive)
+bool Disk2InterfaceCard::EjectDiskInternal(const int drive)
 {
 	FloppyDisk* pFloppy = &m_floppyDrive[drive].m_disk;
 
 	if (pFloppy->m_imagehandle)
 	{
+#if USE_RETROACHIEVEMENTS
+        if (iDrive == DRIVE_1 && loaded_title != NULL &&
+            loaded_title->file_type == FileType::FLOPPY_DISK)
+        {
+            if (!RA_ConfirmLoadNewRom(false))
+            {
+                return false;
+            }
+        }
+#endif
 		FlushCurrentTrack(drive);
 
 		ImageClose(pFloppy->m_imagehandle);
@@ -354,17 +368,31 @@ void Disk2InterfaceCard::EjectDiskInternal(const int drive)
 	pFloppy->m_imagename.clear();
 	pFloppy->m_fullname.clear();
 	pFloppy->m_strFilenameInZip = "";
+
+    return true;
 }
 
-void Disk2InterfaceCard::EjectDisk(const int drive)
+bool Disk2InterfaceCard::EjectDisk(const int drive)
 {
 	if (!IsDriveValid(drive))
-		return;
+		return false;
 
 	EjectDiskInternal(drive);
 
 	SaveLastDiskImage(drive);
 	Video_ResetScreenshotCounter("");
+
+#if USE_RETROACHIEVEMENTS
+    if (iDrive == DRIVE_1)
+    {
+#if !RA_RELOAD_MULTI_DISK
+        if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
+#endif
+        RA_OnGameClose(FileType::FLOPPY_DISK);
+    }
+#endif
+
+    return true;
 }
 
 //===========================================================================
@@ -605,8 +633,13 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	FloppyDrive* pDrive = &m_floppyDrive[drive];
 	FloppyDisk* pFloppy = &pDrive->m_disk;
 
-	if (pFloppy->m_imagehandle)
-		EjectDisk(drive);
+    if (pFloppy->m_imagehandle)
+    {
+        bool ejectResult = EjectDisk(drive);
+
+        if (!ejectResult)
+            return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+    }
 
 	// Reset the disk's attributes, but preserve the drive's attributes (GH#138/Platoon, GH#640)
 	// . Changing the disk (in the drive) doesn't affect the drive's attributes.
@@ -629,7 +662,11 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 
 		if (!strcmp(pszOtherPathname.c_str(), szCurrentPathname))
 		{
-			EjectDisk(!drive);
+			bool ejectResult = EjectDisk(!drive);
+
+            if (!ejectResult)
+                return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
+
 			FrameRefreshStatus(DRAW_LEDS | DRAW_BUTTON_DRIVES);
 		}
 	}

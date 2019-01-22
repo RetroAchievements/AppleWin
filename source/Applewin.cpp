@@ -61,8 +61,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/PropertySheet.h"
 #include "Tfe/Tfe.h"
 
-static const UINT VERSIONSTRING_SIZE = 16;
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
 
+static const UINT VERSIONSTRING_SIZE = 16;
 static UINT16 g_AppleWinVersion[4] = {0};
 static UINT16 g_OldAppleWinVersion[4] = {0};
 TCHAR VERSIONSTRING[VERSIONSTRING_SIZE] = "xx.yy.zz.ww";
@@ -350,10 +353,21 @@ static void ContinueExecution(void)
 	{
 		g_dwCyclesThisFrame -= dwClksPerFrame;
 
+#if USE_RETROACHIEVEMENTS
+        RA_RenderOverlayFrame(FrameGetDC());
+#endif
+
 		if (g_bFullSpeed)
 			VideoRedrawScreenDuringFullSpeed(g_dwCyclesThisFrame);
 		else
 			VideoRefreshScreen(); // Just copy the output of our Apple framebuffer to the system Back Buffer
+
+#if USE_RETROACHIEVEMENTS
+        RA_HandleHTTPResults();
+
+        if (RA_GameIsActive())
+            RA_DoAchievementsFrame();
+#endif
 	}
 
 	if ((g_nAppMode == MODE_RUNNING && !g_bFullSpeed) || bModeStepping_WaitTimer)
@@ -403,6 +417,14 @@ void UseClockMultiplier(double clockMultiplier)
 
 void SetCurrentCLK6502(void)
 {
+#if USE_RETROACHIEVEMENTS
+    if (g_dwSpeed < SPEED_NORMAL)
+    {
+        if (!RA_WarnDisableHardcore("set the speed below 100%"))
+            g_dwSpeed = SPEED_NORMAL;
+    }
+#endif
+
 	static DWORD dwPrevSpeed = (DWORD) -1;
 	static VideoRefreshRate_e prevVideoRefreshRate = VR_NONE;
 
@@ -450,10 +472,23 @@ void EnterMessageLoop(void)
 
 			while ((g_nAppMode == MODE_RUNNING) || (g_nAppMode == MODE_STEPPING))
 			{
+#if USE_RETROACHIEVEMENTS
+                RA_SetPaused(false);
+#endif
+
 				if (PeekMessage(&message,0,0,0,PM_REMOVE))
 				{
-					if (message.message == WM_QUIT)
-						return;
+                    if (message.message == WM_QUIT)
+                    {
+#if USE_RETROACHIEVEMENTS
+                        if (RA_ConfirmLoadNewRom(true))
+                            return;
+                        else
+                            continue;
+#else
+                        return;
+#endif
+                    }
 
 					TranslateMessage(&message);
 					DispatchMessage(&message);
@@ -477,10 +512,16 @@ void EnterMessageLoop(void)
 		{
 			if (g_nAppMode == MODE_DEBUG)
 				DebuggerUpdate();
-			else if (g_nAppMode == MODE_PAUSED)
-				Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
-			else if (g_nAppMode == MODE_LOGO)
-				Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+            else
+            {
+#if USE_RETROACHIEVEMENTS
+                RA_SetPaused(true);
+#endif
+			    if (g_nAppMode == MODE_PAUSED)
+				    Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
+			    else if (g_nAppMode == MODE_LOGO)
+				    Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+            }
 		}
 	}
 }
@@ -1104,16 +1145,52 @@ static bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
+#if USE_RETROACHIEVEMENTS
+    if (nDrive == DRIVE_1)
+    {
+        if (!RA_PrepareLoadNewRom(strPathName.c_str(), FileType::FLOPPY_DISK))
+        {
+            return false;
+        }
+    }
+#endif
+
 	ImageError_e Error = disk2Card.InsertDisk(nDrive, strPathName.c_str(), IMAGE_USE_FILES_WRITE_PROTECT_STATUS, IMAGE_DONT_CREATE);
+
+#if USE_RETROACHIEVEMENTS
+    if (Error == eIMAGE_ERROR_NONE)
+    {
+        RA_CommitLoadNewRom();
+    }
+#endif
+
 	return Error == eIMAGE_ERROR_NONE;
 }
 
-static bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
+bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
 {
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
+#if USE_RETROACHIEVEMENTS
+    if (nDrive == HARDDISK_1)
+    {
+        if (!RA_PrepareLoadNewRom(strPathName.c_str(), FileType::HARD_DISK))
+        {
+            return false;
+        }
+    }
+#endif
+
 	BOOL bRes = HD_Insert(nDrive, strPathName.c_str());
+
+#if USE_RETROACHIEVEMENTS
+    if (bRes)
+    {
+        RA_CommitLoadNewRom();
+    }
+#endif
+
 	return bRes ? true : false;
 }
 
@@ -1761,6 +1838,10 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 	FrameRegisterClass();
 	LogFileOutput("Init: FrameRegisterClass()\n");
 
+#if USE_RETROACHIEVEMENTS
+    RA_InitUI();
+#endif
+
 	ImageInitialize();
 	LogFileOutput("Init: ImageInitialize()\n");
 }
@@ -1772,6 +1853,54 @@ static void RepeatInitialization(void)
 
 		// NB. g_OldAppleWinVersion needed by LoadConfiguration() -> Config_Load_Video()
 		const bool bShowAboutDlg = CheckOldAppleWinVersion();	// Post: g_OldAppleWinVersion
+
+#if USE_RETROACHIEVEMENTS
+        if (RA_HardcoreModeIsActive())
+        {
+            if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)
+            {
+                if (loaded_title != NULL)
+                {
+                    switch (loaded_title->file_type)
+                    {
+                    case FileType::FLOPPY_DISK:
+                        HD_Unplug(HARDDISK_1);
+                        break;
+                    case FileType::HARD_DISK:
+                        DiskEject(DRIVE_1);
+                        break;
+                    default:
+                        // Prioritize floppy disks
+                        HD_Unplug(HARDDISK_1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Should be called before LoadConfiguration() in order to avoid
+        // displaying a warning when resetting to Hardcore mode.
+        if (g_dwSpeed < SPEED_NORMAL)
+        {
+            g_dwSpeed = SPEED_NORMAL;
+        }
+
+        if (loaded_title == NULL)
+        {
+            if (loaded_floppy_disk.data_len > 0)
+                loaded_title = &loaded_floppy_disk;
+            else if (loaded_hard_disk.data_len > 0)
+                loaded_title = &loaded_hard_disk;
+
+            if (loaded_title != NULL)
+            {
+                RA_UpdateAppTitle(loaded_title->name);
+                RA_ActivateGame(loaded_title->title_id);
+            }
+        }
+
+        RA_OnReset();
+#endif
 
 		LoadConfiguration();
 		LogFileOutput("Main: LoadConfiguration()\n");
@@ -1993,6 +2122,10 @@ static void Shutdown(void)
 {
 	if (g_cmdLine.bChangedDisplayResolution)
 		ChangeDisplaySettings(NULL, 0);	// restore default
+
+#if USE_RETROACHIEVEMENTS
+    RA_Shutdown();
+#endif
 
 	// Release COM
 	DDUninit();

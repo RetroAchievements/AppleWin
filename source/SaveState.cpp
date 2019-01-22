@@ -53,6 +53,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Configuration/Config.h"
 #include "Configuration/IPropertySheet.h"
 
+#if USE_RETROACHIEVEMENTS
+#include "RetroAchievements.h"
+#endif
+
 
 #define DEFAULT_SNAPSHOT_NAME "SaveState.aws.yaml"
 
@@ -377,6 +381,13 @@ static void Snapshot_LoadState_v2(void)
 		if (ParseFileHdr() != SS_FILE_VER)
 			throw std::string("Version mismatch");
 
+#if USE_RETROACHIEVEMENTS
+        if (!RA_WarnDisableHardcore("load a state"))
+        {
+            return;
+        }
+#endif
+
 		//
 
 		restart = true;
@@ -458,6 +469,10 @@ static void Snapshot_LoadState_v2(void)
 		DebugReset();
 		if (g_nAppMode == MODE_DEBUG)
 			DebugDisplay(TRUE);
+
+#if USE_RETROACHIEVEMENTS
+        RA_OnLoadState(g_strSaveStatePathname.append(g_strSaveStateFilename).c_str());
+#endif
 	}
 	catch(std::string szMessage)
 	{
@@ -564,6 +579,10 @@ void Snapshot_SaveState(void)
 			if (g_CardMgr.QuerySlot(SLOT7) == CT_GenericHDD)
 				HD_SaveSnapshot(yamlSaveHelper);
 		}
+
+#if USE_RETROACHIEVEMENTS
+        RA_OnSaveState(g_strSaveStatePathname.append(g_strSaveStateFilename).c_str());
+#endif
 	}
 	catch(std::string szMessage)
 	{
