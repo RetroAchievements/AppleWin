@@ -468,10 +468,6 @@ void EnterMessageLoop(void)
 
 			while ((g_nAppMode == MODE_RUNNING) || (g_nAppMode == MODE_STEPPING))
 			{
-#if USE_RETROACHIEVEMENTS
-                RA_SetPaused(false);
-#endif
-
 				if (PeekMessage(&message,0,0,0,PM_REMOVE))
 				{
                     if (message.message == WM_QUIT)
@@ -491,6 +487,11 @@ void EnterMessageLoop(void)
 				}
 				else if (g_nAppMode == MODE_STEPPING)
 				{
+#if USE_RETROACHIEVEMENTS
+                    if (!RA_WarnDisableHardcore("switch to stepping mode"))
+                        g_nAppMode = MODE_RUNNING;
+#endif
+
 					DebugContinueStepping();
 				}
 				else
@@ -507,7 +508,17 @@ void EnterMessageLoop(void)
 		else
 		{
 			if (g_nAppMode == MODE_DEBUG)
+            {
+#if USE_RETROACHIEVEMENTS
+                if (!RA_WarnDisableHardcore("switch to debug mode"))
+                {
+                    g_nAppMode = MODE_RUNNING;
+                    continue;
+                }
+#endif
+
 				DebuggerUpdate();
+            }
             else
             {
 #if USE_RETROACHIEVEMENTS
@@ -515,9 +526,6 @@ void EnterMessageLoop(void)
 #endif
                 if (g_nAppMode == MODE_PAUSED)
                 {
-#if USE_RETROACHIEVEMENTS
-                    RA_SetPaused(true);
-#endif
                     Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
                 }
                 else if (g_nAppMode == MODE_LOGO)

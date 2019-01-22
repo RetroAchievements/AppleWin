@@ -1392,15 +1392,24 @@ LRESULT CALLBACK FrameWndProc (
 					g_nAppMode = MODE_PAUSED;
 					SoundCore_SetFade(FADE_OUT);
 					RevealCursor();
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(true);
+#endif
 					break;
 				case MODE_PAUSED:
 					g_nAppMode = MODE_RUNNING;
 					SoundCore_SetFade(FADE_IN);
 					// Don't call FrameShowCursor(FALSE) else ClipCursor() won't be called
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(false);
+#endif
 					break;
 				case MODE_STEPPING:
 					SoundCore_SetFade(FADE_OUT);
 					DebugStopStepping();
+#if USE_RETROACHIEVEMENTS
+                    RA_SetPaused(false);
+#endif
 					break;
 			}
 			DrawStatusArea((HDC)0,DRAW_TITLE);

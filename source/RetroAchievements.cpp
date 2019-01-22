@@ -349,13 +349,13 @@ void RA_RenderOverlayFrame(HDC hdc)
     RECT window_size = { 0, 0, width, height };
 
     ControllerInput input;
-    input.m_bConfirmPressed = KeybGetKeycode() == VK_RETURN;
-    input.m_bCancelPressed = KeybGetKeycode() == VK_BACK;
-    input.m_bQuitPressed = KeybGetKeycode() == VK_ESCAPE;
-    input.m_bLeftPressed = KeybGetKeycode() == VK_LEFT;
-    input.m_bRightPressed = KeybGetKeycode() == VK_RIGHT;
-    input.m_bUpPressed = KeybGetKeycode() == VK_UP;
-    input.m_bDownPressed = KeybGetKeycode() == VK_DOWN;
+    input.m_bConfirmPressed = GetKeyState(VK_RETURN) & WM_KEYDOWN;
+    input.m_bCancelPressed = GetKeyState(VK_BACK) & WM_KEYDOWN;
+    input.m_bQuitPressed = GetKeyState(VK_ESCAPE) & WM_KEYDOWN;
+    input.m_bLeftPressed = GetKeyState(VK_LEFT) & WM_KEYDOWN;
+    input.m_bRightPressed = GetKeyState(VK_RIGHT) & WM_KEYDOWN;
+    input.m_bUpPressed = GetKeyState(VK_UP) & WM_KEYDOWN;
+    input.m_bDownPressed = GetKeyState(VK_DOWN) & WM_KEYDOWN;
     
     RA_UpdateRenderOverlay(hdc, &input, delta_time, &window_size, IsFullScreen(), g_nAppMode == MODE_PAUSED);
 
