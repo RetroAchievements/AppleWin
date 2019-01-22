@@ -1835,56 +1835,8 @@ static void RepeatInitialization(void)
 		const bool bShowAboutDlg = CheckOldAppleWinVersion();	// Post: g_OldAppleWinVersion
 
 #if USE_RETROACHIEVEMENTS
-        // RA initialization must occur prior to the LoadConfiguration() call.
-
-        if (RA_HardcoreModeIsActive())
-        {
-            if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)
-            {
-                if (loaded_title != NULL)
-                {
-                    Disk2InterfaceCard& disk2CardSlot5 = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT5));
-                    Disk2InterfaceCard& disk2CardSlot6 = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT6));
-
-                    switch (loaded_title->file_type)
-                    {
-                    case FileType::FLOPPY_DISK:
-                        HD_Unplug(HARDDISK_1);
-                        break;
-                    case FileType::HARD_DISK:
-                        disk2CardSlot5.EjectDisk(DRIVE_1);
-                        disk2CardSlot6.EjectDisk(DRIVE_1);
-                        break;
-                    default:
-                        // Prioritize floppy disks
-                        HD_Unplug(HARDDISK_1);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (g_dwSpeed < SPEED_NORMAL)
-        {
-            g_dwSpeed = SPEED_NORMAL;
-        }
-
-        if (loaded_title == NULL)
-        {
-            if (loaded_floppy_disk.data_len > 0)
-                loaded_title = &loaded_floppy_disk;
-            else if (loaded_hard_disk.data_len > 0)
-                loaded_title = &loaded_hard_disk;
-
-            if (loaded_title != NULL)
-            {
-                RA_UpdateAppTitle(loaded_title->name);
-                RA_ActivateGame(loaded_title->title_id);
-            }
-        }
-
-        RA_OnReset();
-        LogFileOutput("Main: RA_OnReset()\n");
+        RA_ProcessReset();
+        LogFileOutput("Main: RA_ProcessReset()\n");
 #endif
 
 		LoadConfiguration();

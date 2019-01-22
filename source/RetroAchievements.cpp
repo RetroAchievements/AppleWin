@@ -6,8 +6,10 @@
 #include "BuildVer.h"
 
 #include "Applewin.h"
+#include "CardManager.h"
 #include "Disk.h"
 #include "Frame.h"
+#include "Harddisk.h"
 #include "Keyboard.h"
 #include "Memory.h"
 
@@ -322,6 +324,54 @@ void RA_OnGameClose(int file_type)
         RA_UpdateAppTitle("");
         RA_OnLoadNewRom(NULL, 0);
     }
+}
+
+void RA_ProcessReset()
+{
+    if (RA_HardcoreModeIsActive())
+    {
+        if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)
+        {
+            if (loaded_title != NULL)
+            {
+                switch (loaded_title->file_type)
+                {
+                case FileType::FLOPPY_DISK:
+                    HD_Unplug(HARDDISK_1);
+                    break;
+                case FileType::HARD_DISK:
+                    g_CardMgr.Remove(SLOT5);
+                    g_CardMgr.Remove(SLOT6);
+                    break;
+                default:
+                    // Prioritize floppy disks
+                    HD_Unplug(HARDDISK_1);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (g_dwSpeed < SPEED_NORMAL)
+    {
+        g_dwSpeed = SPEED_NORMAL;
+    }
+
+    if (loaded_title == NULL)
+    {
+        if (loaded_floppy_disk.data_len > 0)
+            loaded_title = &loaded_floppy_disk;
+        else if (loaded_hard_disk.data_len > 0)
+            loaded_title = &loaded_hard_disk;
+
+        if (loaded_title != NULL)
+        {
+            RA_UpdateAppTitle(loaded_title->name);
+            RA_ActivateGame(loaded_title->title_id);
+        }
+    }
+
+    RA_OnReset();
 }
 
 int RA_HandleMenuEvent(int id)

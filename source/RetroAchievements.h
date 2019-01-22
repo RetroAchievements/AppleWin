@@ -69,6 +69,7 @@ void RA_InitMemory();
 int RA_PrepareLoadNewRom(const char *file_name, FileType file_type);
 void RA_CommitLoadNewRom();
 void RA_OnGameClose(int file_type);
+void RA_ProcessReset();
 int RA_HandleMenuEvent(int id);
 void RA_RenderOverlayFrame(HDC hdc);
 

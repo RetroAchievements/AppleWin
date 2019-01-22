@@ -2082,13 +2082,21 @@ static void ProcessButtonClick(int button, bool bFromButtonUI /*=false*/)
 		else if ((g_nAppMode == MODE_RUNNING) || (g_nAppMode == MODE_DEBUG) || (g_nAppMode == MODE_STEPPING) || (g_nAppMode == MODE_PAUSED))
 		{
 			if (ConfirmReboot(bFromButtonUI))
-			{
+            {
+#if USE_RETROACHIEVEMENTS
+                if (RA_ConfirmLoadNewRom(false))
+                {
+#endif
 				ResetMachineState();
 
 				// NB. Don't exit debugger or stepping
 
 				if (g_nAppMode == MODE_DEBUG)
 					DebugDisplay(TRUE);
+
+#if USE_RETROACHIEVEMENTS
+                }
+#endif
 			}
 		}
 
@@ -2331,6 +2339,11 @@ void ResetMachineState ()
 #endif
 
   SoundCore_SetFade(FADE_NONE);
+
+#if USE_RETROACHIEVEMENTS
+  RA_ProcessReset();
+#endif
+
   LogFileTimeUntilFirstKeyReadReset();
 }
 
