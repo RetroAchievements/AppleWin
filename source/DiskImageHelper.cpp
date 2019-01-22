@@ -1713,6 +1713,7 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR* pszImageFilename,
 	if (uNameLen == 0 || uNameLen >= MAX_PATH)
 		Err = eIMAGE_ERROR_FAILED_TO_GET_PATHNAME;
 
+    // Intercept write-enabled images to point to a local copy
     if (!pImageInfo->bWriteProtected)
     {
         // Create a local runtime copy or load an existing one
@@ -1740,6 +1741,7 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR* pszImageFilename,
         ZeroMemory((void *) *pszImageFilename, sizeof(*pszImageFilename));
         strcpy((char *) *pszImageFilename, path);
 
+        CloseHandle(pImageInfo->hFile);
         pImageInfo->hFile = CreateFile(*pszImageFilename,
             GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ,
