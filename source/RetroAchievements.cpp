@@ -127,7 +127,7 @@ int GetMenuItemIndex(HMENU hMenu, const char* ItemName)
 
 bool GameIsActive()
 {
-    return g_nAppMode == MODE_RUNNING || g_nAppMode == MODE_STEPPING;
+    return loaded_title != NULL;
 }
 
 void CauseUnpause()
