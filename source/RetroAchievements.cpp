@@ -42,68 +42,30 @@ void free_file_info(FileInfo *file)
  * Memory readers/writers for achievement processing                         *
  *****************************************************************************/
 
-#ifndef RA_USE_CPUMEM
-#define RA_USE_CPUMEM 1 // Map to the CPU memory map by default
-#endif
 #ifndef RA_ENABLE_AUXRAM
-#define RA_ENABLE_AUXRAM 1 // Enable auxiliary RAM if CPU memory is disabled
+#define RA_ENABLE_AUXRAM 1 // Enable auxiliary RAM by default
 #endif
-
-unsigned char ByteReader(byte *buf, size_t nOffs)
-{
-    return *(buf + nOffs);
-}
-
-void ByteWriter(byte *buf, size_t nOffs, unsigned char nVal)
-{
-    *(buf + nOffs) = nVal;
-}
-
-unsigned char DummyReader(size_t nOffs)
-{
-    return 0;
-}
-
-void DummyWriter(size_t nOffs, unsigned char nVal)
-{
-    return;
-}
-
-#if RA_USE_CPUMEM
-unsigned char CPUMemoryReader(size_t nOffs)
-{
-    return ByteReader(mem, nOffs);
-}
-
-void CPUMemoryWriter(size_t nOffs, unsigned char nVal)
-{
-    ByteWriter(mem, nOffs, nVal);
-}
-
-#else
 
 unsigned char MainRAMReader(size_t nOffs)
 {
-    return ByteReader(memmain, nOffs);
+    return *MemGetMainPtr(nOffs);
 }
 
 void MainRAMWriter(size_t nOffs, unsigned char nVal)
 {
-    ByteWriter(memmain, nOffs, nVal);
+    *MemGetMainPtr(nOffs) = nVal;
 }
 
 #if RA_ENABLE_AUXRAM
 unsigned char AuxRAMReader(size_t nOffs)
 {
-    return ByteReader(memaux, nOffs);
+    return *MemGetAuxPtr(nOffs);
 }
 
 void AuxRAMWriter(size_t nOffs, unsigned char nVal)
 {
-    ByteWriter(memaux, nOffs, nVal);
+    *MemGetAuxPtr(nOffs) = nVal;
 }
-
-#endif
 #endif
 
 
@@ -224,14 +186,10 @@ void RA_InitMemory()
 
     RA_ClearMemoryBanks();
 
-#if RA_USE_CPUMEM
-    RA_InstallMemoryBank(0, CPUMemoryReader, CPUMemoryWriter, 0x10000);
-#else
     RA_InstallMemoryBank(bank_id++, MainRAMReader, MainRAMWriter, 0x10000);
 
 #if RA_ENABLE_AUXRAM
     RA_InstallMemoryBank(bank_id++, AuxRAMReader, AuxRAMWriter, 0x10000);
-#endif
 #endif
 }
 

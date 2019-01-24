@@ -48,8 +48,6 @@ extern iofunction IORead[256];
 extern iofunction IOWrite[256];
 extern LPBYTE     memwrite[0x100];
 extern LPBYTE     mem;
-extern LPBYTE     memaux;
-extern LPBYTE     memmain;
 extern LPBYTE     memdirty;
 
 #ifdef RAMWORKS
