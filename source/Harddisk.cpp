@@ -889,7 +889,9 @@ bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, co
 	// Unplug all HDDs first in case HDD-2 is to be plugged in as HDD-1
 	for (UINT i=0; i<NUM_HARDDISKS; i++)
 	{
-		HD_Unplug(i);
+		if (!HD_Unplug(i))
+			return false;
+
 		g_HardDisk[i].clear();
 	}
 

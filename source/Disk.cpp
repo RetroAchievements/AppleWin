@@ -2119,7 +2119,10 @@ bool Disk2InterfaceCard::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT
 	// Eject all disks first in case Drive-2 contains disk to be inserted into Drive-1
 	for (UINT i=0; i<NUM_DRIVES; i++)
 	{
-		EjectDisk(i);	// Remove any disk & update Registry to reflect empty drive
+		// Remove any disk & update Registry to reflect empty drive
+		if (!EjectDisk(i))
+			return false;
+
 		m_floppyDrive[i].clear();
 	}
 
