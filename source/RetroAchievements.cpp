@@ -203,6 +203,18 @@ void RA_InitMemory()
                                     even when the title is the same */
 int RA_PrepareLoadNewRom(const char *file_name, FileType file_type)
 {
+    if (!file_name)
+        return FALSE;
+
+    char file_extension[_MAX_EXT];
+    _splitpath(file_name, NULL, NULL, NULL, file_extension);
+
+    if (!strcmp(_strupr(file_extension), ".ZIP") ||
+        !strcmp(_strupr(file_extension), ".GZ"))
+    {
+        return false;
+    }
+
     FILE *f = fopen(file_name, "rb");
 
     if (!f)
