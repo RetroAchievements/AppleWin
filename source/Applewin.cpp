@@ -192,7 +192,12 @@ bool GetHookAltGrControl(void)
 
 static void ResetToLogoMode(void)
 {
-	g_nAppMode = MODE_LOGO;
+#if USE_RETROACHIEVEMENTS
+    g_nAppMode = MODE_RUNNING;
+#else
+    g_nAppMode = MODE_LOGO;
+#endif
+
 	SetLoadedSaveStateFlag(false);
 }
 
@@ -1819,7 +1824,7 @@ static void RepeatInitialization(void)
 {
 #if USE_RETROACHIEVEMENTS
     RA_InitSystem();
-    LogFileOutput("Init: RA_InitUI()\n");
+    LogFileOutput("Init: RA_InitSystem()\n");
 #endif
 
 		ResetToLogoMode();
@@ -1892,6 +1897,7 @@ static void RepeatInitialization(void)
         
 #if USE_RETROACHIEVEMENTS
         RA_InitUI();
+        LogFileOutput("Main: RA_InitUI()\n");
 #endif
 
 		// Allow the 4 hardcoded slots to be configurated as empty
