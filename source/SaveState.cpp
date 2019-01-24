@@ -471,7 +471,7 @@ static void Snapshot_LoadState_v2(void)
 			DebugDisplay(TRUE);
 
 #if USE_RETROACHIEVEMENTS
-        RA_OnLoadState(g_strSaveStatePath.c_str());
+        RA_OnLoadState(g_strSaveStatePathname.c_str());
 #endif
 	}
 	catch(std::string szMessage)
@@ -581,7 +581,7 @@ void Snapshot_SaveState(void)
 		}
 
 #if USE_RETROACHIEVEMENTS
-        RA_OnSaveState(g_strSaveStatePath.c_str());
+        RA_OnSaveState(g_strSaveStatePathname.c_str());
 #endif
 	}
 	catch(std::string szMessage)
