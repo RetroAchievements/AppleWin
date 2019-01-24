@@ -702,6 +702,7 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	if (Error == eIMAGE_ERROR_NONE)
 	{
 		GetImageTitle(pszImageFilename, pFloppy->m_imagename, pFloppy->m_fullname);
+        strcpy(pFloppy->m_fullpath, pszImageFilename);
 		Video_ResetScreenshotCounter(pFloppy->m_imagename);
 
 #if USE_RETROACHIEVEMENTS
@@ -1882,7 +1883,7 @@ std::string Disk2InterfaceCard::GetSnapshotCardName(void)
 void Disk2InterfaceCard::SaveSnapshotFloppy(YamlSaveHelper& yamlSaveHelper, UINT unit)
 {
 	YamlSaveHelper::Label label(yamlSaveHelper, "%s:\n", SS_YAML_KEY_FLOPPY);
-	yamlSaveHelper.SaveString(SS_YAML_KEY_FILENAME, m_floppyDrive[unit].m_disk.m_fullname);
+	yamlSaveHelper.SaveString(SS_YAML_KEY_FILENAME, m_floppyDrive[unit].m_disk.m_fullpath);
 	yamlSaveHelper.SaveHexUint16(SS_YAML_KEY_BYTE, m_floppyDrive[unit].m_disk.m_byte);
 	yamlSaveHelper.SaveHexUint16(SS_YAML_KEY_NIBBLES, m_floppyDrive[unit].m_disk.m_nibbles);
 	yamlSaveHelper.SaveHexUint32(SS_YAML_KEY_BIT_OFFSET, m_floppyDrive[unit].m_disk.m_bitOffset);	// v4

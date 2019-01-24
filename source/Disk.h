@@ -55,6 +55,7 @@ public:
 	{
 		m_imagename.clear();
 		m_fullname.clear();
+        m_fullpath.clear();
 		m_strFilenameInZip.clear();
 		m_imagehandle = NULL;
 		m_bWriteProtected = false;
@@ -72,7 +73,8 @@ public:
 
 public:
 	std::string m_imagename;	// <FILENAME> (ie. no extension)
-	std::string m_fullname;	// <FILENAME.EXT> or <FILENAME.zip>  : This is persisted to the snapshot file
+	std::string m_fullname;	// <FILENAME.EXT> or <FILENAME.zip>
+    std::string m_fullpath;	// The absolute path of the image, persisted to the snapshot file
 	std::string m_strFilenameInZip;					// ""             or <FILENAME.EXT>
 	ImageInfo* m_imagehandle;						// Init'd by InsertDisk() -> ImageOpen()
 	bool m_bWriteProtected;
