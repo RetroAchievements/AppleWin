@@ -35,6 +35,7 @@ extern FileInfo loading_file;
 extern FileInfo *loaded_title;
 
 extern bool confirmed_quitting;
+extern bool is_initialized;
 
 void reset_file_info(FileInfo *file);
 void free_file_info(FileInfo *file);

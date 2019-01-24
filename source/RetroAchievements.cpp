@@ -20,6 +20,7 @@ FileInfo *loaded_title = 0;
 bool should_activate = true;
 
 bool confirmed_quitting = false;
+bool is_initialized = false;
 
 void reset_file_info(FileInfo *file)
 {
@@ -161,9 +162,14 @@ void RA_InitShared()
 
 void RA_InitSystem()
 {
-    RA_Init(g_hFrameWindow, RA_AppleWin, "9.9.9");
-    RA_InitShared();
-    RA_AttemptLogin(true);
+    if (!is_initialized)
+    {
+        RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
+        RA_InitShared();
+        RA_AttemptLogin(true);
+
+        is_initialized = true;
+    }
 
     confirmed_quitting = false;
 }

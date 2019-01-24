@@ -1822,11 +1822,6 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 // DO INITIALIZATION THAT MUST BE REPEATED FOR A RESTART
 static void RepeatInitialization(void)
 {
-#if USE_RETROACHIEVEMENTS
-    RA_InitSystem();
-    LogFileOutput("Init: RA_InitSystem()\n");
-#endif
-
 		ResetToLogoMode();
 
 		// NB. g_OldAppleWinVersion needed by LoadConfiguration() -> Config_Load_Video()
@@ -1896,6 +1891,9 @@ static void RepeatInitialization(void)
 		LogFileOutput("Main: FrameCreateWindow() - post\n");
         
 #if USE_RETROACHIEVEMENTS
+        RA_InitSystem();
+        LogFileOutput("Init: RA_InitSystem()\n");
+
         RA_InitUI();
         LogFileOutput("Main: RA_InitUI()\n");
 #endif
