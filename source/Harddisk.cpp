@@ -190,7 +190,7 @@ static bool HD_CleanupDrive(const int iDrive)
     if (iDrive == HARDDISK_1 && loaded_title != NULL &&
         loaded_title->file_type == FileType::HARD_DISK)
     {
-        if (!RA_ConfirmLoadNewRom(false))
+        if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
             return false;
     }
 #endif

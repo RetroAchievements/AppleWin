@@ -34,6 +34,8 @@ extern FileInfo loaded_hard_disk;
 extern FileInfo loading_file;
 extern FileInfo *loaded_title;
 
+extern bool confirmed_quitting;
+
 void reset_file_info(FileInfo *file);
 void free_file_info(FileInfo *file);
 
@@ -72,6 +74,7 @@ void RA_OnGameClose(int file_type);
 void RA_ProcessReset();
 int RA_HandleMenuEvent(int id);
 void RA_RenderOverlayFrame(HDC hdc);
+int RA_ConfirmQuit();
 
 #endif /* RETROACHIEVEMENTS_H */
 

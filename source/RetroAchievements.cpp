@@ -19,6 +19,8 @@ FileInfo loading_file = FINFO_DEFAULT;
 FileInfo *loaded_title = 0;
 bool should_activate = true;
 
+bool confirmed_quitting = false;
+
 void reset_file_info(FileInfo *file)
 {
     file->data = 0;
@@ -200,6 +202,8 @@ void RA_InitSystem()
     RA_Init(g_hFrameWindow, RA_AppleWin, "9.9.9");
     RA_InitShared();
     RA_AttemptLogin(true);
+
+    confirmed_quitting = false;
 }
 
 static HDC main_hdc;
@@ -433,6 +437,14 @@ void RA_RenderOverlayFrame(HDC hdc)
     RA_UpdateRenderOverlay(hdc, &input, delta_time, &window_size, IsFullScreen(), g_nAppMode == MODE_PAUSED);
 
     last_tick = timeGetTime();
+}
+
+int RA_ConfirmQuit()
+{
+    if (!confirmed_quitting)
+        confirmed_quitting = RA_ConfirmLoadNewRom(true);
+
+    return confirmed_quitting;
 }
 
 #endif

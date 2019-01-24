@@ -472,14 +472,7 @@ void EnterMessageLoop(void)
 				{
                     if (message.message == WM_QUIT)
                     {
-#if USE_RETROACHIEVEMENTS
-                        if (RA_ConfirmLoadNewRom(true))
-                            return;
-                        else
-                            continue;
-#else
                         return;
-#endif
                     }
 
 					TranslateMessage(&message);

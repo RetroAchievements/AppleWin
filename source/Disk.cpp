@@ -346,7 +346,7 @@ bool Disk2InterfaceCard::EjectDiskInternal(const int drive)
         if (drive == DRIVE_1 && loaded_title != NULL &&
             loaded_title->file_type == FileType::FLOPPY_DISK)
         {
-            if (!RA_ConfirmLoadNewRom(false))
+            if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
             {
                 return false;
             }

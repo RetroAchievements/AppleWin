@@ -1095,6 +1095,11 @@ LRESULT CALLBACK FrameWndProc (
       break;
 
     case WM_CLOSE:
+#if USE_RETROACHIEVEMENTS
+        if (!RA_ConfirmQuit())
+            return 0;
+#endif
+
       LogFileOutput("WM_CLOSE\n");
       if (g_bIsFullScreen && g_bRestart)
 		  g_bRestartFullScreen = true;
@@ -1979,7 +1984,10 @@ LRESULT CALLBACK FrameWndProc (
 
 #if USE_RETROACHIEVEMENTS
     case WM_COMMAND:
-        return RA_HandleMenuEvent(wparam);
+    {
+        RA_HandleMenuEvent(wparam);
+        break;
+    }
 #endif
 
   }	// switch(message)
