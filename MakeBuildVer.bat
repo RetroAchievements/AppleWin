@@ -1,6 +1,6 @@
 @echo off
 
-git describe --tags --match "RAPPLEWIN.*" > Temp.txt
+git describe --tags --match "RAppleWin.*" > Temp.txt
 set /p ACTIVE_TAG=<Temp.txt
 set VERSION_NUM=%ACTIVE_TAG:~10,4%
 set VERSION_REVISION=%ACTIVE_TAG:~15,-9%
