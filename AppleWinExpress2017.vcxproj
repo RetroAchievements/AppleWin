@@ -500,14 +500,10 @@
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>MakeBuildVer.bat</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
       <Command>echo Performing unit-test: TestCPU6502
-.\Debug\TestCPU6502.exe</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
-      <Message>Performing unit-test: TestCPU6502</Message>
+.\Debug\TestCPU6502.exe
+echo Generating build version
+.\MakeBuildVer.bat</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">
@@ -593,14 +589,10 @@
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='X86' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>MakeBuildVer.bat</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
       <Command>echo Performing unit-test: TestCPU6502
-.\Release\TestCPU6502.exe</Command>
-    </PreBuildEvent>
-    <PreBuildEvent>
-      <Message>Performing unit-test: TestCPU6502</Message>
+.\Release\TestCPU6502.exe
+echo Generating build version
+.\MakeBuildVer.bat</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">
