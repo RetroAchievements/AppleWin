@@ -2719,13 +2719,7 @@ void FrameCreateWindow(void)
 
 #if USE_RETROACHIEVEMENTS
     // Create an empty menu bar to hold the RetroAchievements menu
-
-    HMENU hMenubar;
-    HMENU hMenu;
-
-    hMenubar = CreateMenu();
-    hMenu = CreateMenu();
-
+    HMENU hMenubar = CreateMenu();
     SetMenu(g_hFrameWindow, hMenubar);
 #endif
 
