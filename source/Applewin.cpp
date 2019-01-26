@@ -366,7 +366,7 @@ static void ContinueExecution(void)
 #if USE_RETROACHIEVEMENTS
         RA_HandleHTTPResults();
 
-        if (GameIsActive())
+        if (g_nAppMode == MODE_RUNNING)
             RA_DoAchievementsFrame();
 #endif
 	}
