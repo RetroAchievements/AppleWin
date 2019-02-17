@@ -921,6 +921,10 @@ static void DrawStatusArea (HDC passdc, int drawflags)
 		return;
 	}
 
+#if USE_RETROACHIEVEMENTS
+    drawflags &= ~DRAW_TITLE;
+#endif
+
 	FrameReleaseDC();
 	HDC  dc     = (passdc ? passdc : GetDC(g_hFrameWindow));
 	int  x      = buttonx;
