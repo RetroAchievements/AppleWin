@@ -162,14 +162,17 @@ void RA_InitShared()
 
 void RA_InitSystem()
 {
-    if (!is_initialized)
-    {
-        RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
-        RA_InitShared();
-        RA_AttemptLogin(true);
+    /* Since this function is called on restart, and the window is
+       reinitialized, it is necessary to shut down RA and restart it
+       to refresh the window handle. */
+    if (is_initialized)
+        RA_Shutdown();
 
-        is_initialized = true;
-    }
+    RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
+    RA_InitShared();
+    RA_AttemptLogin(true);
+
+    is_initialized = true;
 
     confirmed_quitting = false;
 }
