@@ -215,7 +215,7 @@ static bool HD_CleanupDrive(const int iDrive)
 #if !RA_RELOAD_MULTI_DISK
         if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
 #endif
-        RA_OnGameClose(FileType::HARD_DISK);
+        RA_ClearTitle();
     }
 #endif
 

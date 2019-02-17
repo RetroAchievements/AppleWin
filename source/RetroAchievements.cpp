@@ -327,13 +327,21 @@ void RA_OnGameClose(int file_type)
 
     if (loaded_title == NULL && loading_file.data_len == 0)
     {
-        RA_UpdateAppTitle("");
-        RA_OnLoadNewRom(NULL, 0);
+        RA_ClearTitle();
     }
+}
+
+void RA_ClearTitle()
+{
+    RA_UpdateAppTitle("");
+    RA_OnLoadNewRom(NULL, 0);
 }
 
 void RA_ProcessReset()
 {
+    if (Disk_IsDriveEmpty(DRIVE_1)) RA_OnGameClose(FileType::FLOPPY_DISK);
+    if (HD_IsDriveUnplugged(HARDDISK_1)) RA_OnGameClose(FileType::HARD_DISK);
+
     if (RA_HardcoreModeIsActive())
     {
         if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)

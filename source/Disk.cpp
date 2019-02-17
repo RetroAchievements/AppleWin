@@ -388,7 +388,7 @@ bool Disk2InterfaceCard::EjectDisk(const int drive)
 #if !RA_RELOAD_MULTI_DISK
         if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
 #endif
-        RA_OnGameClose(FileType::FLOPPY_DISK);
+        RA_ClearTitle();
     }
 #endif
 
