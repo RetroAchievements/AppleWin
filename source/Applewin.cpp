@@ -192,11 +192,7 @@ bool GetHookAltGrControl(void)
 
 static void ResetToLogoMode(void)
 {
-#if USE_RETROACHIEVEMENTS
-    g_nAppMode = MODE_RUNNING;
-#else
     g_nAppMode = MODE_LOGO;
-#endif
 
 	SetLoadedSaveStateFlag(false);
 }
