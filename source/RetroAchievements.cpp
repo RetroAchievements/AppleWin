@@ -363,18 +363,15 @@ void RA_ProcessReset()
         g_dwSpeed = SPEED_NORMAL;
     }
 
-    if (loaded_title == NULL)
-    {
-        if (loaded_floppy_disk.data_len > 0)
-            loaded_title = &loaded_floppy_disk;
-        else if (loaded_hard_disk.data_len > 0)
-            loaded_title = &loaded_hard_disk;
+    if (loaded_floppy_disk.data_len > 0)
+        loaded_title = &loaded_floppy_disk;
+    else if (loaded_hard_disk.data_len > 0)
+        loaded_title = &loaded_hard_disk;
 
-        if (loaded_title != NULL)
-        {
-            RA_UpdateAppTitle(loaded_title->name);
-            RA_ActivateGame(loaded_title->title_id);
-        }
+    if (loaded_title != NULL)
+    {
+        RA_UpdateAppTitle(loaded_title->name);
+        RA_ActivateGame(loaded_title->title_id);
     }
 
     RA_OnReset();

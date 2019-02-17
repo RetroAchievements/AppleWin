@@ -1826,11 +1826,6 @@ static void RepeatInitialization(void)
 		// NB. g_OldAppleWinVersion needed by LoadConfiguration() -> Config_Load_Video()
 		const bool bShowAboutDlg = CheckOldAppleWinVersion();	// Post: g_OldAppleWinVersion
 
-#if USE_RETROACHIEVEMENTS
-        RA_ProcessReset();
-        LogFileOutput("Main: RA_ProcessReset()\n");
-#endif
-
 		LoadConfiguration();
 		LogFileOutput("Main: LoadConfiguration()\n");
 
@@ -1895,6 +1890,9 @@ static void RepeatInitialization(void)
 
         RA_InitUI();
         LogFileOutput("Main: RA_InitUI()\n");
+
+        RA_ProcessReset();
+        LogFileOutput("Main: RA_ProcessReset()\n");
 #endif
 
 		// Allow the 4 hardcoded slots to be configurated as empty
