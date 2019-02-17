@@ -590,39 +590,59 @@ void VideoRefreshScreen ( uint32_t uRedrawWholeScreenVideoMode /* =0*/, bool bRe
 
 	if (hFrameDC)
 	{
-#if USE_RETROACHIEVEMENTS
-        HDC hdc_main = hFrameDC;
-        HDC hdc_buffer = CreateCompatibleDC(hFrameDC);
-        HBITMAP hbm_buffer = CreateCompatibleBitmap(hFrameDC, g_nViewportCX, g_nViewportCY);
-        SelectObject(hdc_buffer, hbm_buffer);
-
-        hFrameDC = hdc_buffer;
-#endif
 
 		int xSrc = GetFrameBufferBorderWidth();
 		int ySrc = GetFrameBufferBorderHeight();
+        int wSrc = GetFrameBufferBorderlessWidth();
+        int hSrc = GetFrameBufferBorderlessHeight();
+		VideoFrameBufferAdjust(xSrc, ySrc);	// TC: Hacky-fix for GH#341
 
 		int xdest = IsFullScreen() ? GetFullScreenOffsetX() : 0;
 		int ydest = IsFullScreen() ? GetFullScreenOffsetY() : 0;
 		int wdest = g_nViewportCX;
 		int hdest = g_nViewportCY;
 
-		SetStretchBltMode(hFrameDC, COLORONCOLOR);
+#if USE_RETROACHIEVEMENTS
+        // Double buffer the frame in order to render both graphics and overlay without flickering
+
+        HDC hMainDC = hFrameDC;
+        HDC hMainDCBuffer = CreateCompatibleDC(hFrameDC);
+        HBITMAP hBitmapBuffer = CreateCompatibleBitmap(hFrameDC, wSrc, hSrc);
+        SelectObject(hMainDCBuffer, hBitmapBuffer);
+
+        hFrameDC = hMainDCBuffer;
+        BitBlt(hFrameDC, 0, 0, wSrc, hSrc, g_hDeviceDC, xSrc, ySrc, SRCCOPY);
+#else
+        // No need to double buffer, render the graphics directly
+
+        SetStretchBltMode(hFrameDC, COLORONCOLOR);
 		StretchBlt(
 			hFrameDC, 
 			xdest, ydest,
 			wdest, hdest,
 			g_hDeviceDC,
 			xSrc, ySrc,
-			GetFrameBufferBorderlessWidth(), GetFrameBufferBorderlessHeight(),
+			wSrc, hSrc,
 			SRCCOPY);
+#endif
 
 #if USE_RETROACHIEVEMENTS
-        RA_RenderOverlayFrame(hFrameDC);
-        BitBlt(hdc_main, 0, 0, wdest, hdest, hFrameDC, 0, 0, SRCCOPY);
+        // Finally draw the buffered frame
 
-        DeleteObject(hbm_buffer);
-        DeleteDC(hdc_buffer);
+        RA_RenderOverlayFrame(hFrameDC);
+
+        SetStretchBltMode(hMainDC, COLORONCOLOR);
+        StretchBlt(
+            hMainDC,
+            xdest, ydest,
+            wdest, hdest,
+            hFrameDC,
+            0, 0,
+            wSrc, hSrc,
+            SRCCOPY);
+
+        DeleteObject(hBitmapBuffer);
+        DeleteDC(hMainDCBuffer);
 #endif
 	}
 

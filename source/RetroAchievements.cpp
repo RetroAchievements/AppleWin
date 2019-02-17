@@ -397,8 +397,7 @@ void RA_RenderOverlayFrame(HDC hdc)
 
     float delta_time = (timeGetTime() - last_tick) / 1000.0f;
     int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
-    int offx = (GetFrameBufferWidth() - width) / 2, offy = (GetFrameBufferHeight() - height) / 2;
-    offx = 0; offy = 0;
+    int offx = GetFrameBufferBorderWidth(); int offy = GetFrameBufferBorderHeight();
     RECT window_size = { offx, offy, width, height };
 
     ControllerInput input;
