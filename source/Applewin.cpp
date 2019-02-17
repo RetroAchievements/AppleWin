@@ -515,15 +515,18 @@ void EnterMessageLoop(void)
             }
             else
             {
-#if USE_RETROACHIEVEMENTS
-                VideoRefreshScreen();
-#endif
                 if (g_nAppMode == MODE_PAUSED)
                 {
+#if USE_RETROACHIEVEMENTS
+                    VideoRefreshScreen();
+#endif
                     Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
                 }
                 else if (g_nAppMode == MODE_LOGO)
                 {
+#if USE_RETROACHIEVEMENTS
+                    VideoDisplayLogo();
+#endif
                     Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
                 }
             }
