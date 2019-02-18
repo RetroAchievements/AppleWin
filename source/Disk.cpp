@@ -706,6 +706,7 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 		Video_ResetScreenshotCounter(pFloppy->m_imagename);
 
 #if USE_RETROACHIEVEMENTS
+        if (iDrive == DRIVE_1)
             RA_CommitLoadNewRom();
 #endif
 	}

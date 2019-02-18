@@ -440,7 +440,8 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 		GetImageTitle(pszImageFilename.c_str(), g_HardDisk[iDrive].imagename, g_HardDisk[iDrive].fullname);
 
 #if USE_RETROACHIEVEMENTS
-        RA_CommitLoadNewRom();
+        if (iDrive == HARDDISK_1)
+            RA_CommitLoadNewRom();
 #endif
 	}
 
