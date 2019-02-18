@@ -1361,6 +1361,10 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 		do
 		{
 			g_bRestart = false;
+            
+#if USE_RETROACHIEVEMENTS
+            RA_Shutdown();
+#endif
 
 			RepeatInitialization();
 
@@ -2058,10 +2062,6 @@ static void Shutdown(void)
 {
 	if (g_cmdLine.bChangedDisplayResolution)
 		ChangeDisplaySettings(NULL, 0);	// restore default
-
-#if USE_RETROACHIEVEMENTS
-    RA_Shutdown();
-#endif
 
 	// Release COM
 	DDUninit();
