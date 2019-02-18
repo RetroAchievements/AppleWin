@@ -162,31 +162,17 @@ void RA_InitShared()
 
 void RA_InitSystem()
 {
-    /* Since this function is called on restart, and the window is
-       reinitialized, it is necessary to shut down RA and restart it
-       to refresh the window handle. */
-    if (is_initialized)
-        RA_Shutdown();
-
     RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
     RA_InitShared();
     RA_AttemptLogin(true);
 
-    is_initialized = true;
-
     confirmed_quitting = false;
 }
 
-static HDC main_hdc;
 void RA_InitUI()
 {
     RebuildMenu();
     RA_InitMemory();
-
-    if (main_hdc)
-        ReleaseDC(g_hFrameWindow, main_hdc);
-
-    main_hdc = GetDC(g_hFrameWindow);
 }
 
 void RA_InitMemory()
@@ -400,9 +386,6 @@ int RA_HandleMenuEvent(int id)
 static unsigned long last_tick = timeGetTime(); // Last call time of RA_RenderOverlayFrame()
 void RA_RenderOverlayFrame(HDC hdc)
 {
-    if (!hdc)
-        hdc = main_hdc;
-
     float delta_time = (timeGetTime() - last_tick) / 1000.0f;
     int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
     int offx = GetFrameBufferBorderWidth(); int offy = GetFrameBufferBorderHeight();
@@ -416,7 +399,7 @@ void RA_RenderOverlayFrame(HDC hdc)
     input.m_bRightPressed = GetKeyState(VK_RIGHT) & WM_KEYDOWN;
     input.m_bUpPressed = GetKeyState(VK_UP) & WM_KEYDOWN;
     input.m_bDownPressed = GetKeyState(VK_DOWN) & WM_KEYDOWN;
-    
+
     RA_UpdateRenderOverlay(hdc, &input, delta_time, &window_size, IsFullScreen(), g_nAppMode == MODE_PAUSED);
 
     last_tick = timeGetTime();
