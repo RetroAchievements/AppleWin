@@ -192,7 +192,7 @@ bool GetHookAltGrControl(void)
 
 static void ResetToLogoMode(void)
 {
-    g_nAppMode = MODE_LOGO;
+	g_nAppMode = MODE_LOGO;
 
 	SetLoadedSaveStateFlag(false);
 }
@@ -360,10 +360,10 @@ static void ContinueExecution(void)
 			VideoRefreshScreen(); // Just copy the output of our Apple framebuffer to the system Back Buffer
 
 #if USE_RETROACHIEVEMENTS
-        RA_HandleHTTPResults();
+		RA_HandleHTTPResults();
 
-        if (g_nAppMode == MODE_RUNNING)
-            RA_DoAchievementsFrame();
+		if (g_nAppMode == MODE_RUNNING)
+			RA_DoAchievementsFrame();
 #endif
 	}
 
@@ -415,11 +415,11 @@ void UseClockMultiplier(double clockMultiplier)
 void SetCurrentCLK6502(void)
 {
 #if USE_RETROACHIEVEMENTS
-    if (g_dwSpeed < SPEED_NORMAL)
-    {
-        if (!RA_WarnDisableHardcore("set the speed below 100%"))
-            g_dwSpeed = SPEED_NORMAL;
-    }
+	if (g_dwSpeed < SPEED_NORMAL)
+	{
+		if (!RA_WarnDisableHardcore("set the speed below 100%"))
+			g_dwSpeed = SPEED_NORMAL;
+	}
 #endif
 
 	static DWORD dwPrevSpeed = (DWORD) -1;
@@ -471,10 +471,10 @@ void EnterMessageLoop(void)
 			{
 				if (PeekMessage(&message,0,0,0,PM_REMOVE))
 				{
-                    if (message.message == WM_QUIT)
-                    {
-                        return;
-                    }
+					if (message.message == WM_QUIT)
+					{
+						return;
+					}
 
 					TranslateMessage(&message);
 					DispatchMessage(&message);
@@ -482,14 +482,13 @@ void EnterMessageLoop(void)
 				else if (g_nAppMode == MODE_STEPPING)
 				{
 #if USE_RETROACHIEVEMENTS
-                    if (!RA_WarnDisableHardcore("switch to stepping mode"))
-                        g_nAppMode = MODE_RUNNING;
+					if (!RA_WarnDisableHardcore("switch to stepping mode"))
+						g_nAppMode = MODE_RUNNING;
 #endif
 
 					DebugContinueStepping();
 				}
-				else
-				{
+				else			{
 					ContinueExecution();
 					if (g_nAppMode != MODE_DEBUG)
 					{
@@ -502,34 +501,34 @@ void EnterMessageLoop(void)
 		else
 		{
 			if (g_nAppMode == MODE_DEBUG)
-            {
+			{
 #if USE_RETROACHIEVEMENTS
-                if (!RA_WarnDisableHardcore("switch to debug mode"))
-                {
-                    g_nAppMode = MODE_RUNNING;
-                    continue;
-                }
+				if (!RA_WarnDisableHardcore("switch to debug mode"))
+				{
+					g_nAppMode = MODE_RUNNING;
+					continue;
+				}
 #endif
 
 				DebuggerUpdate();
-            }
-            else
-            {
-                if (g_nAppMode == MODE_PAUSED)
-                {
+			}
+			else
+			{
+				if (g_nAppMode == MODE_PAUSED)
+				{
 #if USE_RETROACHIEVEMENTS
-                    VideoRefreshScreen();
+					VideoRefreshScreen();
 #endif
-                    Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
-                }
-                else if (g_nAppMode == MODE_LOGO)
-                {
+					Sleep(1);		// Stop process hogging CPU - 1ms, as need to fade-out speaker sound buffer
+				}
+				else if (g_nAppMode == MODE_LOGO)
+				{
 #if USE_RETROACHIEVEMENTS
-                    VideoDisplayLogo();
+					VideoDisplayLogo();
 #endif
-                    Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
-                }
-            }
+					Sleep(1);		// Stop process hogging CPU (NB. don't delay for too long otherwise key input can be slow in other apps - GH#569)
+				}
+			}
 		}
 	}
 }
@@ -1737,33 +1736,33 @@ static void GetAppleWinVersion(void)
     if (0 == GetModuleFileName(NULL, szPath, sizeof(szPath)))
         strcpy_s(szPath, sizeof(szPath), __argv[0]);
 
-    // Extract application version and store in a global variable
-    DWORD dwHandle, dwVerInfoSize;
+	// Extract application version and store in a global variable
+	DWORD dwHandle, dwVerInfoSize;
 
-    dwVerInfoSize = GetFileVersionInfoSize(szPath, &dwHandle);
+	dwVerInfoSize = GetFileVersionInfoSize(szPath, &dwHandle);
 
-    if (dwVerInfoSize > 0)
-    {
-        char* pVerInfoBlock = new char[dwVerInfoSize];
+	if (dwVerInfoSize > 0)
+	{
+		char* pVerInfoBlock = new char[dwVerInfoSize];
 
-        if (GetFileVersionInfo(szPath, NULL, dwVerInfoSize, pVerInfoBlock))
-        {
-            VS_FIXEDFILEINFO* pFixedFileInfo;
-            UINT pFixedFileInfoLen;
+		if (GetFileVersionInfo(szPath, NULL, dwVerInfoSize, pVerInfoBlock))
+		{
+			VS_FIXEDFILEINFO* pFixedFileInfo;
+			UINT pFixedFileInfoLen;
 
-            VerQueryValue(pVerInfoBlock, TEXT("\\"), (LPVOID*) &pFixedFileInfo, (PUINT) &pFixedFileInfoLen);
+			VerQueryValue(pVerInfoBlock, TEXT("\\"), (LPVOID*) &pFixedFileInfo, (PUINT) &pFixedFileInfoLen);
 
-            // Construct version string from fixed file info block
+			// Construct version string from fixed file info block
 
-            unsigned long major     = g_AppleWinVersion[0] = pFixedFileInfo->dwFileVersionMS >> 16;
-            unsigned long minor     = g_AppleWinVersion[1] = pFixedFileInfo->dwFileVersionMS & 0xffff;
-            unsigned long fix       = g_AppleWinVersion[2] = pFixedFileInfo->dwFileVersionLS >> 16;
+			unsigned long major     = g_AppleWinVersion[0] = pFixedFileInfo->dwFileVersionMS >> 16;
+			unsigned long minor     = g_AppleWinVersion[1] = pFixedFileInfo->dwFileVersionMS & 0xffff;
+			unsigned long fix       = g_AppleWinVersion[2] = pFixedFileInfo->dwFileVersionLS >> 16;
 			unsigned long fix_minor = g_AppleWinVersion[3] = pFixedFileInfo->dwFileVersionLS & 0xffff;
 			StringCbPrintf(VERSIONSTRING, VERSIONSTRING_SIZE, "%d.%d.%d.%d", major, minor, fix, fix_minor);
 		}
 
 		delete [] pVerInfoBlock;
-    }
+	}
 
 	LogFileOutput("AppleWin version: %s\n",  VERSIONSTRING);
 }
@@ -1885,14 +1884,11 @@ static void RepeatInitialization(void)
 		LogFileOutput("Main: FrameCreateWindow() - post\n");
         
 #if USE_RETROACHIEVEMENTS
-        RA_InitSystem();
-        LogFileOutput("Init: RA_InitSystem()\n");
+		RA_InitSystem();
+		LogFileOutput("Init: RA_InitSystem()\n");
 
-        RA_InitUI();
-        LogFileOutput("Main: RA_InitUI()\n");
-
-        RA_ProcessReset();
-        LogFileOutput("Main: RA_ProcessReset()\n");
+		RA_InitUI();
+		LogFileOutput("Main: RA_InitUI()\n");
 #endif
 
 		// Allow the 4 hardcoded slots to be configurated as empty
@@ -1935,6 +1931,11 @@ static void RepeatInitialization(void)
 
 		MemInitialize();
 		LogFileOutput("Main: MemInitialize()\n");
+
+#if USE_RETROACHIEVEMENTS
+		RA_ProcessReset();
+		LogFileOutput("Main: RA_ProcessReset()\n");
+#endif
 
 		// Show About dialog after creating main window (need g_hFrameWindow)
 		if (bShowAboutDlg)
