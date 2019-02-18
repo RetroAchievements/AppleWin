@@ -476,7 +476,10 @@ void VideoDisplayLogo ()
 
 #undef  DRAWVERSION
 
+#if USE_RETROACHIEVEMENTS
     RA_RenderOverlayFrame(hFrameDC);
+#endif
+
     StretchBlt(hMainDC, xoff, yoff, width*scale, height*scale,
         hFrameDC, 0, 0, width, height, SRCCOPY);
 
