@@ -1760,6 +1760,20 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR* pszImageFilename,
 
         if (!pImageInfo->hFile)
             return eIMAGE_ERROR_UNABLE_TO_OPEN;
+
+        // This omits some of the error detection done as part of CheckNormalFile(),
+        // and assumes that the save copy matches the original.
+        delete[] pImageInfo->pImageBuffer;
+        pImageInfo->pImageBuffer = new BYTE[pImageInfo->uImageSize];
+
+        DWORD dwBytesRead;
+        BOOL bRes = ReadFile(pImageInfo->hFile, pImageInfo->pImageBuffer, pImageInfo->uImageSize, &dwBytesRead, NULL);
+        if (!bRes || pImageInfo->uImageSize != dwBytesRead)
+        {
+            delete[] pImageInfo->pImageBuffer;
+            pImageInfo->pImageBuffer = NULL;
+            return eIMAGE_ERROR_BAD_SIZE;
+        }
     }
 
 	return eIMAGE_ERROR_NONE;
