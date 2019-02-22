@@ -375,17 +375,34 @@ static void Snapshot_LoadState_v2(void)
 
 	try
 	{
-		if (!yamlHelper.InitParser( g_strSaveStatePathname.c_str() ))
-			throw std::string("Failed to initialize parser or open file");
+		std::string err_msg = "";
+		int res = yamlHelper.InitParser( g_strSaveStatePathname.c_str() )
+		if (!res)
+		{
+			err_msg = "Failed to initialize parser or open file";
+		}
+		else
+		{
+			UINT version = ParseFileHdr();
+			if (version != SS_FILE_VER)
+				err_msg = "Version mismatch";
+		}
 
-		if (ParseFileHdr() != SS_FILE_VER)
-			throw std::string("Version mismatch");
+		if (err_msg != "")
+		{
+			MessageBox(g_hFrameWindow,
+				err_msg.c_str(),
+				TEXT("Load State"),
+				MB_ICONEXCLAMATION | MB_SETFOREGROUND);
+
+			return;
+		}
 
 #if USE_RETROACHIEVEMENTS
-        if (!RA_WarnDisableHardcore("load a state"))
-        {
-            return;
-        }
+		if (!RA_WarnDisableHardcore("load a state"))
+		{
+			return;
+		}
 #endif
 
 		//
