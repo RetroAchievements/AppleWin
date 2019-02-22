@@ -339,7 +339,7 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 
 //---
 
-static void ParseUnit(void)
+static void ParseUnit(bool loading_state = false)
 {
 	yamlHelper.GetMapStartEvent();
 
@@ -361,6 +361,10 @@ static void ParseUnit(void)
 	}
 	else if (unit == GetSnapshotUnitSlotsName())
 	{
+#if USE_RETROACHIEVEMENTS
+		// Disable loading slots with save states RA due to conflicts with the toolkit
+		if (!loading_state)
+#endif
 		ParseSlots(yamlLoadHelper, unitVersion);
 	}
 	else
@@ -460,7 +464,7 @@ static void Snapshot_LoadState_v2(void)
 		while(yamlHelper.GetScalar(scalar))
 		{
 			if (scalar == SS_YAML_KEY_UNIT)
-				ParseUnit();
+				ParseUnit(true);
 			else
 				throw std::string("Unknown top-level scalar: " + scalar);
 		}
