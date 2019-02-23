@@ -392,8 +392,7 @@ void RA_RenderOverlayFrame(HDC hdc)
 {
     float delta_time = (timeGetTime() - last_tick) / 1000.0f;
     int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
-    int offx = GetFrameBufferBorderWidth(); int offy = GetFrameBufferBorderHeight();
-    RECT window_size = { offx, offy, width, height };
+    RECT window_size = { 0, 0, width, height };
 
     ControllerInput input;
     input.m_bConfirmPressed = GetKeyState(VK_RETURN) & WM_KEYDOWN;
