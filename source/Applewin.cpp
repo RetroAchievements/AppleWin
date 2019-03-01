@@ -362,7 +362,7 @@ static void ContinueExecution(void)
 #if USE_RETROACHIEVEMENTS
 		RA_HandleHTTPResults();
 
-		if (g_nAppMode == MODE_RUNNING)
+		if (g_nAppMode == MODE_RUNNING || g_nAppMode == MODE_STEPPING)
 			RA_DoAchievementsFrame();
 #endif
 	}
