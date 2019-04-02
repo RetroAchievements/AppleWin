@@ -223,6 +223,9 @@ int RA_PrepareLoadNewRom(const char *file_name, FileType file_type)
     loading_file.data_len = file_size;
 
     BYTE * const file_data = (BYTE *)malloc(file_size * sizeof(BYTE));
+    if (!file_data)
+        return FALSE;
+
     loading_file.data = file_data;
     fseek(f, 0, SEEK_SET);
     fread(file_data, sizeof(BYTE), file_size, f);
