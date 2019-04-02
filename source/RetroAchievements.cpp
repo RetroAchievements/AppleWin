@@ -1,5 +1,6 @@
 #if USE_RETROACHIEVEMENTS
 
+#include <assert.h>
 #include <windows.h>
 
 #include "RetroAchievements.h"
@@ -49,23 +50,27 @@ void free_file_info(FileInfo *file)
 
 unsigned char MainRAMReader(size_t nOffs)
 {
-    return *MemGetMainPtr(nOffs);
+    assert(nOffs <= 0xFFFF);
+    return *MemGetMainPtr((WORD)nOffs);
 }
 
 void MainRAMWriter(size_t nOffs, unsigned char nVal)
 {
-    *MemGetMainPtr(nOffs) = nVal;
+    assert(nOffs <= 0xFFFF);
+    *MemGetMainPtr((WORD)nOffs) = nVal;
 }
 
 #if RA_ENABLE_AUXRAM
 unsigned char AuxRAMReader(size_t nOffs)
 {
-    return *MemGetAuxPtr(nOffs);
+    assert(nOffs <= 0xFFFF);
+    return *MemGetAuxPtr((WORD)nOffs);
 }
 
 void AuxRAMWriter(size_t nOffs, unsigned char nVal)
 {
-    *MemGetAuxPtr(nOffs) = nVal;
+    assert(nOffs <= 0xFFFF);
+    *MemGetAuxPtr((WORD)nOffs) = nVal;
 }
 #endif
 
