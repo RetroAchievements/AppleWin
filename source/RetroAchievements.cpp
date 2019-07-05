@@ -402,14 +402,18 @@ void RA_RenderOverlayFrame(HDC hdc)
     int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
     RECT window_size = { 0, 0, width, height };
 
-    ControllerInput input;
-    input.m_bConfirmPressed = GetKeyState(VK_RETURN) & WM_KEYDOWN;
-    input.m_bCancelPressed = GetKeyState(VK_BACK) & WM_KEYDOWN;
-    input.m_bQuitPressed = GetKeyState(VK_ESCAPE) & WM_KEYDOWN;
-    input.m_bLeftPressed = GetKeyState(VK_LEFT) & WM_KEYDOWN;
-    input.m_bRightPressed = GetKeyState(VK_RIGHT) & WM_KEYDOWN;
-    input.m_bUpPressed = GetKeyState(VK_UP) & WM_KEYDOWN;
-    input.m_bDownPressed = GetKeyState(VK_DOWN) & WM_KEYDOWN;
+    ControllerInput input = {};
+
+    if (g_bFrameActive) // Do not process input while out of focus
+    {
+        input.m_bConfirmPressed = GetKeyState(VK_RETURN) & WM_KEYDOWN;
+        input.m_bCancelPressed = GetKeyState(VK_BACK) & WM_KEYDOWN;
+        input.m_bQuitPressed = GetKeyState(VK_ESCAPE) & WM_KEYDOWN;
+        input.m_bLeftPressed = GetKeyState(VK_LEFT) & WM_KEYDOWN;
+        input.m_bRightPressed = GetKeyState(VK_RIGHT) & WM_KEYDOWN;
+        input.m_bUpPressed = GetKeyState(VK_UP) & WM_KEYDOWN;
+        input.m_bDownPressed = GetKeyState(VK_DOWN) & WM_KEYDOWN;
+    }
 
     RA_UpdateRenderOverlay(hdc, &input, delta_time, &window_size, IsFullScreen(), g_nAppMode == MODE_PAUSED);
 
