@@ -1361,10 +1361,6 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 		do
 		{
 			g_bRestart = false;
-            
-#if USE_RETROACHIEVEMENTS
-            RA_Shutdown();
-#endif
 
 			RepeatInitialization();
 
@@ -1373,11 +1369,17 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 			EnterMessageLoop();
 			LogFileOutput("Main: LeaveMessageLoop()\n");
 
-			if (g_bRestart)
-			{
-				g_cmdLine.bSetFullScreen = g_bRestartFullScreen;
-				g_bRestartFullScreen = false;
-			}
+            if (g_bRestart)
+            {
+                bSetFullScreen = g_bRestartFullScreen;
+                g_bRestartFullScreen = false;
+            }
+#if USE_RETROACHIEVEMENTS
+            else
+            {
+                RA_Shutdown();
+            }
+#endif
 
 			MB_Reset();
 			LogFileOutput("Main: MB_Reset()\n");

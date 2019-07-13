@@ -167,9 +167,16 @@ void RA_InitShared()
 
 void RA_InitSystem()
 {
-    RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
-    RA_InitShared();
-    RA_AttemptLogin(true);
+    if (is_initialized)
+    {
+        RA_UpdateHWnd(g_hFrameWindow);
+    }
+    else
+    {
+        RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
+        RA_InitShared();
+        RA_AttemptLogin(true);
+    }
 
     confirmed_quitting = false;
 }
