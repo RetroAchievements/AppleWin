@@ -596,9 +596,8 @@ void VideoRefreshScreen ( uint32_t uRedrawWholeScreenVideoMode /* =0*/, bool bRe
 
 		int xSrc = GetFrameBufferBorderWidth();
 		int ySrc = GetFrameBufferBorderHeight();
-        int wSrc = GetFrameBufferBorderlessWidth();
-        int hSrc = GetFrameBufferBorderlessHeight();
-		VideoFrameBufferAdjust(xSrc, ySrc);	// TC: Hacky-fix for GH#341
+		int wSrc = GetFrameBufferBorderlessWidth();
+		int hSrc = GetFrameBufferBorderlessHeight();
 
 		int xdest = IsFullScreen() ? GetFullScreenOffsetX() : 0;
 		int ydest = IsFullScreen() ? GetFullScreenOffsetY() : 0;

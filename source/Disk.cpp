@@ -702,11 +702,11 @@ ImageError_e Disk2InterfaceCard::InsertDisk(const int drive, LPCTSTR pszImageFil
 	if (Error == eIMAGE_ERROR_NONE)
 	{
 		GetImageTitle(pszImageFilename, pFloppy->m_imagename, pFloppy->m_fullname);
-        strcpy(pFloppy->m_fullpath, pszImageFilename);
+        strcpy((char *)pFloppy->m_fullpath.c_str(), pszImageFilename);
 		Video_ResetScreenshotCounter(pFloppy->m_imagename);
 
 #if USE_RETROACHIEVEMENTS
-        if (iDrive == DRIVE_1)
+        if (drive == DRIVE_1)
             RA_CommitLoadNewRom();
 #endif
 	}

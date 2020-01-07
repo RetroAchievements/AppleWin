@@ -380,7 +380,7 @@ static void Snapshot_LoadState_v2(void)
 	try
 	{
 		std::string err_msg = "";
-		int res = yamlHelper.InitParser( g_strSaveStatePathname.c_str() )
+		int res = yamlHelper.InitParser(g_strSaveStatePathname.c_str());
 		if (!res)
 		{
 			err_msg = "Failed to initialize parser or open file";

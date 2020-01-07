@@ -1371,7 +1371,7 @@ int APIENTRY WinMain(HINSTANCE passinstance, HINSTANCE, LPSTR lpCmdLine, int)
 
             if (g_bRestart)
             {
-                bSetFullScreen = g_bRestartFullScreen;
+                g_cmdLine.bSetFullScreen = g_bRestartFullScreen;
                 g_bRestartFullScreen = false;
             }
 #if USE_RETROACHIEVEMENTS
