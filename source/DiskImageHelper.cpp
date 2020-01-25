@@ -1746,7 +1746,9 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
             !CopyFile(pszImageFilename, path, true))
             return eIMAGE_ERROR_UNABLE_TO_OPEN;
 
-        ZeroMemory((void *) pszImageFilename, sizeof(pszImageFilename));
+        // Do not delete pszImageFilename off the heap, as
+        // it seems that its contents are reused elsewhere.
+        pszImageFilename = new CHAR[MAX_PATH];
         strcpy((char *) pszImageFilename, path);
 
         CloseHandle(pImageInfo->hFile);
@@ -1763,14 +1765,14 @@ ImageError_e CImageHelperBase::Open(	LPCTSTR pszImageFilename,
 
         // This omits some of the error detection done as part of CheckNormalFile(),
         // and assumes that the save copy matches the original.
-        delete[] pImageInfo->pImageBuffer;
+        delete [] pImageInfo->pImageBuffer;
         pImageInfo->pImageBuffer = new BYTE[pImageInfo->uImageSize];
 
         DWORD dwBytesRead;
         BOOL bRes = ReadFile(pImageInfo->hFile, pImageInfo->pImageBuffer, pImageInfo->uImageSize, &dwBytesRead, NULL);
         if (!bRes || pImageInfo->uImageSize != dwBytesRead)
         {
-            delete[] pImageInfo->pImageBuffer;
+            delete [] pImageInfo->pImageBuffer;
             pImageInfo->pImageBuffer = NULL;
             return eIMAGE_ERROR_BAD_SIZE;
         }
