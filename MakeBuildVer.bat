@@ -2,7 +2,7 @@
 
 git describe --tags --match "RAppleWin.*" > Temp.txt
 set /p ACTIVE_TAG=<Temp.txt
-set VERSION_NUM=%ACTIVE_TAG:~10,4%
+set VERSION_NUM=%ACTIVE_TAG:~10,5%
 set VERSION_REVISION=%ACTIVE_TAG:~15,-9%
 if "%VERSION_REVISION%"=="" set VERSION_REVISION=0
 
