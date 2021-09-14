@@ -49,6 +49,13 @@ void free_file_info(FileInfo *file)
 #define RA_ENABLE_AUXRAM 1 // Enable auxiliary RAM by default
 #endif
 
+// http://www.applelogic.org/files/AIIETECHREF2.pdf
+// Apple II memory: $0000-$BFFF = main RAM
+//                  $C000-$CFFF = I/O chapter 2 and 6
+//                  $D000-$DFFF = ROM or banked extended memory
+//                  $E000-$FFFF = ROM or extended memory
+// For RetroAchievements, we want $D000-$FFFF to only be the extended memory
+
 static unsigned char MainRAMReader(size_t nOffs)
 {
     assert(nOffs <= 0xFFFF);
@@ -58,6 +65,7 @@ static unsigned char MainRAMReader(size_t nOffs)
 static void MainRAMWriter(size_t nOffs, unsigned char nVal)
 {
     assert(nOffs <= 0xFFFF);
+    memdirty[nOffs >> 8] |= 1;
     *MemGetMainPtr((WORD)nOffs) = nVal;
 }
 
