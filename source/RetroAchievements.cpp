@@ -4,6 +4,7 @@
 #include <windows.h>
 
 #include "RetroAchievements.h"
+#include <RA_Emulators.h>
 #include "BuildVer.h"
 
 #include "Applewin.h"
@@ -48,26 +49,26 @@ void free_file_info(FileInfo *file)
 #define RA_ENABLE_AUXRAM 1 // Enable auxiliary RAM by default
 #endif
 
-unsigned char MainRAMReader(size_t nOffs)
+static unsigned char MainRAMReader(size_t nOffs)
 {
     assert(nOffs <= 0xFFFF);
     return *MemGetMainPtr((WORD)nOffs);
 }
 
-void MainRAMWriter(size_t nOffs, unsigned char nVal)
+static void MainRAMWriter(size_t nOffs, unsigned char nVal)
 {
     assert(nOffs <= 0xFFFF);
     *MemGetMainPtr((WORD)nOffs) = nVal;
 }
 
 #if RA_ENABLE_AUXRAM
-unsigned char AuxRAMReader(size_t nOffs)
+static unsigned char AuxRAMReader(size_t nOffs)
 {
     assert(nOffs <= 0xFFFF);
     return *MemGetAuxPtr((WORD)nOffs);
 }
 
-void AuxRAMWriter(size_t nOffs, unsigned char nVal)
+static void AuxRAMWriter(size_t nOffs, unsigned char nVal)
 {
     assert(nOffs <= 0xFFFF);
     *MemGetAuxPtr((WORD)nOffs) = nVal;
@@ -76,7 +77,7 @@ void AuxRAMWriter(size_t nOffs, unsigned char nVal)
 
 
 
-int GetMenuItemIndex(HMENU hMenu, const char* ItemName)
+static int GetMenuItemIndex(HMENU hMenu, const char* ItemName)
 {
     int index = 0;
     char buf[256];
@@ -95,22 +96,22 @@ int GetMenuItemIndex(HMENU hMenu, const char* ItemName)
     return -1;
 }
 
-bool GameIsActive()
+static int GameIsActive()
 {
-    return loaded_title != NULL;
+    return (loaded_title != NULL) ? 1 : 0;
 }
 
-void CauseUnpause()
+static void CauseUnpause()
 {
     g_nAppMode = MODE_RUNNING;
 }
 
-void CausePause()
+static void CausePause()
 {
     g_nAppMode = MODE_PAUSED;
 }
 
-void RebuildMenu()
+static void RebuildMenu()
 {
     // get main menu handle
     HMENU hMainMenu = GetMenu(g_hFrameWindow);
@@ -127,7 +128,7 @@ void RebuildMenu()
     DrawMenuBar(g_hFrameWindow);
 }
 
-void GetEstimatedGameTitle(char* sNameOut)
+static void GetEstimatedGameTitle(char* sNameOut)
 {
     const int ra_buffer_size = 64;
 
@@ -149,18 +150,18 @@ void GetEstimatedGameTitle(char* sNameOut)
     sNameOut[ra_buffer_size - 1] = '\0';
 }
 
-void ResetEmulation()
+static void ResetEmulation()
 {
     ResetMachineState();
 }
 
-void LoadROM(const char* sFullPath)
+static void LoadROM(const char* sFullPath)
 {
     // Assume that the image is a floppy disk
     DoDiskInsert(5, DRIVE_1, sFullPath);
 }
 
-void RA_InitShared()
+static void RA_InitShared()
 {
     RA_InstallSharedFunctions(&GameIsActive, &CauseUnpause, &CausePause, &RebuildMenu, &GetEstimatedGameTitle, &ResetEmulation, &LoadROM);
 }
