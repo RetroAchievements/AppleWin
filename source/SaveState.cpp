@@ -28,14 +28,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "SaveState.h"
 #include "YamlHelper.h"
 
-#include "Applewin.h"
+#include "Interface.h"
 #include "CardManager.h"
 #include "CPU.h"
 #include "Debug.h"
 #include "Disk.h"
-#include "Frame.h"
+#include "FourPlay.h"
 #include "Joystick.h"
 #include "Keyboard.h"
 #include "LanguageCard.h"
@@ -45,9 +46,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "ParallelPrinter.h"
 #include "Pravets.h"
 #include "SerialComms.h"
+#include "SNESMAX.h"
 #include "Speaker.h"
 #include "Speech.h"
-#include "Video.h"
 #include "z80emu.h"
 
 #include "Configuration/Config.h"
@@ -75,33 +76,35 @@ static YamlHelper yamlHelper;
 // v3: Extended: memory (added 'AnnunciatorN')
 // v4: Extended: video (added 'Video Refresh Rate')
 // v5: Extended: cpu (added 'Defer IRQ By 1 Opcode')
-#define UNIT_APPLE2_VER 5
+// v6: Added 'Unit Miscellaneous' for NoSlotClock(NSC)
+#define UNIT_APPLE2_VER 6
 
 #define UNIT_SLOTS_VER 1
 
+#define UNIT_MISC_VER 1
+
 //-----------------------------------------------------------------------------
 
-void Snapshot_SetFilename(const std::string & strPathname)
+static void Snapshot_SetPathname(const std::string& strPathname)
 {
 	if (strPathname.empty())
 	{
 		g_strSaveStateFilename = DEFAULT_SNAPSHOT_NAME;
 
 		g_strSaveStatePathname = g_sCurrentDir;
-		if (g_strSaveStatePathname.length() && g_strSaveStatePathname[g_strSaveStatePathname.length()-1] != '\\')
-			g_strSaveStatePathname += "\\";
+		if (!g_strSaveStatePathname.empty() && *g_strSaveStatePathname.rbegin() != PATH_SEPARATOR)
+			g_strSaveStatePathname += PATH_SEPARATOR;
 		g_strSaveStatePathname.append(DEFAULT_SNAPSHOT_NAME);
 
 		g_strSaveStatePath = g_sCurrentDir;
-
 		return;
 	}
 
 	std::string strFilename = strPathname;	// Set default, as maybe there's no path
 	g_strSaveStatePath.clear();
 
-	int nIdx = strPathname.find_last_of('\\');
-	if (nIdx >= 0 && nIdx+1 < (int)strPathname.length())
+	int nIdx = strPathname.find_last_of(PATH_SEPARATOR);
+	if (nIdx >= 0 && nIdx+1 < (int)strPathname.length())	// path exists?
 	{
 		strFilename = &strPathname[nIdx+1];
 		g_strSaveStatePath = strPathname.substr(0, nIdx+1); // Bugfix: 1.25.0.2 // Snapshot_LoadState() -> SetCurrentImageDir() -> g_sCurrentDir 
@@ -111,19 +114,66 @@ void Snapshot_SetFilename(const std::string & strPathname)
 	g_strSaveStatePathname = strPathname;
 }
 
-const std::string & Snapshot_GetFilename()
+void Snapshot_SetFilename(const std::string& filename, const std::string& path/*=""*/)
+{
+	if (path.empty())
+		return Snapshot_SetPathname(filename);
+
+	_ASSERT(filename.find(PATH_SEPARATOR) == std::string::npos);	// since we have a path, then filename mustn't contain a path too!
+
+	// Ensure path is suffixed with '\' before adding filename
+	std::string pathname = path;
+	if (*pathname.rbegin() != PATH_SEPARATOR)
+		pathname += PATH_SEPARATOR;
+
+	Snapshot_SetPathname(pathname+filename);
+}
+
+const std::string& Snapshot_GetFilename(void)
 {
 	return g_strSaveStateFilename;
 }
 
-const std::string & Snapshot_GetPath()
+const std::string& Snapshot_GetPath(void)
 {
 	return g_strSaveStatePath;
 }
 
+const std::string& Snapshot_GetPathname(void)
+{
+	return g_strSaveStatePathname;
+}
+
+// Called on successful insertion and on prompting to save/load a save-state
+void Snapshot_GetDefaultFilenameAndPath(std::string& defaultFilename, std::string& defaultPath)
+{
+	// Attempt to get a default filename/path based on harddisk plugged-in or floppy disk inserted
+	// . Priority given to harddisk over floppy images
+	HD_GetFilenameAndPathForSaveState(defaultFilename, defaultPath);
+	if (defaultFilename.empty())
+		GetCardMgr().GetDisk2CardMgr().GetFilenameAndPathForSaveState(defaultFilename, defaultPath);
+}
+
+// Called by Disk2InterfaceCard::InsertDisk() and HD_Insert() after a successful insertion
+// Called by Disk2InterfaceCard::EjectDisk() and HD_Unplug()
+// Called by RepeatInitialization() when Harddisk Controller card is disabled
+void Snapshot_UpdatePath(void)
+{
+	std::string defaultFilename;
+	std::string defaultPath;
+	Snapshot_GetDefaultFilenameAndPath(defaultFilename, defaultPath);
+
+	if (defaultPath.empty() || g_strSaveStatePath == defaultPath)
+		return;
+
+	if (!defaultFilename.empty())
+		defaultFilename += ".aws.yaml";
+
+	Snapshot_SetFilename(defaultFilename, defaultPath);
+}
+
 //-----------------------------------------------------------------------------
 
-static HANDLE m_hFile = INVALID_HANDLE_VALUE;
 static CConfigNeedingRestart m_ConfigNew;
 
 static std::string GetSnapshotUnitApple2Name(void)
@@ -138,10 +188,17 @@ static std::string GetSnapshotUnitSlotsName(void)
 	return name;
 }
 
+static std::string GetSnapshotUnitMiscName(void)
+{
+	static const std::string name("Miscellaneous");
+	return name;
+}
+
 #define SS_YAML_KEY_MODEL "Model"
 
 #define SS_YAML_VALUE_APPLE2			"Apple]["
 #define SS_YAML_VALUE_APPLE2PLUS		"Apple][+"
+#define SS_YAML_VALUE_APPLE2JPLUS		"Apple][ J-Plus"
 #define SS_YAML_VALUE_APPLE2E			"Apple//e"
 #define SS_YAML_VALUE_APPLE2EENHANCED	"Enhanced Apple//e"
 #define SS_YAML_VALUE_APPLE2C			"Apple2c"
@@ -149,11 +206,13 @@ static std::string GetSnapshotUnitSlotsName(void)
 #define SS_YAML_VALUE_PRAVETS8M			"Pravets8M"
 #define SS_YAML_VALUE_PRAVETS8A			"Pravets8A"
 #define SS_YAML_VALUE_TK30002E			"TK3000//e"
+#define SS_YAML_VALUE_BASE64A			"Base 64A"
 
 static eApple2Type ParseApple2Type(std::string type)
 {
 	if (type == SS_YAML_VALUE_APPLE2)				return A2TYPE_APPLE2;
 	else if (type == SS_YAML_VALUE_APPLE2PLUS)		return A2TYPE_APPLE2PLUS;
+	else if (type == SS_YAML_VALUE_APPLE2JPLUS)		return A2TYPE_APPLE2JPLUS;
 	else if (type == SS_YAML_VALUE_APPLE2E)			return A2TYPE_APPLE2E;
 	else if (type == SS_YAML_VALUE_APPLE2EENHANCED)	return A2TYPE_APPLE2EENHANCED;
 	else if (type == SS_YAML_VALUE_APPLE2C)			return A2TYPE_APPLE2C;
@@ -161,6 +220,7 @@ static eApple2Type ParseApple2Type(std::string type)
 	else if (type == SS_YAML_VALUE_PRAVETS8M)		return A2TYPE_PRAVETS8M;
 	else if (type == SS_YAML_VALUE_PRAVETS8A)		return A2TYPE_PRAVETS8A;
 	else if (type == SS_YAML_VALUE_TK30002E)		return A2TYPE_TK30002E;
+	else if (type == SS_YAML_VALUE_BASE64A)			return A2TYPE_BASE64A;
 
 	throw std::string("Load: Unknown Apple2 type");
 }
@@ -171,6 +231,7 @@ static std::string GetApple2TypeAsString(void)
 	{
 		case A2TYPE_APPLE2:			return SS_YAML_VALUE_APPLE2;
 		case A2TYPE_APPLE2PLUS:		return SS_YAML_VALUE_APPLE2PLUS;
+		case A2TYPE_APPLE2JPLUS:	return SS_YAML_VALUE_APPLE2JPLUS;
 		case A2TYPE_APPLE2E:		return SS_YAML_VALUE_APPLE2E;
 		case A2TYPE_APPLE2EENHANCED:return SS_YAML_VALUE_APPLE2EENHANCED;
 		case A2TYPE_APPLE2C:		return SS_YAML_VALUE_APPLE2C;
@@ -178,6 +239,7 @@ static std::string GetApple2TypeAsString(void)
 		case A2TYPE_PRAVETS8M:		return SS_YAML_VALUE_PRAVETS8M;
 		case A2TYPE_PRAVETS8A:		return SS_YAML_VALUE_PRAVETS8A;
 		case A2TYPE_TK30002E:		return SS_YAML_VALUE_TK30002E;
+		case A2TYPE_BASE64A:		return SS_YAML_VALUE_BASE64A;
 		default:
 			throw std::string("Save: Unknown Apple2 type");
 	}
@@ -227,12 +289,12 @@ static void ParseUnitApple2(YamlLoadHelper& yamlLoadHelper, UINT version)
 	JoyLoadSnapshot(yamlLoadHelper);
 	KeybLoadSnapshot(yamlLoadHelper, version);
 	SpkrLoadSnapshot(yamlLoadHelper);
-	VideoLoadSnapshot(yamlLoadHelper, version);
+	GetVideo().VideoLoadSnapshot(yamlLoadHelper, version);
 	MemLoadSnapshot(yamlLoadHelper, version);
 
 	// g_Apple2Type may've changed: so redraw frame (title, buttons, leds, etc)
-	VideoReinitialize();	// g_CharsetType changed
-	FrameUpdateApple2Type();	// Calls VideoRedrawScreen() before the aux mem has been loaded (so if DHGR is enabled, then aux mem will be zeros at this stage)
+	GetVideo().VideoReinitialize(true);	// g_CharsetType changed
+	GetFrame().FrameUpdateApple2Type();	// Calls VideoRedrawScreen() before the aux mem has been loaded (so if DHGR is enabled, then aux mem will be zeros at this stage)
 }
 
 //---
@@ -258,7 +320,7 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 		std::string card = yamlLoadHelper.LoadString(SS_YAML_KEY_CARD);
 		UINT cardVersion = yamlLoadHelper.LoadUint(SS_YAML_KEY_VERSION);
 
-		if (!yamlLoadHelper.GetSubMap(std::string(SS_YAML_KEY_STATE)))
+		if (!yamlLoadHelper.GetSubMap(std::string(SS_YAML_KEY_STATE), true))	// NB. For some cards, State can be null
 			throw std::string(SS_YAML_KEY_UNIT ": Expected sub-map name: " SS_YAML_KEY_STATE);
 
 		SS_CARDTYPE type = CT_Empty;
@@ -272,14 +334,14 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 		else if (card == CSuperSerialCard::GetSnapshotCardName())
 		{
 			type = CT_SSC;
-			g_CardMgr.Insert(slot, type);
-			bRes = dynamic_cast<CSuperSerialCard&>(g_CardMgr.GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
+			GetCardMgr().Insert(slot, type);
+			bRes = dynamic_cast<CSuperSerialCard&>(GetCardMgr().GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
 		}
 		else if (card == CMouseInterface::GetSnapshotCardName())
 		{
 			type = CT_MouseInterface;
-			g_CardMgr.Insert(slot, type);
-			bRes = dynamic_cast<CMouseInterface&>(g_CardMgr.GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
+			GetCardMgr().Insert(slot, type);
+			bRes = dynamic_cast<CMouseInterface&>(GetCardMgr().GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
 		}
 		else if (card == Z80_GetSnapshotCardName())
 		{
@@ -299,8 +361,8 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 		else if (card == Disk2InterfaceCard::GetSnapshotCardName())
 		{
 			type = CT_Disk2;
-			g_CardMgr.Insert(slot, type);
-			bRes = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
+			GetCardMgr().Insert(slot, type);
+			bRes = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
 		}
 		else if (card == HD_GetSnapshotCardName())
 		{
@@ -321,6 +383,18 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 			SetExpansionMemType(type);
 			CreateLanguageCard();
 			bRes = GetLanguageCard()->LoadSnapshot(yamlLoadHelper, slot, cardVersion);
+		}
+		else if (card == FourPlayCard::GetSnapshotCardName())
+		{
+			type = CT_FourPlay;
+			GetCardMgr().Insert(slot, type);
+			bRes = dynamic_cast<FourPlayCard&>(GetCardMgr().GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
+		}
+		else if (card == SNESMAXCard::GetSnapshotCardName())
+		{
+			type = CT_SNESMAX;
+			GetCardMgr().Insert(slot, type);
+			bRes = dynamic_cast<SNESMAXCard&>(GetCardMgr().GetRef(slot)).LoadSnapshot(yamlLoadHelper, slot, cardVersion);
 		}
 		else
 		{
@@ -354,6 +428,9 @@ static void ParseUnit(bool loading_state = false)
 	if (unit == GetSnapshotUnitApple2Name())
 	{
 		ParseUnitApple2(yamlLoadHelper, unitVersion);
+
+		if (unitVersion < 6) MemInsertNoSlotClock();	// NSC always inserted
+		else				 MemRemoveNoSlotClock();	// NSC only add if there's a misc unit
 	}
 	else if (unit == MemGetSnapshotUnitAuxSlotName())
 	{
@@ -367,6 +444,11 @@ static void ParseUnit(bool loading_state = false)
 #endif
 		ParseSlots(yamlLoadHelper, unitVersion);
 	}
+	else if (unit == GetSnapshotUnitMiscName())
+	{
+		// NB. could extend for other misc devices - see how ParseSlots() calls GetMapNextSlotNumber()
+		NoSlotClockLoadSnapshot(yamlLoadHelper);
+	}
 	else
 	{
 		throw std::string(SS_YAML_KEY_UNIT ": Unknown type: " ) + unit;
@@ -376,31 +458,17 @@ static void ParseUnit(bool loading_state = false)
 static void Snapshot_LoadState_v2(void)
 {
 	bool restart = false;	// Only need to restart if any VM state has change
+	HCURSOR oldcursor = SetCursor(LoadCursor(0,IDC_WAIT));
+
+	FrameBase& frame = GetFrame();
 
 	try
 	{
-		std::string err_msg = "";
-		int res = yamlHelper.InitParser(g_strSaveStatePathname.c_str());
-		if (!res)
-		{
-			err_msg = "Failed to initialize parser or open file";
-		}
-		else
-		{
-			UINT version = ParseFileHdr();
-			if (version != SS_FILE_VER)
-				err_msg = "Version mismatch";
-		}
+		if (!yamlHelper.InitParser(g_strSaveStatePathname.c_str()))
+			throw std::string("Failed to initialize parser or open file");
 
-		if (err_msg != "")
-		{
-			MessageBox(g_hFrameWindow,
-				err_msg.c_str(),
-				TEXT("Load State"),
-				MB_ICONEXCLAMATION | MB_SETFOREGROUND);
-
-			return;
-		}
+		if (ParseFileHdr() != SS_FILE_VER)
+			throw std::string("Version mismatch");
 
 #if USE_RETROACHIEVEMENTS
 		if (!RA_WarnDisableHardcore("load a state"))
@@ -429,32 +497,32 @@ static void Snapshot_LoadState_v2(void)
 		//m_ConfigNew.m_bEnableTheFreezesF8Rom = ?;	// todo: when support saving config
 
 		MemReset();							// Also calls CpuInitialize()
-		PravetsReset();
+		GetPravets().Reset();
 
-		if (g_CardMgr.IsSSCInstalled())
+		if (GetCardMgr().IsSSCInstalled())
 		{
-			g_CardMgr.GetSSC()->CommReset();
+			GetCardMgr().GetSSC()->CommReset();
 		}
 		else
 		{
-			_ASSERT(g_CardMgr.QuerySlot(SLOT2) == CT_Empty);
+			_ASSERT(GetCardMgr().QuerySlot(SLOT2) == CT_Empty);
 			ConfigOld.m_Slot[2] = CT_Empty;
 		}
 
-		if (g_CardMgr.QuerySlot(SLOT4) == CT_MouseInterface)
-			g_CardMgr.Remove(SLOT4);		// Remove Mouse card from slot-4
+		if (GetCardMgr().QuerySlot(SLOT4) == CT_MouseInterface)
+			GetCardMgr().Remove(SLOT4);		// Remove Mouse card from slot-4
 
-		if (g_CardMgr.QuerySlot(SLOT5) == CT_Disk2)
-			g_CardMgr.Remove(SLOT5);		// Remove Disk2 card from slot-5
+		if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+			GetCardMgr().Remove(SLOT5);		// Remove Disk2 card from slot-5
 
-		g_CardMgr.GetDisk2CardMgr().Reset(false);
+		GetCardMgr().GetDisk2CardMgr().Reset(false);
 
 		HD_Reset();
 		HD_SetEnabled(false);
 
 		KeybReset();
-		VideoResetState();
-		SetVideoRefreshRate(VR_60HZ);		// Default to 60Hz as older save-states won't contain refresh rate
+		GetVideo().VideoResetState();
+		GetVideo().SetVideoRefreshRate(VR_60HZ);	// Default to 60Hz as older save-states won't contain refresh rate
 		MB_InitializeForLoadingSnapshot();	// GH#609
 #ifdef USE_SPEECH_API
 		g_Speech.Reset();
@@ -470,23 +538,23 @@ static void Snapshot_LoadState_v2(void)
 		}
 
 		MB_SetCumulativeCycles();
-		SetLoadedSaveStateFlag(true);
+		frame.SetLoadedSaveStateFlag(true);
 
 		// NB. The following disparity should be resolved:
 		// . A change in h/w via the Configuration property sheets results in a the VM completely restarting (via WM_USER_RESTART)
 		// . A change in h/w via loading a save-state avoids this VM restart
 		// The latter is the desired approach (as the former needs a "power-on" / F2 to start things again)
 
-		sg_PropertySheet.ApplyNewConfig(m_ConfigNew, ConfigOld);	// Mainly just saves (some) new state to Registry
+		GetPropertySheet().ApplyNewConfig(m_ConfigNew, ConfigOld);	// Mainly just saves (some) new state to Registry
 
 		MemInitializeROM();
+		MemInitializeCustomROM();
 		MemInitializeCustomF8ROM();
 		MemInitializeIO();
-		MemInitializeCardExpansionRomFromSnapshot();
+		MemInitializeCardSlotAndExpansionRomFromSnapshot();
 
 		MemUpdatePaging(TRUE);
 
-		SetMouseCardInstalled( g_CardMgr.IsMouseCardInstalled() );
 		DebugReset();
 		if (g_nAppMode == MODE_DEBUG)
 			DebugDisplay(TRUE);
@@ -497,15 +565,16 @@ static void Snapshot_LoadState_v2(void)
 	}
 	catch(std::string szMessage)
 	{
-		MessageBox(	g_hFrameWindow,
+		frame.FrameMessageBox(
 					szMessage.c_str(),
 					TEXT("Load State"),
 					MB_ICONEXCLAMATION | MB_SETFOREGROUND);
 
 		if (restart)
-			PostMessage(g_hFrameWindow, WM_USER_RESTART, 0, 0);		// Power-cycle VM (undoing all the new state just loaded)
+			frame.Restart();		// Power-cycle VM (undoing all the new state just loaded)
 	}
 
+	SetCursor(oldcursor);
 	yamlHelper.FinaliseParser();
 }
 
@@ -515,7 +584,7 @@ void Snapshot_LoadState()
 	const size_t pos = g_strSaveStatePathname.size() - ext_aws.size();
 	if (g_strSaveStatePathname.find(ext_aws, pos) != std::string::npos)	// find ".aws" at end of pathname
 	{
-		MessageBox(	g_hFrameWindow,
+		GetFrame().FrameMessageBox(
 					"Save-state v1 no longer supported.\n"
 					"Please load using AppleWin 1.27, and re-save as a v2 state file.",
 					TEXT("Load State"),
@@ -549,7 +618,7 @@ void Snapshot_SaveState(void)
 			JoySaveSnapshot(yamlSaveHelper);
 			KeybSaveSnapshot(yamlSaveHelper);
 			SpkrSaveSnapshot(yamlSaveHelper);
-			VideoSaveSnapshot(yamlSaveHelper);
+			GetVideo().VideoSaveSnapshot(yamlSaveHelper);
 			MemSaveSnapshot(yamlSaveHelper);
 		}
 
@@ -561,44 +630,61 @@ void Snapshot_SaveState(void)
 			yamlSaveHelper.UnitHdr(GetSnapshotUnitSlotsName(), UNIT_SLOTS_VER);
 			YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
 
-			if (g_CardMgr.QuerySlot(SLOT0) != CT_Empty && IsApple2PlusOrClone(GetApple2Type()))
+			if (GetCardMgr().QuerySlot(SLOT0) != CT_Empty && IsApple2PlusOrClone(GetApple2Type()))
 				GetLanguageCard()->SaveSnapshot(yamlSaveHelper);	// Language Card or Saturn 128K
 
-			if (g_CardMgr.QuerySlot(SLOT1) == CT_GenericPrinter)
+			if (GetCardMgr().QuerySlot(SLOT1) == CT_GenericPrinter)
 				Printer_SaveSnapshot(yamlSaveHelper);
 
-			if (g_CardMgr.QuerySlot(SLOT2) == CT_SSC)
-				dynamic_cast<CSuperSerialCard&>(g_CardMgr.GetRef(SLOT2)).SaveSnapshot(yamlSaveHelper);
+			if (GetCardMgr().QuerySlot(SLOT2) == CT_SSC)
+				dynamic_cast<CSuperSerialCard&>(GetCardMgr().GetRef(SLOT2)).SaveSnapshot(yamlSaveHelper);
 
-//			if (g_CardMgr.QuerySlot(SLOT3) == CT_Uthernet)
+//			if (GetCardMgr().QuerySlot(SLOT3) == CT_Uthernet)
 //				sg_Uthernet.SaveSnapshot(yamlSaveHelper);
 
-			if (g_CardMgr.QuerySlot(SLOT4) == CT_MouseInterface)
-				dynamic_cast<CMouseInterface&>(g_CardMgr.GetRef(SLOT4)).SaveSnapshot(yamlSaveHelper);
+			if (GetCardMgr().QuerySlot(SLOT4) == CT_MouseInterface)
+				dynamic_cast<CMouseInterface&>(GetCardMgr().GetRef(SLOT4)).SaveSnapshot(yamlSaveHelper);
 
-			if (g_CardMgr.QuerySlot(SLOT4) == CT_Z80)
+			if (GetCardMgr().QuerySlot(SLOT4) == CT_Z80)
 				Z80_SaveSnapshot(yamlSaveHelper, SLOT4);
 
-			if (g_CardMgr.QuerySlot(SLOT5) == CT_Z80)
+			if (GetCardMgr().QuerySlot(SLOT5) == CT_Z80)
 				Z80_SaveSnapshot(yamlSaveHelper, SLOT5);
 
-			if (g_CardMgr.QuerySlot(SLOT4) == CT_MockingboardC)
+			if (GetCardMgr().QuerySlot(SLOT4) == CT_MockingboardC)
 				MB_SaveSnapshot(yamlSaveHelper, SLOT4);
 
-			if (g_CardMgr.QuerySlot(SLOT5) == CT_MockingboardC)
+			if (GetCardMgr().QuerySlot(SLOT5) == CT_MockingboardC)
 				MB_SaveSnapshot(yamlSaveHelper, SLOT5);
 
-			if (g_CardMgr.QuerySlot(SLOT4) == CT_Phasor)
+			if (GetCardMgr().QuerySlot(SLOT4) == CT_Phasor)
 				Phasor_SaveSnapshot(yamlSaveHelper, SLOT4);
 
-			if (g_CardMgr.QuerySlot(SLOT5) == CT_Disk2)
-				dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT5)).SaveSnapshot(yamlSaveHelper);
+			if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+				dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT5)).SaveSnapshot(yamlSaveHelper);
 
-			if (g_CardMgr.QuerySlot(SLOT6) == CT_Disk2)
-				dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT6)).SaveSnapshot(yamlSaveHelper);
+			if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
+				dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6)).SaveSnapshot(yamlSaveHelper);
 
-			if (g_CardMgr.QuerySlot(SLOT7) == CT_GenericHDD)
+			if (GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
 				HD_SaveSnapshot(yamlSaveHelper);
+
+			for (UINT slot = SLOT3; slot <= SLOT5; slot++)
+			{
+				if (GetCardMgr().QuerySlot(slot) == CT_FourPlay)
+					dynamic_cast<FourPlayCard&>(GetCardMgr().GetRef(slot)).SaveSnapshot(yamlSaveHelper);
+				else if (GetCardMgr().QuerySlot(slot) == CT_SNESMAX)
+					dynamic_cast<SNESMAXCard&>(GetCardMgr().GetRef(slot)).SaveSnapshot(yamlSaveHelper);
+			}
+		}
+
+		// Miscellaneous
+		if (MemHasNoSlotClock())
+		{
+			yamlSaveHelper.UnitHdr(GetSnapshotUnitMiscName(), UNIT_MISC_VER);
+			YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
+
+			NoSlotClockSaveSnapshot(yamlSaveHelper);
 		}
 
 #if USE_RETROACHIEVEMENTS
@@ -607,7 +693,7 @@ void Snapshot_SaveState(void)
 	}
 	catch(std::string szMessage)
 	{
-		MessageBox(	g_hFrameWindow,
+		GetFrame().FrameMessageBox(
 					szMessage.c_str(),
 					TEXT("Save State"),
 					MB_ICONEXCLAMATION | MB_SETFOREGROUND);

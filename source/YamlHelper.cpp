@@ -23,8 +23,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "Log.h"
 #include "YamlHelper.h"
+#include "Log.h"
 
 int YamlHelper::InitParser(const char* pPathname)
 {
@@ -51,14 +51,20 @@ void YamlHelper::FinaliseParser(void)
 		fclose(m_hFile);
 
 	m_hFile = NULL;
+
+	yaml_event_delete(&m_newEvent);
+	yaml_parser_delete(&m_parser);
 }
 
-void YamlHelper::GetNextEvent(bool bInMap /*= false*/)
+void YamlHelper::GetNextEvent(void)
 {
+	yaml_event_delete(&m_newEvent);
 	if (!yaml_parser_parse(&m_parser, &m_newEvent))
 	{
-		//printf("Parser error %d\n", m_parser.error);
-		throw std::string("Parser error");
+		std::string error = std::string("Save-state parser error: ");
+		if (m_parser.problem != NULL) error += std::string(m_parser.problem);
+		else error += std::string("unknown");
+		throw error;
 	}
 }
 
@@ -114,13 +120,13 @@ int YamlHelper::ParseMap(MapYaml& mapYaml)
 	const char*& pValue = (const char*&) m_newEvent.data.scalar.value;
 
 	bool bKey = true;
-	char* pKey = NULL;
+	std::string pKey;
 	int res = 1;
 	bool bDone = false;
 
 	while (!bDone)
 	{
-		GetNextEvent(true);
+		GetNextEvent();
 
 		switch(m_newEvent.type)
 		{
@@ -133,7 +139,7 @@ int YamlHelper::ParseMap(MapYaml& mapYaml)
 				MapValue mapValue;
 				mapValue.value = "";
 				mapValue.subMap = new MapYaml;
-				mapYaml[std::string(pKey)] = mapValue;
+				mapYaml[pKey] = mapValue;
 				res = ParseMap(*mapValue.subMap);
 				if (!res)
 					throw std::string("ParseMap: premature end of file during map parsing");
@@ -146,15 +152,16 @@ int YamlHelper::ParseMap(MapYaml& mapYaml)
 		case YAML_SCALAR_EVENT:
 			if (bKey)
 			{
-				pKey = _strdup(pValue);
+				_ASSERT(pValue);  // std::string(NULL) generates AccessViolation
+				pKey = pValue;
 			}
 			else
 			{
 				MapValue mapValue;
 				mapValue.value = pValue;
 				mapValue.subMap = NULL;
-				mapYaml[std::string(pKey)] = mapValue;
-				free(pKey); pKey = NULL;
+				mapYaml[pKey] = mapValue;
+				pKey.clear();
 			}
 
 			bKey = bKey ? false : true;
@@ -165,13 +172,10 @@ int YamlHelper::ParseMap(MapYaml& mapYaml)
 		}
 	}
 
-	if (pKey)
-		free(pKey);
-
 	return res;
 }
 
-std::string YamlHelper::GetMapValue(MapYaml& mapYaml, const std::string key, bool& bFound)
+std::string YamlHelper::GetMapValue(MapYaml& mapYaml, const std::string& key, bool& bFound)
 {
 	MapYaml::const_iterator iter = mapYaml.find(key);
 	if (iter == mapYaml.end() || iter->second.subMap != NULL)
@@ -188,10 +192,10 @@ std::string YamlHelper::GetMapValue(MapYaml& mapYaml, const std::string key, boo
 	return value;
 }
 
-bool YamlHelper::GetSubMap(MapYaml** mapYaml, const std::string key)
+bool YamlHelper::GetSubMap(MapYaml** mapYaml, const std::string& key, const bool canBeNull = false)
 {
 	MapYaml::const_iterator iter = (*mapYaml)->find(key);
-	if (iter == (*mapYaml)->end() || iter->second.subMap == NULL)
+	if (iter == (*mapYaml)->end() || (!canBeNull && iter->second.subMap == NULL))
 	{
 		return false;	// not found
 	}
@@ -347,7 +351,7 @@ std::string YamlLoadHelper::LoadString(const std::string& key)
 	return value;
 }
 
-float YamlLoadHelper::LoadFloat(const std::string key)
+float YamlLoadHelper::LoadFloat(const std::string& key)
 {
 	bool bFound;
 	std::string value = m_yamlHelper.GetMapValue(*m_pMapYaml, key, bFound);
@@ -363,7 +367,7 @@ float YamlLoadHelper::LoadFloat(const std::string key)
 #endif
 }
 
-double YamlLoadHelper::LoadDouble(const std::string key)
+double YamlLoadHelper::LoadDouble(const std::string& key)
 {
 	bool bFound;
 	std::string value = m_yamlHelper.GetMapValue(*m_pMapYaml, key, bFound);
@@ -451,7 +455,46 @@ void YamlSaveHelper::SaveBool(const char* key, bool value)
 
 void YamlSaveHelper::SaveString(const char* key,  const char* value)
 {
-	Save("%s: %s\n", key, (value[0] != 0) ? value : "\"\"");
+	if (value[0] == 0)
+		value = "\"\"";
+
+	// libyaml supports UTF-8 and not accented ANSI characters (GH#838)
+	// . So convert ANSI to UTF-8, which is a 2-step process:
+
+	// 1) ANSI -> unicode
+	{
+		int size = MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, value, -1, NULL, 0);
+		if (size == 0)
+			throw std::string("Unable to convert to unicode: ") + std::string(value);
+		if (size > m_wcStrSize)
+		{
+			delete[] m_pWcStr;
+			m_pWcStr = new WCHAR[size];
+			m_wcStrSize = size;
+		}
+		int res = MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, value, -1, m_pWcStr, m_wcStrSize);
+		if (!res)
+			throw std::string("Unable to convert to unicode: ") + std::string(value);
+	}
+
+	// 2) unicode -> UTF-8
+	{
+		// NB. WC_ERR_INVALID_CHARS only defined when WIN_VER >= 0x600 - but stdafx.h defines it as 0x500
+		int size = WideCharToMultiByte(CP_UTF8, 0/*WC_ERR_INVALID_CHARS*/, m_pWcStr, -1, NULL, 0, NULL, NULL);
+		if (size == 0)
+			throw std::string("Unable to convert to UTF-8: ") + std::string(value);
+		if (size > m_mbStrSize)
+		{
+			delete[] m_pMbStr;
+			m_pMbStr = new char[size];
+			m_mbStrSize = size;
+		}
+		int res = WideCharToMultiByte(CP_UTF8, 0/*WC_ERR_INVALID_CHARS*/, m_pWcStr, -1, m_pMbStr, m_mbStrSize, NULL, NULL);
+		if (!res)
+			throw std::string("Unable to convert to UTF-8: ") + std::string(value);
+	}
+
+	Save("%s: %s\n", key, m_pMbStr);
 }
 
 void YamlSaveHelper::SaveString(const char* key, const std::string & value)
@@ -534,7 +577,7 @@ void YamlSaveHelper::FileHdr(UINT version)
 	SaveInt(SS_YAML_KEY_VERSION, version);
 }
 
-void YamlSaveHelper::UnitHdr(std::string type, UINT version)
+void YamlSaveHelper::UnitHdr(const std::string& type, UINT version)
 {
 	fprintf(m_hFile, "\n%s:\n", SS_YAML_KEY_UNIT);
 	m_indent = 2;

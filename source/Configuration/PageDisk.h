@@ -15,11 +15,11 @@ public:
 	}
 	virtual ~CPageDisk(){}
 
-	static BOOL CALLBACK DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
+	static INT_PTR CALLBACK DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
 
 protected:
 	// IPropertySheetPage
-	virtual BOOL DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
+	virtual INT_PTR DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam);
 	virtual void DlgOK(HWND hWnd);
 	virtual void DlgCANCEL(HWND hWnd){}
 
@@ -28,14 +28,13 @@ private:
 	void InitComboFloppyDrive(HWND hWnd, UINT slot);
 	void InitComboHDD(HWND hWnd, UINT slot);
 	void EnableHDD(HWND hWnd, BOOL bEnable);
-	void EnableFloppyDrive(HWND hWnd, BOOL bEnable);
+	void EnableFloppyDrive(HWND hWnd, BOOL bEnable, UINT slot);
 	void HandleHDDCombo(HWND hWnd, UINT driveSelected, UINT comboSelected);
-	void HandleFloppyDriveCombo(HWND hWnd, UINT driveSelected, UINT comboSelected);
+	void HandleFloppyDriveCombo(HWND hWnd, UINT driveSelected, UINT comboSelected, UINT comboOther, UINT slot);
 	void HandleHDDSwap(HWND hWnd);
 	UINT RemovalConfirmation(UINT uCommand);
 
 	static CPageDisk* ms_this;
-	static const TCHAR m_discchoices[];
 	static const TCHAR m_defaultDiskOptions[];
 	static const TCHAR m_defaultHDDOptions[];
 

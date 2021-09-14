@@ -29,12 +29,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "AppleWin.h"
 #include "CardManager.h"
+#include "Core.h"
 
 #include "Disk.h"
+#include "FourPlay.h"
 #include "MouseInterface.h"
 #include "SerialComms.h"
+#include "SNESMAX.h"
 
 void CardManager::Insert(UINT slot, SS_CARDTYPE type)
 {
@@ -46,12 +48,12 @@ void CardManager::Insert(UINT slot, SS_CARDTYPE type)
 	switch (type)
 	{
 	case CT_Disk2:
-		m_slot[slot] = new Disk2InterfaceCard;
+		m_slot[slot] = new Disk2InterfaceCard(slot);
 		break;
 	case CT_SSC:
 		_ASSERT(m_pSSC == NULL);
 		if (m_pSSC) break;	// Only support one SSC
-		m_slot[slot] = m_pSSC = new CSuperSerialCard;
+		m_slot[slot] = m_pSSC = new CSuperSerialCard(slot);
 		break;
 	case CT_MockingboardC:
 		m_slot[slot] = new DummyCard(type);
@@ -84,6 +86,12 @@ void CardManager::Insert(UINT slot, SS_CARDTYPE type)
 		break;
 	case CT_Uthernet:
 		m_slot[slot] = new DummyCard(type);
+		break;
+	case CT_FourPlay:
+		m_slot[slot] = new FourPlayCard(slot);
+		break;
+	case CT_SNESMAX:
+		m_slot[slot] = new SNESMAXCard(slot);
 		break;
 
 	case CT_LanguageCard:
@@ -131,6 +139,8 @@ void CardManager::InsertAux(SS_CARDTYPE type)
 	if (type == CT_Empty)
 		return RemoveAux();
 
+	RemoveAuxInternal();
+
 	switch (type)
 	{
 	case CT_80Col:
@@ -146,10 +156,19 @@ void CardManager::InsertAux(SS_CARDTYPE type)
 		_ASSERT(0);
 		break;
 	}
+
+	// for consistency m_aux must never be NULL
+	_ASSERT(m_aux != NULL);
+}
+
+void CardManager::RemoveAuxInternal()
+{
+	delete m_aux;
+	m_aux = NULL;
 }
 
 void CardManager::RemoveAux(void)
 {
-	delete m_aux;
+	RemoveAuxInternal();
 	m_aux = new EmptyCard;
 }

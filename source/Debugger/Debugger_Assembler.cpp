@@ -30,8 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
+#include "../Interface.h"
 #include "../CPU.h"
-#include "../Frame.h"
 #include "../Memory.h"
 
 #define DEBUG_ASSEMBLER 0
@@ -471,7 +471,7 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 #if _DEBUG
 	if (! g_aOpcodes)
 	{
-		MessageBox( g_hFrameWindow, "Debugger not properly initialized", "ERROR", MB_OK );
+		GetFrame().FrameMessageBox("Debugger not properly initialized", "ERROR", MB_OK );
 
 		g_aOpcodes = & g_aOpcodes65C02[ 0 ];	// Enhanced Apple //e
 		g_aOpmodes[ AM_2 ].m_nBytes = 2;
@@ -705,13 +705,13 @@ bool _6502_GetTargets ( WORD nAddress, int *pTargetPartial_, int *pTargetPartial
 			*pTargetPartial_    = nTarget16;
 			*pTargetPartial2_   = nTarget16+1;
 			if (bIncludeNextOpcodeAddress)
-				*pTargetPointer_ = *(LPWORD)(mem + nTarget16);
+				*pTargetPointer_ = mem[nTarget16] | (mem[(nTarget16+1)&0xFFFF]<<8);
 			if (pTargetBytes_)
 				*pTargetBytes_ = 2;
 			break;
 
 		case AM_IZX: // Indexed (Zeropage Indirect, X)
-			nTarget8  += regs.x;
+			nTarget8 = (nTarget8 + regs.x) & 0xFF;
 			*pTargetPartial_    = nTarget8;
 			*pTargetPointer_    = *(LPWORD)(mem + nTarget8);
 			if (pTargetBytes_)
@@ -787,8 +787,6 @@ bool _6502_GetTargetAddress ( const WORD & nAddress, WORD & nTarget_ )
 	iOpcode = _6502_GetOpmodeOpbyte( nAddress, iOpmode, nOpbytes );
 
 	// Composite string that has the target nAddress
-//	WORD nTarget = 0;
-	int nTargetOffset_ = 0;
 
 	if ((iOpmode != AM_IMPLIED) &&
 		(iOpmode != AM_1) &&
@@ -796,10 +794,10 @@ bool _6502_GetTargetAddress ( const WORD & nAddress, WORD & nTarget_ )
 		(iOpmode != AM_3))
 	{
 		int nTargetPartial;
+		int nTargetPartial2;
 		int nTargetPointer;
-		WORD nTargetValue = 0; // de-ref
 		int nTargetBytes;
-		_6502_GetTargets( nAddress, &nTargetPartial, &nTargetPointer, &nTargetBytes, false );
+		_6502_GetTargets( nAddress, &nTargetPartial, &nTargetPartial2, &nTargetPointer, &nTargetBytes, false );
 
 //		if (nTargetPointer == NO_6502_TARGET)
 //		{
@@ -860,19 +858,18 @@ bool _6502_IsOpcodeValid ( int iOpcode )
 
 
 //===========================================================================
-int AssemblerHashMnemonic ( const TCHAR * pMnemonic )
+Hash_t AssemblerHashMnemonic ( const TCHAR * pMnemonic )
 {
 	const TCHAR *pText = pMnemonic;
-	int nMnemonicHash = 0;
+	Hash_t nMnemonicHash = 0;
 	int iHighBits;
 
 	const int    NUM_LOW_BITS = 19; // 24 -> 19 prime
 	const int    NUM_MSK_BITS =  5; //  4 ->  5 prime
 	const Hash_t BIT_MSK_HIGH = ((1 << NUM_MSK_BITS) - 1) << NUM_LOW_BITS;
 
-	int nLen = strlen( pMnemonic );
-
 #if DEBUG_ASSEMBLER
+	int nLen = strlen( pMnemonic );
 	static int nMaxLen = 0;
 	if (nMaxLen < nLen) {
 		nMaxLen = nLen;
@@ -961,7 +958,7 @@ void _CmdAssembleHashDump ()
 	
 	std::sort( vHashes.begin(), vHashes.end(), HashOpcode_t() );
 
-	Hash_t nPrevHash = vHashes.at( 0 ).m_nValue;
+//	Hash_t nPrevHash = vHashes.at( 0 ).m_nValue;
 	Hash_t nThisHash = 0;
 
 	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
@@ -1097,7 +1094,7 @@ bool AssemblerGetArgs( int iArg, int nArgs, WORD nBaseAddress )
 	while (iArg < g_nArgRaw)
 	{
 		int iToken = pArg->eToken;
-		int iType  = pArg->bType;
+//		int iType  = pArg->bType;
 
 		if (iToken == TOKEN_HASH)
 		{
@@ -1474,7 +1471,7 @@ bool Assemble( int iArg, int nArgs, WORD nAddress )
 	m_nAsmBaseAddress = nAddress;
 
 	TCHAR *pMnemonic = g_aArgs[ iArg ].sArg;
-	int nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
+	Hash_t nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
 
 #if DEBUG_ASSEMBLER
 	char sText[ CONSOLE_WIDTH * 2 ];

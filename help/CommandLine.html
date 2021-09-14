@@ -11,6 +11,12 @@
 		<p style="FONT-WEIGHT: bold">AppleWin can be driven from the command line as 
 			follows:
 		</p>
+		-conf &lt;pathname&gt;<br>
+		Use an INI file for configuration instead of the Registry.<br>
+		Use this switch if you want to have multiple copies of AppleWin with different configurations, or don't want to use the Registry.<br><br>
+		-current-dir &lt;path&gt;<br>
+		This is guaranteed to be processed after all the image loading switches (eg. -d1, -h1, etc).<br>
+		Use this switch if you have a mix of (eg) -d1 and -h1 loading images from different folders, and you want to guarantee the current dir.<br><br>
 		-d1 &lt;pathname&gt;<br>
 		Start with a floppy disk in slot 6 drive-1 (and auto power-on the Apple II).<br>
 		NB. -s6d1 has the meaning same as -d1.<br><br>
@@ -25,8 +31,9 @@
 		Start with hard disk 1 plugged-in (and auto power-on the Apple II). NB. Hard disk controller card gets enabled.<br><br>
 		-h2 &lt;pathname&gt;<br>
 		Start with hard disk 2 plugged-in. NB. Hard disk controller card gets enabled.<br><br>
-		-model &lt;apple2|apple2p|apple2e|apple2ee&gt;<br>
-		Select the machine model: Apple II, Apple II+, Apple //e, Enhanced Apple //e.<br><br>
+		NB. For -d1,-d2,-s5d1,-s5d2,-h1,-h2, if pathname is "", then the disk is ejected or the harddisk is unplugged.<br><br>
+		-model &lt;apple2|apple2p|apple2jp|apple2e|apple2ee&gt;<br>
+		Select the machine model: Apple II, Apple II+, Apple II J-Plus, Apple //e, Enhanced Apple //e.<br><br>
 		-clock-multiplier &lt;value&gt;<br>
 		Where value is between 0.5 and 3.9, and is a base-clock multiplier, roughly mapping to 0.5MHz - 3.9MHz<br><br>
 		-s0 &lt;saturn|saturn64|saturn128&gt;<br>
@@ -50,22 +57,31 @@
 		Useful to allow a floppy disk to boot from slot 6, drive 1. Use in combination with -d1.<br><br>
 		-s7-empty-on-exit<br>
 		Remove the hard disk controller card from slot 7 on AppleWin exit.<br><br>
+		-d1-disconnected, -d2-disconnected<br>
+		Disconnect drive-1 and/or drive-2 from the Disk II controller card in slot 6.<br><br>
+		-no-nsc<br>
+		Remove the No-Slot clock (NSC).<br><br>
 		-r &lt;number of pages&gt;<br>
 		Emulate a RamWorks III card with 1 to 127 pages (each page is 64K, giving a max of 8MB) in the auxiliary slot in an Apple //e machine.<br><br>
 		-load-state &lt;savestate&gt;<br>
-		Load a save-state file<br>
-		NB. This takes precedent over the -d1, -d2, -d#s#, -h1, -h2, s0-7, -model and -r switches.<br><br>
-		-f<br>
-		Start in full-screen mode<br><br>
+		Load a save-state file (and auto power-on the Apple II).<br>
+		NB. This takes precedent over the -d1, -d2, -s#d#, -h1, -h2, s0-7, -model and -r switches.<br><br>
+		-f or -full-screen<br>
+		Start in full-screen mode.<br><br>
+		-no-full-screen<br>
+		Start in Windowed mode (default).<br><br>
 		-fs-height=&lt;best|nnnn&gt;<br>
 		Use to select a better resolution for full-screen mode.<br>
 		<ul>
 			<li>best: picks the highest resolution where the height is an integer multiple of (192*2)</li>
 			<li>nnnn: select a specific resolution with height=nnnn pixels</li>
 		</ul>
-		NB. This changes the display resolution (and restores on exit).<br><br>
+		NB. Combine with <em>-no-full-screen</em> to start in Windowed mode. Without this it'll just default to full-screen.<br>
+		NB. When switching to Windowed mode the default desktop resolution will be restored, and when switching back to full-screen mode this better resolution will again be used.<br><br>
+		-rom &lt;file&gt;<br>
+		Use custom 12K ROM (at $D000) for Apple II machine, or 16K ROM (at $C000) for Apple //e machine.<br><br>
 		-f8rom &lt;file&gt;<br>
-		Use custom 2K ROM for any Apple II machine at [$F800..$FFFF]. &lt;file&gt; must be 2048 bytes long<br><br>
+		Use custom 2K ROM for any Apple II machine at [$F800..$FFFF]. &lt;file&gt; must be 2048 bytes long.<br><br>
 		-videorom &lt;file&gt;<br>
 		Use an alternate custom 2K video ROM for Apple II or II+ machines (but not clones).<br>
 		Use an alternate European or custom 4K, 8K or 16K (top 8K only) video ROM for the original or Enhanced //e (but not clones).<br><br>
@@ -87,10 +103,21 @@
 		Use this switch to allow Solid Apple (AltGr) to be used in combination with regular keys.<br>
 		When AltGr is pressed, Windows only sends a WM_CHAR message for (eg) international key codes; and so by default the emulator doesn't explicitly send a WM_CHAR message for regular keys when AltGr is being pressed.<br>
 		NB. Using this switch may prevent international keyboards from being able to type certain keys.<br><br>
+
+		-left-alt-control-buttons<br>
+		Use Left Control & Left Alt for Open Apple & Solid Apple keys respectively.<br>
+		Caveat: Left Control + F2 will do the //e Ctrl+Open Apple+RESET (as Left Control is now both Ctrl and Open Apple!). A workaround is just to use the Right Control key.<br><br>
+		-right-alt-control-buttons<br>
+		Use Right Alt (AltGr) & Right Control for Open Apple & Solid Apple keys respectively.<br>
+		Caveat: Right Control + F2 will do the //e self test (as Right Control is now both Ctrl and Solid Apple!). A workaround is just to use the Left Control key.<br><br>
+		-swap-buttons<br>
+		Swap buttons 0 and 1 for all input devices.<br>
+		EG. the Windows keys used for Open Apple & Solid Apple keys, and the current device being used to emulate a joystick (keyboard, real joystick or mouse)<br><br>
+
 		-use-real-printer<br>
 		Enables Advanced configuration control to allow dumping to a real printer<br><br>
 		-noreg<br>
-		Disable registration of file extensions (.do/.dsk/.nib/.po)<br><br>
+		Disable registration of file extensions (.do/.dsk/.nib/.po/.woz)<br><br>
 		-memclear &lt;n&gt;<br>
 		Where n is [0..7]:
 		<ul>
@@ -116,15 +143,37 @@
 		-alt-enter=&lt;toggle-full-screen|open-apple-enter&gt;<br>
 		Define the behavior of Alt+Enter:
 		<ul>
-			<li>Either: Toggle between windowed and full screen video modes (default).
-			<li>Or: Allow the emulated Apple II to read the Enter key state when Alt (Open Apple key) is pressed.
+			<li>Either: Toggle between windowed and full screen video modes (default).</li>
+			<li>Or: Allow the emulated Apple II to read the Enter key state when Alt (Open Apple key) is pressed.</li>
 		</ul>
+		-rgb-card-type &lt;apple|sl7|eve|feline&gt;<br>
+		<ul>
+			<li><i>apple</i> is Apple's Extended 80-Column Text/AppleColor Adaptor Card (default).</li>
+			<li><i>sl7</i> is Video-7's RGB-SL7 card.</li>
+			<ul>
+				<li>NB. Both these apple/sl7 cards support an extra foreground/background hi-res mode that can be triggered by AN3 switching, resulting in corrupt color graphics! See <a href="Troubleshooting.html">troubleshooting</a>.
+			</ul>
+			<li><i>eve/feline</i> are Le Chat Mauve variants.</li>
+		</ul>
+		Use in conjunction with the 'Color (RGB Card/Monitor)' video mode.<br><br>
+		-rgb-card-foreground &lt;n&gt;<br>
+		-rgb-card-background &lt;n&gt;<br>
+		Where n is [0..15]. Defaults are foreground=15(White) and background=0(Black).<br>
+		The only supported DIPSW colors are: Black=0, Blue=6, Orange=9, Green=12, White=15<br>
+		NB. Only supported by '-rgb-card-type &lt;apple|sl7&gt;'.<br>
+		Use in conjunction with the 'Color (RGB Card/Monitor)' video mode.<br><br>
 		-rgb-card-invert-bit7<br>
-		Force the RGB card (in "Color (RGB Monitor)" video mode) to invert bit7 in MIX mode. Enables the correct rendering for Dragon Wars.<br><br>
+		Force the RGB card to invert bit7 in MIX mode. Enables the correct rendering for Dragon Wars.<br>
+		Use in conjunction with the 'Color (RGB Card/Monitor)' video mode.<br><br>
 		-50hz<br>
 		Support 50Hz(PAL) video refresh rate and PAL 1.016MHz base CPU clock.<br><br>
 		-60hz<br>
-		Support 60Hz(NTSC) video refresh rate and NTSC 1.020MHz base CPU clock (default).<br>
+		Support 60Hz(NTSC) video refresh rate and NTSC 1.020MHz base CPU clock (default).<br><br>
+		-power-on<br>
+		Force a power-on.<br>
+		Use to auto power-on when not using -d1, -h1 or -load-state.<br><br>
+		-snes-max-alt-joy1 or -snes-max-alt-joy2<br>
+		Use alternate button mappings for the SNES MAX card. See <a href="cfg-input.html">Input Settings</a>.<br>
 
 		<br>
 		<P style="FONT-WEIGHT: bold">Debug arguments:
@@ -134,7 +183,9 @@
 		-m<br>
 		Disable DirectSound support.<br><br>
 		-no-printscreen-dlg<br>
-		Suppress the warning message-box if AppleWin fails to capture the PrintScreen key.<br><br>
+		Suppress the warning message-box if AppleWin fails to capture the PrintScreen key.<br>
+		NB. There's now a "Don't show this message again" option on this message-box.
+		<br><br>
 		-screenshot-and-exit<br>
 		For testing. Use in combination with -load-state.<br><br>
 	</body>

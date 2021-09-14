@@ -22,16 +22,17 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 #include "StdAfx.h"
+
+#include "PageSound.h"
+#include "PropertySheet.h"
+
 #include "../SaveState_Structs_common.h"
 #include "../Common.h"
-
 #include "../CardManager.h"
 #include "../Mockingboard.h"
 #include "../Registry.h"
 #include "../Speaker.h"
 #include "../resource/resource.h"
-#include "PageSound.h"
-#include "PropertySheetHelper.h"
 
 CPageSound* CPageSound::ms_this = 0;	// reinit'd in ctor
 
@@ -39,13 +40,13 @@ const TCHAR CPageSound::m_soundchoices[] =	TEXT("Disabled\0")
 											TEXT("Sound Card\0");
 
 
-BOOL CALLBACK CPageSound::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK CPageSound::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	// Switch from static func to our instance
 	return CPageSound::ms_this->DlgProcInternal(hWnd, message, wparam, lparam);
 }
 
-BOOL CPageSound::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+INT_PTR CPageSound::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	switch (message)
 	{
@@ -61,11 +62,11 @@ BOOL CPageSound::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 				InitOptions(hWnd);
 				break;
 			case PSN_KILLACTIVE:
-				SetWindowLong(hWnd, DWL_MSGRESULT, FALSE);			// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, FALSE);			// Changes are valid
 				break;
 			case PSN_APPLY:
 				DlgOK(hWnd);
-				SetWindowLong(hWnd, DWL_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
 				break;
 			case PSN_QUERYCANCEL:
 				// Can use this to ask user to confirm cancel
@@ -117,7 +118,7 @@ BOOL CPageSound::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 			SendDlgItemMessage(hWnd,IDC_MB_VOLUME,TBM_SETTICFREQ,10,0);
 			SendDlgItemMessage(hWnd,IDC_MB_VOLUME,TBM_SETPOS,1,MB_GetVolume());
 
-			if (g_CardMgr.QuerySlot(SLOT5) == CT_SAM)
+			if (GetCardMgr().QuerySlot(SLOT5) == CT_SAM)
 				m_NewCardType = CT_SAM;
 			else
 				m_NewCardType = MB_GetSoundcardType();	// Reinit 1st time page is activated (fires before PSN_SETACTIVE)
@@ -138,11 +139,9 @@ void CPageSound::DlgOK(HWND hWnd)
 	const DWORD dwSpkrVolume = SendDlgItemMessage(hWnd, IDC_SPKR_VOLUME, TBM_GETPOS, 0, 0);
 	const DWORD dwMBVolume = SendDlgItemMessage(hWnd, IDC_MB_VOLUME, TBM_GETPOS, 0, 0);
 
-	if (SpkrSetEmulationType(hWnd, newSoundType))
-	{
-		DWORD dwSoundType = (soundtype == SOUND_NONE) ? REG_SOUNDTYPE_NONE : REG_SOUNDTYPE_WAVE;
-		REGSAVE(TEXT(REGVALUE_SOUND_EMULATION), dwSoundType);
-	}
+	SpkrSetEmulationType(newSoundType);
+	DWORD dwSoundType = (soundtype == SOUND_NONE) ? REG_SOUNDTYPE_NONE : REG_SOUNDTYPE_WAVE;
+	REGSAVE(TEXT(REGVALUE_SOUND_EMULATION), dwSoundType);
 
 	// NB. Volume: 0=Loudest, VOLUME_MAX=Silence
 	SpkrSetVolume(dwSpkrVolume, VOLUME_MAX);

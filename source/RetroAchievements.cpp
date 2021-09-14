@@ -1,19 +1,21 @@
+#include "StdAfx.h"
+
 #if USE_RETROACHIEVEMENTS
 
 #include <assert.h>
-#include <windows.h>
 
-#include "RetroAchievements.h"
+#include <RetroAchievements.h>
 #include <RA_Emulators.h>
-#include "BuildVer.h"
+#include "RA_BuildVer.h"
 
-#include "Applewin.h"
 #include "CardManager.h"
+#include "Core.h"
 #include "Disk.h"
-#include "Frame.h"
+#include "Interface.h"
 #include "Harddisk.h"
 #include "Keyboard.h"
 #include "Memory.h"
+#include "Utilities.h"
 
 FileInfo loaded_floppy_disk = FINFO_DEFAULT;
 FileInfo loaded_hard_disk = FINFO_DEFAULT;
@@ -122,7 +124,7 @@ static void CausePause()
 static void RebuildMenu()
 {
     // get main menu handle
-    HMENU hMainMenu = GetMenu(g_hFrameWindow);
+    HMENU hMainMenu = GetMenu(GetFrame().g_hFrameWindow);
     if (!hMainMenu) return;
 
     // get file menu index
@@ -133,7 +135,7 @@ static void RebuildMenu()
     // embed RA
     AppendMenu(hMainMenu, MF_POPUP | MF_STRING, (UINT_PTR)RA_CreatePopupMenu(), TEXT("&RetroAchievements"));
 
-    DrawMenuBar(g_hFrameWindow);
+    DrawMenuBar(GetFrame().g_hFrameWindow);
 }
 
 static void GetEstimatedGameTitle(char* sNameOut)
@@ -178,11 +180,11 @@ void RA_InitSystem()
 {
     if (is_initialized)
     {
-        RA_UpdateHWnd(g_hFrameWindow);
+        RA_UpdateHWnd(GetFrame().g_hFrameWindow);
     }
     else
     {
-        RA_Init(g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION_SHORT);
+        RA_Init(GetFrame().g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION);
         RA_InitShared();
         RA_AttemptLogin(true);
         is_initialized = true;
@@ -348,10 +350,12 @@ void RA_ClearTitle()
 
 void RA_ProcessReset()
 {
-    Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT6));
+    Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
 
-    if (disk2Card.IsDriveEmpty(DRIVE_1)) RA_OnGameClose(FileType::FLOPPY_DISK);
-    if (HD_IsDriveUnplugged(HARDDISK_1)) RA_OnGameClose(FileType::HARD_DISK);
+    if (disk2Card.IsDriveEmpty(DRIVE_1)) 
+        RA_OnGameClose(FileType::FLOPPY_DISK);
+    if (HD_IsDriveUnplugged(HARDDISK_1)) 
+        RA_OnGameClose(FileType::HARD_DISK);
 
     if (RA_HardcoreModeIsActive())
     {
@@ -365,7 +369,7 @@ void RA_ProcessReset()
                     HD_Unplug(HARDDISK_1);
                     break;
                 case FileType::HARD_DISK:
-                    g_CardMgr.Remove(SLOT6);
+                    GetCardMgr().Remove(SLOT6);
                     break;
                 default:
                     // Prioritize floppy disks
@@ -405,31 +409,6 @@ int RA_HandleMenuEvent(int id)
     }
 
     return FALSE;
-}
-
-static unsigned long last_tick = timeGetTime(); // Last call time of RA_RenderOverlayFrame()
-void RA_RenderOverlayFrame(HDC hdc)
-{
-    float delta_time = (timeGetTime() - last_tick) / 1000.0f;
-    int width = GetFrameBufferBorderlessWidth(), height = GetFrameBufferBorderlessHeight();
-    RECT window_size = { 0, 0, width, height };
-
-    ControllerInput input = {};
-
-    if (g_bFrameActive) // Do not process input while out of focus
-    {
-        input.m_bConfirmPressed = GetKeyState(VK_RETURN) & WM_KEYDOWN;
-        input.m_bCancelPressed = GetKeyState(VK_BACK) & WM_KEYDOWN;
-        input.m_bQuitPressed = GetKeyState(VK_ESCAPE) & WM_KEYDOWN;
-        input.m_bLeftPressed = GetKeyState(VK_LEFT) & WM_KEYDOWN;
-        input.m_bRightPressed = GetKeyState(VK_RIGHT) & WM_KEYDOWN;
-        input.m_bUpPressed = GetKeyState(VK_UP) & WM_KEYDOWN;
-        input.m_bDownPressed = GetKeyState(VK_DOWN) & WM_KEYDOWN;
-    }
-
-    RA_UpdateRenderOverlay(hdc, &input, delta_time, &window_size, IsFullScreen(), g_nAppMode == MODE_PAUSED);
-
-    last_tick = timeGetTime();
 }
 
 int RA_ConfirmQuit()

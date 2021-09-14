@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
-#include "../Frame.h"
+#include "../Interface.h"
 
 // Commands _______________________________________________________________________________________
 
@@ -123,6 +123,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("PAGEDOWN4K" ) , CmdCursorPageDown4K  , CMD_CURSOR_PAGE_DOWN_4K  , "Scroll down 4096 bytes" }, // Ctrl
 	// Cycles info
 		{TEXT("CYCLES")      , CmdCyclesInfo        , CMD_CYCLES_INFO, "Cycles display configuration" },
+		{TEXT("RCC")		 , CmdCyclesReset		, CMD_CYCLES_RESET, "Reset cycles counter" },
 	// Disassembler Data 
 		{TEXT("Z")           , CmdDisasmDataDefByte1       , CMD_DISASM_DATA      , "Treat byte [range] as data"                },
 		{TEXT("X")           , CmdDisasmDataDefCode        , CMD_DISASM_CODE      , "Treat byte [range] as code"                },
@@ -517,7 +518,7 @@ void VerifyDebuggerCommandTable()
 		if ( g_aCommands[ iCmd ].iCommand != iCmd)
 		{
 			sprintf( sText, "*** ERROR *** Enumerated Commands mis-matched at #%d!", iCmd );
-			MessageBoxA( g_hFrameWindow, sText, TEXT("ERROR"), MB_OK );
+			GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
 			PostQuitMessage( 1 );
 		}
 	}
@@ -526,14 +527,14 @@ void VerifyDebuggerCommandTable()
 	if (strcmp( g_aCommands[ NUM_COMMANDS ].m_sName, DEBUGGER__COMMANDS_VERIFY_TXT__))
 	{
 		sprintf( sText, "*** ERROR *** Total Commands mis-matched!" );
-		MessageBoxA( g_hFrameWindow, sText, TEXT("ERROR"), MB_OK );
+		GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
 		PostQuitMessage( 1 );
 	}
 
 	if (strcmp( g_aParameters[ NUM_PARAMS ].m_sName, DEBUGGER__PARAMS_VERIFY_TXT__))
 	{
 		sprintf( sText, "*** ERROR *** Total Parameters mis-matched!" );
-		MessageBoxA( g_hFrameWindow, sText, TEXT("ERROR"), MB_OK );
+		GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
 		PostQuitMessage( 2 );
 	}
 }

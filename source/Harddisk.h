@@ -23,6 +23,11 @@ along with AppleWin; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#include "DiskImage.h"
+
+// 1.19.0.0 Hard Disk Status/Indicator Light
+#define HD_LED 1
+
 	enum HardDrive_e
 	{
 		HARDDISK_1 = 0,
@@ -35,11 +40,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	void HD_SetEnabled(const bool bEnabled);
 	const std::string & HD_GetFullName(const int iDrive);
 	const std::string & HD_GetFullPathName(const int iDrive);
+	void HD_GetFilenameAndPathForSaveState(std::string& filename, std::string& path);
 	void HD_Reset(void);
 	void HD_Load_Rom(const LPBYTE pCxRomPeripheral, const UINT uSlot);
 	bool HD_Select(const int iDrive);
-	BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename);
-	bool HD_Unplug(const int iDrive);
+	BOOL HD_Insert(const int iDrive, const std::string& pathname);
+	void HD_Unplug(const int iDrive);
 	bool HD_IsDriveUnplugged(const int iDrive);
 	void HD_LoadLastDiskImage(const int iDrive);
 
@@ -49,4 +55,4 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 	std::string HD_GetSnapshotCardName(void);
 	void HD_SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool HD_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, const std::string strSaveStatePath);
+	bool HD_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, const std::string & strSaveStatePath);

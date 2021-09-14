@@ -30,7 +30,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
-#include "../Applewin.h"
+#include "../Windows/AppleWin.h"
+#include "../Core.h"
 
 	// 2.6.2.13 Added: Can now enable/disable selected symbol table(s) !
 	// Allow the user to disable/enable symbol tables
@@ -41,7 +42,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 // Symbols ________________________________________________________________________________________
 
-	char*     g_sFileNameSymbols[ NUM_SYMBOL_TABLES ] = {
+	const char*     g_sFileNameSymbols[ NUM_SYMBOL_TABLES ] = {
 		 "APPLE2E.SYM"
 		,"A2_BASIC.SYM"
 		,"A2_ASM.SYM"
@@ -54,7 +55,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	};
 	std::string  g_sFileNameSymbolsUser;
 
-	char * g_aSymbolTableNames[ NUM_SYMBOL_TABLES ] =
+	const char * g_aSymbolTableNames[ NUM_SYMBOL_TABLES ] =
 	{
 		 "Main"
 		,"Basic"
@@ -556,7 +557,7 @@ int ParseSymbolTable(const std::string & pPathFileName, SymbolTable_Index_e eSym
 	char sText[ CONSOLE_WIDTH * 3 ];
 	bool bFileDisplayed = false;
 
-	const int nMaxLen = min(MAX_TARGET_LEN,MAX_SYMBOLS_LEN);
+	const int nMaxLen = MIN(MAX_TARGET_LEN,MAX_SYMBOLS_LEN);
 
 	int nSymbolsLoaded = 0;
 
@@ -832,7 +833,7 @@ Update_t _CmdSymbolsClear( SymbolTable_Index_e eSymbolTable )
 
 
 //===========================================================================
-void SymbolUpdate( SymbolTable_Index_e eSymbolTable, char *pSymbolName, WORD nAddress, bool bRemoveSymbol, bool bUpdateSymbol )
+void SymbolUpdate( SymbolTable_Index_e eSymbolTable, const char *pSymbolName, WORD nAddress, bool bRemoveSymbol, bool bUpdateSymbol )
 {
 	if (bRemoveSymbol)
 		pSymbolName = g_aArgs[2].sArg;

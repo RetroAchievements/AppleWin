@@ -28,12 +28,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "Applewin.h"
-#include "Frame.h"	// g_hFrameWindow
-#include "Memory.h"
 #include "ParallelPrinter.h"
+#include "Core.h"
+#include "Memory.h"
+#include "Pravets.h"
 #include "Registry.h"
 #include "YamlHelper.h"
+#include "Interface.h"
 
 #include "../resource/resource.h"
 
@@ -61,19 +62,7 @@ static BYTE __stdcall PrintTransmit(WORD, WORD, BYTE, BYTE value, ULONG);
 
 VOID PrintLoadRom(LPBYTE pCxRomPeripheral, const UINT uSlot)
 {
-	HRSRC hResInfo = FindResource(NULL, MAKEINTRESOURCE(IDR_PRINTDRVR_FW), "FIRMWARE");
-	if(hResInfo == NULL)
-		return;
-
-	DWORD dwResSize = SizeofResource(NULL, hResInfo);
-	if(dwResSize != PRINTDRVR_SIZE)
-		return;
-
-	HGLOBAL hResData = LoadResource(NULL, hResInfo);
-	if(hResData == NULL)
-		return;
-
-	BYTE* pData = (BYTE*) LockResource(hResData);	// NB. Don't need to unlock resource
+	BYTE* pData = GetFrame().GetResource(IDR_PRINTDRVR_FW, "FIRMWARE", PRINTDRVR_SIZE);
 	if(pData == NULL)
 		return;
 
@@ -159,70 +148,20 @@ static BYTE __stdcall PrintStatus(WORD, WORD, BYTE, BYTE, ULONG)
 //===========================================================================
 static BYTE __stdcall PrintTransmit(WORD, WORD, BYTE, BYTE value, ULONG)
 {
-	         char Lat8A[]= "abwgdevzijklmnoprstufhc~{}yx`q|]";
-             char Lat82[]= "abwgdevzijklmnoprstufhc^[]yx@q{}~`"; 
-			 char Kir82[]= "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÜÞß[]^@";
-	  char Kir8ACapital[]= "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÜÞßÝ";
-	char Kir8ALowerCase[]= "àáâãäåæçèéêëìíîïðñòóôõö÷øùúüþÿý";
-	bool Pres = false;
-    if (!CheckPrint())
-    {
-        return 0;
-    }
-	
-	char c = 0;
-	if ((g_Apple2Type == A2TYPE_PRAVETS8A) &&  g_bConvertEncoding)  //This is print conversion for Pravets 8A/C. Print conversion for Pravets82/M is still to be done.
-		{
-			if ((value > 90) && (value < 128)) //This range shall be set more precisely
-			{
-			c = value;
-			int loop = 0;
-			while (loop < 31)
-				{
-				if (c== Lat8A[loop]) 
-				c= 0 + Kir8ALowerCase  [loop] ;
-				loop++;
-				} //End loop
-			}//End if (value < 128)
-				else if ((value >64) && (value <91))
-				{
-					c = value + 32;
-			    }
-				else
-				{
-					c = value & 0x7F;
-					int loop = 0;
-					while (loop < 31)
-					{
-					if (c== Lat8A[loop]) c= 0 + Kir8ACapital  [loop];
-					loop++;
-					}
-				}
-	} //End if (g_Apple2Type == A2TYPE_PRAVETS8A)
-		else if (((g_Apple2Type == A2TYPE_PRAVETS82) || (g_Apple2Type == A2TYPE_PRAVETS8M)) && g_bConvertEncoding)
-		{
-			c =  value & 0x7F;
-			int loop = 0;
-			while (loop < 34)
-			{
-				if (c == Lat82[loop])
-					c= Kir82 [loop];
-				loop++;
-			} //end while
-		}
-		else //Apple II
-		{			
-			c =  value & 0x7F;
-		}
-	if ((g_bFilterUnprintable == false) || (c>31) || (c==13) || (c==10) || (c<0)) //c<0 is needed for cyrillic characters
-		fwrite(&c, 1, 1, file); //break;
-				
+	if (!CheckPrint())
+		return 0;
 
-	/*else
+	BYTE c = value & 0x7F;
+
+	if (IsPravets(GetApple2Type()))
 	{
-	char c = value & 0x7F;
-	fwrite(&c, 1, 1, file);
-	}*/
+		if (g_bConvertEncoding)
+			c = GetPravets().ConvertToPrinterChar(value);
+	}
+
+	if ((g_bFilterUnprintable == false) || (c>31) || (c==13) || (c==10) || (c>0x7F)) //c>0x7F is needed for cyrillic characters
+		fwrite(&c, 1, 1, file);
+
 	return 0;
 }
 

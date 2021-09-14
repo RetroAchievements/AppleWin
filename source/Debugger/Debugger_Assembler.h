@@ -172,7 +172,7 @@ extern	int g_aAssemblerFirstDirective[ NUM_ASSEMBLERS ];
 
 	struct AssemblerDirective_t
 	{
-		char  *m_pMnemonic;
+		const char  *m_pMnemonic;
 		Hash_t m_nHash;
 	};
 
@@ -199,7 +199,7 @@ extern	int g_aAssemblerFirstDirective[ NUM_ASSEMBLERS ];
 	bool _6502_IsOpcodeBranch( int nOpcode );
 	bool _6502_IsOpcodeValid( int nOpcode );
 
-	int  AssemblerHashMnemonic ( const TCHAR * pMnemonic );
+	Hash_t  AssemblerHashMnemonic ( const TCHAR * pMnemonic );
 //	bool AssemblerGetAddressingMode ( int iArg, int nArgs, WORD nAddress, std::vector<int> & vOpcodes );
 	void _CmdAssembleHashDump ();
 	

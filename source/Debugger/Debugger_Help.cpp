@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Debug.h"
 
-#include "../Applewin.h"
+#include "../Core.h"
 
 
 #define DEBUG_COLOR_CONSOLE 0
@@ -60,7 +60,6 @@ bool TestStringCat ( TCHAR * pDst, LPCSTR pSrc, const int nDstSize )
 	int nLenDst = _tcslen( pDst );
 	int nLenSrc = _tcslen( pSrc );
 	int nSpcDst = nDstSize - nLenDst;
-	int nChars  = MIN( nLenSrc, nSpcDst );
 
 	bool bOverflow = (nSpcDst <= nLenSrc); // 2.5.6.25 BUGFIX
 	if (bOverflow)
@@ -262,18 +261,18 @@ void Help_Operators()
 	ConsolePrintFormat( sText,"  Operators: (%sBreakpoint%s)"                   , CHC_USAGE, CHC_DEFAULT );
 
 	_tcscpy( sText, "    " );
-	_tcscat( sText, CHC_USAGE );
+	strcat( sText, CHC_USAGE );
 	int iBreakOp = 0;
 	for( iBreakOp = 0; iBreakOp < NUM_BREAKPOINT_OPERATORS; iBreakOp++ )
 	{
 		if ((iBreakOp >= PARAM_BP_LESS_EQUAL) &&
 			(iBreakOp <= PARAM_BP_GREATER_EQUAL))
 		{
-			_tcscat( sText, g_aBreakpointSymbols[ iBreakOp ] );
-			_tcscat( sText, " " );
+			strcat( sText, g_aBreakpointSymbols[ iBreakOp ] );
+			strcat( sText, " " );
 		}
 	}	
-	_tcscat( sText, CHC_DEFAULT );
+	strcat( sText, CHC_DEFAULT );
 	ConsolePrint( sText );
 }
 
@@ -336,7 +335,7 @@ void _ColorizeString(
 // pOperator is one of CHC_*
 void _ColorizeOperator(
 	char * & pDst, const char * & pSrc,
-	char * pOperator )
+	const char * pOperator )
 {
 	int nLen;
 	
@@ -390,7 +389,6 @@ bool Colorize( char * pDst, const char * pSrc )
 	const char sExamples[] = "Examples:";
 	const int  nExamples = sizeof( sExamples ) - 1;
 
-	int nLen = 0;
 	while (*pSrc)
 	{
 		if (strncmp( sUsage, pSrc, nUsage) == 0)
@@ -573,8 +571,8 @@ Update_t CmdHelpSpecific (int nArgs)
 	int iArg;
 	char sText[ CONSOLE_WIDTH * 2 ];
 	char sTemp[ CONSOLE_WIDTH * 2 ];
-	ZeroMemory( sText, CONSOLE_WIDTH*2 );
-	ZeroMemory( sTemp, CONSOLE_WIDTH*2 );
+	memset( sText, 0, CONSOLE_WIDTH*2 );
+	memset( sTemp, 0, CONSOLE_WIDTH*2 );
 
 	if (! nArgs)
 	{
@@ -830,7 +828,7 @@ Update_t CmdHelpSpecific (int nArgs)
 		
 		if (pCommand)
 		{
-			char *pHelp = pCommand->pHelpSummary;
+			const char *pHelp = pCommand->pHelpSummary;
 			if (pHelp)
 			{
 				if (bCategory)
@@ -879,7 +877,8 @@ Update_t CmdHelpSpecific (int nArgs)
 		{	
 	// CPU / General
 		case CMD_ASSEMBLE:
-			ConsoleBufferPush( " Built-in assember isn't functional yet." );
+			ConsoleColorizePrint( sText, " Usage: [address | symbol]" );
+			ConsoleBufferPush( " Enter mini-assembler mode [starting at optional address or symbol]." );
 			break;
 		case CMD_UNASSEMBLE:
 			ConsoleColorizePrint( sText, " Usage: [address | symbol]" );
@@ -1408,11 +1407,17 @@ Update_t CmdHelpSpecific (int nArgs)
 			break;
 // Cycles
 		case CMD_CYCLES_INFO:
-			ConsoleColorizePrint(sText, " Usage: <abs|rel>");
+			ConsoleColorizePrint(sText, " Usage: <abs|rel|part>");
 			ConsoleBufferPush("  Where:");
-			ConsoleBufferPush("    <abs|rel> changes cycle output to absolute/relative");
+			ConsoleBufferPush("    abs = absolute number of cycles since power-on");
+			ConsoleBufferPush("    rel = number of cycles since last step or breakpoint");
+			ConsoleBufferPush("    part= number of cycles relative to current instruction");
+			break;
+		case CMD_CYCLES_RESET:
+			ConsoleBufferPush("  Use in conjunctioned with 'cycles part' to reset to current instruction");
 			break;
 // Video-Scanner
+
 		case CMD_VIDEO_SCANNER_INFO:
 			ConsoleColorizePrint(sText, " Usage: <dec|hex|real|apple>");
 			ConsoleBufferPush("  Where:");
@@ -1524,10 +1529,6 @@ Update_t CmdHelpList (int nArgs)
 
 	char sText[ nBuf ] = "";
 	
-	int nLenLine = strlen( sText );
-	int y = 0;
-	int nLinesScrolled = 0;
-
 	int nMaxWidth = g_nConsoleDisplayWidth - 1;
 	int iCommand;
 
@@ -1541,7 +1542,6 @@ Update_t CmdHelpList (int nArgs)
 		}
 		std::sort( g_vSortedCommands.begin(), g_vSortedCommands.end(), commands_functor_compare() );
 	}
-	int nCommands = g_vSortedCommands.size();
 
 	int nLen = 0;
 //		Colorize( sText, "Commands: " );

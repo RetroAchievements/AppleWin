@@ -5,6 +5,7 @@
 
 #include "Debugger_Types.h"
 #include "Debugger_DisassemblerData.h"
+#include "Debugger_Disassembler.h"
 #include "Debugger_Range.h"
 #include "Debugger_Parser.h"
 #include "Debugger_Console.h"
@@ -83,6 +84,8 @@
 
 	extern const int WINDOW_DATA_BYTES_PER_LINE;
 
+	extern int g_nDisasmDisplayLines;
+
 // Config - Disassembly
 	extern bool  g_bConfigDisasmAddressView  ;
 	extern int   g_bConfigDisasmClick        ; // GH#462
@@ -134,8 +137,10 @@
 
 // Prototypes _______________________________________________________________
 
+	void WindowUpdateSizes();
+
 // Bookmarks
-	bool Bookmark_Find( const WORD nAddress );
+	int Bookmark_Find( const WORD nAddress );
 
 // Breakpoints
 	int CheckBreakpointsIO ();
@@ -145,15 +150,6 @@
 
 // Source Level Debugging
 	int FindSourceLine( WORD nAddress );
-	const char* FormatAddress( WORD nAddress, int nBytes );
-
-// Symbol Table / Memory
-	bool FindAddressFromSymbol( const char* pSymbol, WORD * pAddress_ = NULL, int * iTable_ = NULL );
-	WORD GetAddressFromSymbol( const char* symbol); // HACK: returns 0 if symbol not found
-	void SymbolUpdate( SymbolTable_Index_e eSymbolTable, char *pSymbolName, WORD nAddrss, bool bRemoveSymbol, bool bUpdateSymbol );
-
-	const char* FindSymbolFromAddress( WORD nAdress, int * iTable_ = NULL );
-	const char* GetSymbol( WORD nAddress, int nBytes);
 
 // Memory
 	size_t Util_GetTextScreen( char* &pText_ );

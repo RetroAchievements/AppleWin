@@ -1,5 +1,10 @@
 #pragma once
 
+// use the new Debugger Font (Apple Font)
+#define USE_APPLE_FONT   1
+
+// Test Colors & Glyphs
+#define DEBUG_APPLE_FONT 0
 
 // Addressing _____________________________________________________________________________________
 
@@ -270,7 +275,7 @@
 		char         m_sName[ MAX_COMMAND_LEN ];
 		CmdFuncPtr_t pFunction;
 		int          iCommand;     // offset (enum) for direct command name lookup
-		char        *pHelpSummary; // 1 line help summary
+		const char   *pHelpSummary; // 1 line help summary
 //		Hash_t       m_nHash; // TODO
 	};
 
@@ -377,6 +382,7 @@
 		, CMD_CURSOR_PAGE_DOWN_4K // Down to nearest 4K boundary
 // Cycles info
 		, CMD_CYCLES_INFO
+		, CMD_CYCLES_RESET
 // Disassembler Data
 		, CMD_DISASM_DATA
 		, CMD_DISASM_CODE
@@ -666,7 +672,8 @@
 	Update_t CmdCursorPageUp4K     (int nArgs);
 
 // Cycles info
-	Update_t CmdCyclesInfo   (int nArgs);
+	Update_t CmdCyclesInfo         (int nArgs);
+	Update_t CmdCyclesReset        (int nArgs);
 
 // Disk
 	Update_t CmdDisk               (int nArgs);
@@ -1279,11 +1286,20 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 
 	struct Arg_t
 	{	
+		Arg_t()	// ctor added to fix Coverity (static analysis) defect
+		{
+			sArg[0] = 0;
+			nArgLen = 0;
+			nValue = 0;
+			eToken = TOKEN_ALPHANUMERIC;	// default
+			bType = 0;
+			eDevice = DEV_MEMORY;	// default
+			bSymbol = 0;
+		}
+
 		char       sArg[ MAX_ARG_LEN+1 ]; // Array chars comes first, for alignment, GH#481 echo 55 char limit
 		int        nArgLen; // Needed for TextSearch "ABC\x00"
 		WORD       nValue ; // 2
-//		WORD       nVal1  ; // 2
-//		WORD       nVal2  ; // 2 If we have a Len (,)
 		// Enums and Bools should come last for alignment
 		ArgToken_e eToken ; // 1/2/4
 		int        bType  ; // 1/2/4 // Flags of ArgType_e
@@ -1541,19 +1557,7 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 	
 	struct WindowSplit_t
 	{
-		RECT tBoundingBox; // 
-
-		int  nWidth ; // Width & Height are always valid 
-		int  nHeight; // If window is split/join, then auto-updated (right,bottom)
-
-		int  nCursorY; // Address
-		int  nCursorX; // or line,col of text file ...
-
 		int  bSplit ; 
-
-		int  iParent;// index into g_aWindowConfig
-		int  iChild ; // index into g_aWindowConfig
-
 		Window_e eTop;
 		Window_e eBot;	
 	};

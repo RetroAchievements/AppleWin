@@ -23,15 +23,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "../Applewin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
+#include "PropertySheet.h"
+#include "PropertySheetHelper.h"
+
+#include "../Windows/AppleWin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
 #include "../CardManager.h"
 #include "../Disk.h"
-#include "../Frame.h"
 #include "../Log.h"
 #include "../Registry.h"
 #include "../SaveState.h"
-#include "IPropertySheet.h"
-#include "PropertySheetHelper.h"
 
 /*
 Config causing AfterClose msgs:
@@ -128,166 +128,89 @@ void CPropertySheetHelper::SetSlot(UINT slot, SS_CARDTYPE newCardType)
 	// Two paths:
 	// 1) Via Config dialog: card not inserted yet
 	// 2) Snapshot_LoadState_v2(): card already inserted
-	if (g_CardMgr.QuerySlot(slot) != newCardType)
-		g_CardMgr.Insert(slot, newCardType);
+	if (GetCardMgr().QuerySlot(slot) == newCardType)
+		return;
 
-	std::string slotText;
-	switch (slot)
-	{
-	case 0: slotText = REGVALUE_SLOT0; break;
-	case 1: slotText = REGVALUE_SLOT1; break;
-	case 2: slotText = REGVALUE_SLOT2; break;
-	case 3: slotText = REGVALUE_SLOT3; break;
-	case 4: slotText = REGVALUE_SLOT4; break;
-	case 5: slotText = REGVALUE_SLOT5; break;
-	case 6: slotText = REGVALUE_SLOT6; break;
-	case 7: slotText = REGVALUE_SLOT7; break;
-	}
+	GetCardMgr().Insert(slot, newCardType);
 
-	REGSAVE(slotText.c_str(), (DWORD)newCardType);
+	RegDeleteConfigSlotSection(slot);
+
+	std::string& regSection = RegGetConfigSlotSection(slot);
+	RegSaveValue(regSection.c_str(), REGVALUE_CARD_TYPE, TRUE, newCardType);
 }
 
-// Looks like a (bad) C&P from SaveStateSelectImage()
-// - eg. see "RAPCS" tags below...
 // Used by:
 // . CPageDisk:		IDC_CIDERPRESS_BROWSE
 // . CPageAdvanced:	IDC_PRINTER_DUMP_FILENAME_BROWSE
-std::string CPropertySheetHelper::BrowseToFile(HWND hWindow, TCHAR* pszTitle, TCHAR* REGVALUE, TCHAR* FILEMASKS)
+std::string CPropertySheetHelper::BrowseToFile(HWND hWindow, const TCHAR* pszTitle, const TCHAR* REGVALUE, const TCHAR* FILEMASKS)
 {
-	static std::string PathToFile; //This is a really awkward way to prevent mixing CiderPress and SaveStated values (RAPCS), but it seem the quickest. Here is its Line 1.
-	PathToFile = Snapshot_GetFilename(); //RAPCS, line 2.
-	TCHAR szDirectory[MAX_PATH] = TEXT("");
 	TCHAR szFilename[MAX_PATH];
-	RegLoadString(TEXT("Configuration"), REGVALUE, 1, szFilename, MAX_PATH, TEXT(""));
-	std::string PathName = szFilename;
+	RegLoadString(REG_CONFIG, REGVALUE, 1, szFilename, MAX_PATH, TEXT(""));
+	std::string pathname = szFilename;
 
 	OPENFILENAME ofn;
-	ZeroMemory(&ofn,sizeof(OPENFILENAME));
-	
+	memset(&ofn, 0, sizeof(OPENFILENAME));
+
 	ofn.lStructSize     = sizeof(OPENFILENAME);
 	ofn.hwndOwner       = hWindow;
-	ofn.hInstance       = g_hInstance;
+	ofn.hInstance       = GetFrame().g_hInstance;
 	ofn.lpstrFilter     = FILEMASKS;
 	/*ofn.lpstrFilter     =	TEXT("Applications (*.exe)\0*.exe\0")
 							TEXT("Text files (*.txt)\0*.txt\0")
 							TEXT("All Files\0*.*\0");*/
 	ofn.lpstrFile       = szFilename;
 	ofn.nMaxFile        = MAX_PATH;
-	ofn.lpstrInitialDir = szDirectory;
+	ofn.lpstrInitialDir = "";
 	ofn.Flags           = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
 	ofn.lpstrTitle      = pszTitle;
-		
+
 	int nRes = GetOpenFileName(&ofn);
-	if(nRes)	// Okay is pressed
-	{
-		m_szNewFilename = &szFilename[ofn.nFileOffset];	// TODO:TC: m_szNewFilename not used! (Was g_szNewFilename)
+	if (nRes)	// OK is pressed
+		pathname = szFilename;
 
-		szFilename[ofn.nFileOffset] = 0;
-		if (_tcsicmp(szDirectory, szFilename))
-			m_szSSNewDirectory = szFilename;				// TODO:TC: m_szSSNewDirectory looks dodgy! (Was g_szSSNewDirectory)
-
-		PathName = szFilename;
-		PathName.append (m_szNewFilename);	
-	}
-	else		// Cancel is pressed
-	{
-		RegLoadString(TEXT("Configuration"), REGVALUE, 1, szFilename, MAX_PATH, TEXT(""));
-		PathName = szFilename;
-	}
-
-	m_szNewFilename = PathToFile; //RAPCS, line 3 (last).
-	return PathName;
+	return pathname;
 }
 
 void CPropertySheetHelper::SaveStateUpdate()
 {
 	if (m_bSSNewFilename)
 	{
-		Snapshot_SetFilename(m_szSSNewPathname);
-
-		RegSaveString(TEXT(REG_CONFIG), REGVALUE_SAVESTATE_FILENAME, 1, m_szSSNewPathname);
-
-		if(!m_szSSNewDirectory.empty())
-			RegSaveString(TEXT(REG_PREFS), REGVALUE_PREF_START_DIR, 1, m_szSSNewDirectory);
+		Snapshot_SetFilename(m_szSSNewFilename, m_szSSNewDirectory);
+		RegSaveString(TEXT(REG_CONFIG), TEXT(REGVALUE_SAVESTATE_FILENAME), 1, Snapshot_GetPathname());
 	}
 }
 
-void CPropertySheetHelper::GetDiskBaseNameWithAWS(std::string & pszFilename)
+// NB. OK'ing this property sheet will call SaveStateUpdate()->Snapshot_SetFilename() with this new path & filename
+int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, const TCHAR* pszTitle, bool bSave)
 {
-	if (g_CardMgr.QuerySlot(SLOT6) != CT_Disk2)
-		return;
+	// Whenever harddisks/disks are inserted (or removed) and *if path has changed* then:
+	// . Snapshot's path & Snapshot's filename will be updated to reflect the new defaults.
 
-	const std::string& diskName = dynamic_cast<Disk2InterfaceCard&>(g_CardMgr.GetRef(SLOT6)).GetBaseName(DRIVE_1);
-	if (!diskName.empty())
-	{
-		pszFilename = diskName + ".aws.yaml";
-	}
-}
-
-// NB. OK'ing this property sheet will call Snapshot_SetFilename() with this new filename
-int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, TCHAR* pszTitle, bool bSave)
-{
-	std::string szDirectory;
-	std::string tempFilename;
-
-	if (bSave)
-	{
-		// Attempt to use drive1's image name as the name for the .aws file
-		// Else Attempt to use the Prop Sheet's filename
-		GetDiskBaseNameWithAWS(tempFilename);
-		if (tempFilename.empty())
-		{
-			tempFilename = Snapshot_GetFilename();
-		}
-	}
-	else	// Load (or Browse)
-	{
-		// Attempt to use the Prop Sheet's filename first
-		// Else attempt to use drive1's image name as the name for the .aws file
-		tempFilename = Snapshot_GetFilename();
-		if (tempFilename.empty())
-		{
-			GetDiskBaseNameWithAWS(tempFilename);
-		}
-
-		szDirectory = Snapshot_GetPath();
-	}
-	
+	std::string szDirectory = Snapshot_GetPath();
 	if (szDirectory.empty())
 		szDirectory = g_sCurrentDir;
 
-	// convert tempFilename to char * for the rest of the function
-	TCHAR szFilename[MAX_PATH] = {0};
-	strcpy(szFilename, tempFilename.c_str());
-	tempFilename.clear(); // do NOT use this any longer
+	char szFilename[MAX_PATH];
+	strcpy(szFilename, Snapshot_GetFilename().c_str());
 
 	//
-	
+
 	OPENFILENAME ofn;
-	ZeroMemory(&ofn,sizeof(OPENFILENAME));
-	
+	memset(&ofn, 0, sizeof(OPENFILENAME));
+
 	ofn.lStructSize     = sizeof(OPENFILENAME);
 	ofn.hwndOwner       = hWindow;
-	ofn.hInstance       = g_hInstance;
-	if (bSave)
-	{
-		ofn.lpstrFilter = TEXT("Save State files (*.aws.yaml)\0*.aws.yaml\0");
+	ofn.hInstance       = GetFrame().g_hInstance;
+	ofn.lpstrFilter     = TEXT("Save State files (*.aws.yaml)\0*.aws.yaml\0")
 						  TEXT("All Files\0*.*\0");
-	}
-	else
-	{
-		ofn.lpstrFilter = TEXT("Save State files (*.aws,*.aws.yaml)\0*.aws;*.aws.yaml\0");
-						  TEXT("All Files\0*.*\0");
-	}
 	ofn.lpstrFile       = szFilename;	// Dialog strips the last .EXT from this string (eg. file.aws.yaml is displayed as: file.aws
-	ofn.nMaxFile        = MAX_PATH;
+	ofn.nMaxFile        = sizeof(szFilename);
 	ofn.lpstrInitialDir = szDirectory.c_str();
 	ofn.Flags           = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY;
 	ofn.lpstrTitle      = pszTitle;
 
 	int nRes = bSave ? GetSaveFileName(&ofn) : GetOpenFileName(&ofn);
-
-	if(nRes)
+	if (nRes)
 	{
 		if (bSave)	// Only for saving (allow loading of any file for backwards compatibility)
 		{
@@ -322,11 +245,9 @@ int CPropertySheetHelper::SaveStateSelectImage(HWND hWindow, TCHAR* pszTitle, bo
 		}
 
 		m_szSSNewFilename = &szFilename[ofn.nFileOffset];
-		m_szSSNewPathname = szFilename;
 
 		szFilename[ofn.nFileOffset] = 0;
-		if (_tcsicmp(szDirectory.c_str(), szFilename))
-			m_szSSNewDirectory = szFilename;
+		m_szSSNewDirectory = szFilename;	// always set this, even if unchanged
 	}
 
 	m_bSSNewFilename = nRes ? true : false;
@@ -345,18 +266,18 @@ void CPropertySheetHelper::PostMsgAfterClose(HWND hWnd, PAGETYPE page)
 	if (m_ConfigNew.m_uSaveLoadStateMsg && IsOkToSaveLoadState(hWnd, IsConfigChanged()))
 	{
 		// Drop any config change, and do load/save state
-		PostMessage(g_hFrameWindow, m_ConfigNew.m_uSaveLoadStateMsg, 0, 0);
+		PostMessage(GetFrame().g_hFrameWindow, m_ConfigNew.m_uSaveLoadStateMsg, 0, 0);
 		return;
 	}
 	
 	if (m_bDoBenchmark)
 	{
 		// Drop any config change, and do benchmark
-		PostMessage(g_hFrameWindow, WM_USER_BENCHMARK, 0, 0);	// NB. doesn't do WM_USER_RESTART
+		PostMessage(GetFrame().g_hFrameWindow, WM_USER_BENCHMARK, 0, 0);	// NB. doesn't do WM_USER_RESTART
 		return;
 	}
 
-	UINT uAfterClose = 0;
+	bool restart = false;
 
 	if (m_ConfigNew.m_Apple2Type == A2TYPE_CLONE)
 	{
@@ -381,11 +302,11 @@ void CPropertySheetHelper::PostMsgAfterClose(HWND hWnd, PAGETYPE page)
 
 		ApplyNewConfig();
 
-		uAfterClose = WM_USER_RESTART;
+		restart = true;
 	}
 
-	if (uAfterClose)
-		PostMessage(g_hFrameWindow, uAfterClose, 0, 0);
+	if (restart)
+		GetFrame().Restart();
 }
 
 bool CPropertySheetHelper::CheckChangesForRestart(HWND hWnd)
@@ -415,21 +336,33 @@ void CPropertySheetHelper::ApplyNewConfig(const CConfigNeedingRestart& ConfigNew
 		SaveCpuType(ConfigNew.m_CpuType);
 	}
 
-	UINT slot = 4;
+	UINT slot = SLOT3;
+	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
+	{
+		SetSlot(slot, ConfigNew.m_Slot[slot]);
+
+		if (ConfigNew.m_Slot[slot] == CT_Uthernet)	// TODO: move this to UthernetCard object
+		{
+			std::string& regSection = RegGetConfigSlotSection(slot);
+			RegSaveString(regSection.c_str(), REGVALUE_UTHERNET_INTERFACE, 1, ConfigNew.m_tfeInterface);
+		}
+	}
+
+	slot = SLOT4;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
 		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-	slot = 5;
+	slot = SLOT5;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
 		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-//	slot = 7;
+//	slot = SLOT7;
 //	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
 //		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
 	if (CONFIG_CHANGED_LOCAL(m_bEnableHDD))
 	{
-		REGSAVE(TEXT(REGVALUE_HDD_ENABLED), ConfigNew.m_bEnableHDD ? 1 : 0);	// TODO: Change to REGVALUE_SLOT7
+		REGSAVE(TEXT(REGVALUE_HDD_ENABLED), ConfigNew.m_bEnableHDD ? 1 : 0);
 	}
 
 	if (CONFIG_CHANGED_LOCAL(m_bEnableTheFreezesF8Rom))
@@ -453,11 +386,14 @@ void CPropertySheetHelper::SaveCurrentConfig(void)
 	// NB. clone-type is encoded in g_Apple2Type
 	m_ConfigOld.m_Apple2Type = GetApple2Type();
 	m_ConfigOld.m_CpuType = GetMainCpu();
-	m_ConfigOld.m_Slot[SLOT4] = g_CardMgr.QuerySlot(SLOT4);
-	m_ConfigOld.m_Slot[SLOT5] = g_CardMgr.QuerySlot(SLOT5);
+	m_ConfigOld.m_Slot[SLOT3] = GetCardMgr().QuerySlot(SLOT3);
+	m_ConfigOld.m_Slot[SLOT4] = GetCardMgr().QuerySlot(SLOT4);
+	m_ConfigOld.m_Slot[SLOT5] = GetCardMgr().QuerySlot(SLOT5);
+	m_ConfigOld.m_Slot[SLOT6] = GetCardMgr().QuerySlot(SLOT6);	// CPageDisk::HandleFloppyDriveCombo() needs this to be CT_Disk2 (temp, as will replace with PR #955)
 	m_ConfigOld.m_bEnableHDD = HD_CardIsEnabled();
-	m_ConfigOld.m_bEnableTheFreezesF8Rom = sg_PropertySheet.GetTheFreezesF8Rom();
-	m_ConfigOld.m_videoRefreshRate = GetVideoRefreshRate();
+	m_ConfigOld.m_bEnableTheFreezesF8Rom = GetPropertySheet().GetTheFreezesF8Rom();
+	m_ConfigOld.m_videoRefreshRate = GetVideo().GetVideoRefreshRate();
+	m_ConfigOld.m_tfeInterface = get_tfe_interface();
 
 	// Reset flags each time:
 	m_ConfigOld.m_uSaveLoadStateMsg = 0;
@@ -472,11 +408,12 @@ void CPropertySheetHelper::RestoreCurrentConfig(void)
 	// NB. clone-type is encoded in g_Apple2Type
 	SetApple2Type(m_ConfigOld.m_Apple2Type);
 	SetMainCpu(m_ConfigOld.m_CpuType);
-	g_CardMgr.Insert(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
-	g_CardMgr.Insert(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
+	SetSlot(SLOT3, m_ConfigOld.m_Slot[SLOT3]);
+	SetSlot(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
+	SetSlot(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
 	HD_SetEnabled(m_ConfigOld.m_bEnableHDD);
-	sg_PropertySheet.SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
-	SetVideoRefreshRate(m_ConfigOld.m_videoRefreshRate);
+	GetPropertySheet().SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
+	m_ConfigNew.m_videoRefreshRate = m_ConfigOld.m_videoRefreshRate;	// Not SetVideoRefreshRate(), as this re-inits much Video/NTSC state!
 }
 
 bool CPropertySheetHelper::IsOkToSaveLoadState(HWND hWnd, const bool bConfigChanged)
@@ -530,11 +467,14 @@ bool CPropertySheetHelper::HardwareConfigChanged(HWND hWnd)
 		if (CONFIG_CHANGED(m_videoRefreshRate))
 			strMsgMain += ". Video refresh rate has changed\n";
 
-		if (CONFIG_CHANGED(m_Slot[4]))
-			strMsgMain += GetSlot(4);
+		if (CONFIG_CHANGED(m_Slot[SLOT3]))
+			strMsgMain += GetSlot(SLOT3);
 
-		if (CONFIG_CHANGED(m_Slot[5]))
-			strMsgMain += GetSlot(5);
+		if (CONFIG_CHANGED(m_Slot[SLOT4]))
+			strMsgMain += GetSlot(SLOT4);
+
+		if (CONFIG_CHANGED(m_Slot[SLOT5]))
+			strMsgMain += GetSlot(SLOT5);
 
 		if (CONFIG_CHANGED(m_bEnableHDD))
 			strMsgMain += ". Harddisk(s) have been plugged/unplugged\n";
@@ -621,6 +561,12 @@ std::string CPropertySheetHelper::GetCardName(const SS_CARDTYPE CardType)
 		return "Echo";
 	case CT_SAM:			// Soundcard: Software Automated Mouth
 		return "SAM";
+	case CT_Uthernet:
+		return "Uthernet";
+	case CT_FourPlay:
+		return "4Play";
+	case CT_SNESMAX:
+		return "SNES MAX";
 	default:
 		return "Unknown";
 	}

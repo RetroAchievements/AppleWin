@@ -28,15 +28,16 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "Applewin.h"
+#include "Harddisk.h"
+#include "Core.h"
+#include "Interface.h"
 #include "CardManager.h"
 #include "CPU.h"
 #include "DiskImage.h"	// ImageError_e, Disk_Status_e
 #include "DiskImageHelper.h"
-#include "Frame.h"
-#include "Harddisk.h"
 #include "Memory.h"
 #include "Registry.h"
+#include "SaveState.h"
 #include "YamlHelper.h"
 
 #include "../resource/resource.h"
@@ -128,7 +129,7 @@ struct HDD
 	void clear()
 	{
 		// This is not a POD (there is a std::string)
-		// ZeroMemory does not work
+		// memset(0) does not work
 		imagename.clear();
 		fullname.clear();
 		strFilenameInZip.clear();
@@ -139,7 +140,7 @@ struct HDD
 		hd_diskblock = 0;
 		hd_buf_ptr = 0;
 		hd_imageloaded = false;
-		ZeroMemory(hd_buf, sizeof(hd_buf));
+		memset(hd_buf, 0, sizeof(hd_buf));
 #if HD_LED
 		hd_status_next = DISK_STATUS_OFF;
 		hd_status_prev = DISK_STATUS_OFF;
@@ -147,7 +148,7 @@ struct HDD
 	}
 
 	// From FloppyDisk
-	std::string	imagename;	// <FILENAME> (ie. no extension)    [not used]
+	std::string	imagename;	// <FILENAME> (ie. no extension)
 	std::string fullname;	// <FILENAME.EXT> or <FILENAME.zip>
 	std::string strFilenameInZip;					// ""             or <FILENAME.EXT> [not used]
 	ImageInfo*	imagehandle;			// Init'd by HD_Insert() -> ImageOpen()
@@ -178,7 +179,7 @@ static BYTE	g_nHD_Command;
 static HDD g_HardDisk[NUM_HARDDISKS];
 
 static bool g_bSaveDiskImage = true;	// Save the DiskImage name to Registry
-static UINT g_uSlot = 7;
+static UINT g_uSlot = SLOT7;
 
 //===========================================================================
 
@@ -229,7 +230,7 @@ static void NotifyInvalidImage(TCHAR* pszImageFilename)
 
 //===========================================================================
 
-BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename);
+BOOL HD_Insert(const int iDrive, const std::string& pathname);
 
 void HD_LoadLastDiskImage(const int iDrive)
 {
@@ -258,7 +259,7 @@ static void HD_SaveLastDiskImage(const int iDrive)
 	if (!g_bSaveDiskImage)
 		return;
 
-	const std::string & pFileName = g_HardDisk[iDrive].fullname;
+	const std::string & pFileName = HD_GetFullPathName(iDrive);
 
 	if (iDrive == HARDDISK_1)
 		RegSaveString(TEXT(REG_PREFS), REGVALUE_PREF_LAST_HARDDISK_1, TRUE, pFileName);
@@ -268,10 +269,10 @@ static void HD_SaveLastDiskImage(const int iDrive)
 	//
 
 	char szPathName[MAX_PATH];
-	strcpy(szPathName, HD_GetFullPathName(iDrive).c_str());
-	if (_tcsrchr(szPathName, TEXT('\\')))
+	strcpy(szPathName, pFileName.c_str());
+	if (_tcsrchr(szPathName, TEXT(PATH_SEPARATOR)))
 	{
-		char* pPathEnd = _tcsrchr(szPathName, TEXT('\\'))+1;
+		char* pPathEnd = _tcsrchr(szPathName, TEXT(PATH_SEPARATOR))+1;
 		*pPathEnd = 0;
 		RegSaveString(TEXT(REG_PREFS), TEXT(REGVALUE_PREF_HDV_START_DIR), 1, szPathName);
 	}
@@ -302,9 +303,9 @@ void HD_SetEnabled(const bool bEnabled)
 	g_bHD_Enabled = bEnabled;
 
 	if (bEnabled)
-		g_CardMgr.Insert(SLOT7, CT_GenericHDD);
+		GetCardMgr().Insert(SLOT7, CT_GenericHDD);
 	else
-		g_CardMgr.Remove(SLOT7);
+		GetCardMgr().Remove(SLOT7);
 
 #if 0
 	// FIXME: For LoadConfiguration(), g_uSlot=7 (see definition at start of file)
@@ -336,11 +337,38 @@ const std::string & HD_GetFullPathName(const int iDrive)
 	return ImageGetPathname(g_HardDisk[iDrive].imagehandle);
 }
 
-static const std::string & HD_DiskGetBaseName(const int iDrive)	// Not used
+static const std::string & HD_DiskGetBaseName(const int iDrive)
 {
 	return g_HardDisk[iDrive].imagename;
 }
 
+void HD_GetFilenameAndPathForSaveState(std::string& filename, std::string& path)
+{
+	filename = "";
+	path = "";
+
+	if (!g_bHD_Enabled)
+		return;
+
+	for (UINT i=HARDDISK_1; i<=HARDDISK_2; i++)
+	{
+		if (!g_HardDisk[i].hd_imageloaded)
+			continue;
+
+		filename = HD_DiskGetBaseName(i);
+		std::string pathname = HD_GetFullPathName(i);
+
+		int idx = pathname.find_last_of(PATH_SEPARATOR);
+		if (idx >= 0 && idx+1 < (int)pathname.length())	// path exists?
+		{
+			path = pathname.substr(0, idx+1);
+			return;
+		}
+
+		_ASSERT(0);
+		break;
+	}
+}
 
 //-------------------------------------
 
@@ -357,19 +385,7 @@ void HD_Load_Rom(const LPBYTE pCxRomPeripheral, const UINT uSlot)
 	if(!g_bHD_Enabled)
 		return;
 
-	HRSRC hResInfo = FindResource(NULL, MAKEINTRESOURCE(IDR_HDDRVR_FW), "FIRMWARE");
-	if(hResInfo == NULL)
-		return;
-
-	DWORD dwResSize = SizeofResource(NULL, hResInfo);
-	if(dwResSize != HDDRVR_SIZE)
-		return;
-
-	HGLOBAL hResData = LoadResource(NULL, hResInfo);
-	if(hResData == NULL)
-		return;
-
-	BYTE* pData = (BYTE*) LockResource(hResData);	// NB. Don't need to unlock resource
+	BYTE* pData = GetFrame().GetResource(IDR_HDDRVR_FW, "FIRMWARE", HDDRVR_SIZE);
 	if(pData == NULL)
 		return;
 
@@ -391,16 +407,16 @@ void HD_Destroy(void)
 	g_bSaveDiskImage = true;
 }
 
-// Pre: pszImageFilename is qualified with path
-BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
+// Pre: pathname likely to include path (but can also just be filename)
+BOOL HD_Insert(const int iDrive, const std::string& pathname)
 {
-	if (pszImageFilename.empty())
+	if (pathname.empty())
 		return FALSE;
 
 #if USE_RETROACHIEVEMENTS
 	if (iDrive == HARDDISK_1)
 	{
-		if (!RA_PrepareLoadNewRom(pszImageFilename.c_str(), FileType::HARD_DISK))
+		if (!RA_PrepareLoadNewRom(pathname.c_str(), FileType::HARD_DISK))
 		{
 			return ImageError_e::eIMAGE_ERROR_UNABLE_TO_OPEN;
 		}
@@ -415,21 +431,21 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 		const std::string & pszOtherPathname = HD_GetFullPathName(!iDrive);
 
 		char szCurrentPathname[MAX_PATH]; 
-		DWORD uNameLen = GetFullPathName(pszImageFilename.c_str(), MAX_PATH, szCurrentPathname, NULL);
+		DWORD uNameLen = GetFullPathName(pathname.c_str(), MAX_PATH, szCurrentPathname, NULL);
 		if (uNameLen == 0 || uNameLen >= MAX_PATH)
-			strcpy_s(szCurrentPathname, MAX_PATH, pszImageFilename.c_str());
+			strcpy_s(szCurrentPathname, MAX_PATH, pathname.c_str());
 
 		if (!strcmp(pszOtherPathname.c_str(), szCurrentPathname))
 		{
 			HD_Unplug(!iDrive);
-			FrameRefreshStatus(DRAW_LEDS);
+			GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);
 		}
 	}
 
 	const bool bCreateIfNecessary = false;		// NB. Don't allow creation of HDV files
 	const bool bExpectFloppy = false;
 	const bool bIsHarddisk = true;
-	ImageError_e Error = ImageOpen(pszImageFilename,
+	ImageError_e Error = ImageOpen(pathname,
 		&g_HardDisk[iDrive].imagehandle,
 		&g_HardDisk[iDrive].bWriteProtected,
 		bCreateIfNecessary,
@@ -445,7 +461,8 @@ BOOL HD_Insert(const int iDrive, const std::string & pszImageFilename)
 
 	if (Error == eIMAGE_ERROR_NONE)
 	{
-		GetImageTitle(pszImageFilename.c_str(), g_HardDisk[iDrive].imagename, g_HardDisk[iDrive].fullname);
+		GetImageTitle(pathname.c_str(), g_HardDisk[iDrive].imagename, g_HardDisk[iDrive].fullname);
+		Snapshot_UpdatePath();
 
 #if USE_RETROACHIEVEMENTS
         if (iDrive == HARDDISK_1)
@@ -469,13 +486,11 @@ static bool HD_SelectImage(const int drive, LPCSTR pszFilename)
 	RegLoadString(TEXT(REG_PREFS), TEXT(REGVALUE_PREF_HDV_START_DIR), 1, directory, MAX_PATH, TEXT(""));
 	StringCbPrintf(title, 40, TEXT("Select HDV Image For HDD %d"), drive + 1);
 
-	_ASSERT(sizeof(OPENFILENAME) == sizeof(OPENFILENAME_NT4));	// Required for Win98/ME support (selected by _WIN32_WINNT=0x0400 in stdafx.h)
-
 	OPENFILENAME ofn;
-	ZeroMemory(&ofn,sizeof(OPENFILENAME));
+	memset(&ofn, 0, sizeof(OPENFILENAME));
 	ofn.lStructSize     = sizeof(OPENFILENAME);
-	ofn.hwndOwner       = g_hFrameWindow;
-	ofn.hInstance       = g_hInstance;
+	ofn.hwndOwner       = GetFrame().g_hFrameWindow;
+	ofn.hInstance       = GetFrame().g_hInstance;
 	ofn.lpstrFilter     = TEXT("Hard Disk Images (*.hdv,*.po,*.2mg,*.2img,*.gz,*.zip)\0*.hdv;*.po;*.2mg;*.2img;*.gz;*.zip\0")
 						  TEXT("All Files\0*.*\0");
 	ofn.lpstrFile       = filename;
@@ -509,12 +524,13 @@ bool HD_Select(const int iDrive)
 	return HD_SelectImage(iDrive, TEXT(""));
 }
 
-bool HD_Unplug(const int iDrive)
+void HD_Unplug(const int iDrive)
 {
 	if (g_HardDisk[iDrive].hd_imageloaded)
-		return HD_CleanupDrive(iDrive);
-
-    return true;
+	{
+		HD_CleanupDrive(iDrive);
+		Snapshot_UpdatePath();
+	}
 }
 
 bool HD_IsDriveUnplugged(const int iDrive)
@@ -592,7 +608,7 @@ static BYTE __stdcall HD_IO_EMUL(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG 
 
 								if (bAppendBlocks)
 								{
-									ZeroMemory(pHDD->hd_buf, HD_BLOCK_SIZE);
+									memset(pHDD->hd_buf, 0, HD_BLOCK_SIZE);
 
 									// Inefficient (especially for gzip/zip files!)
 									UINT uBlock = ImageGetImageSize(pHDD->imagehandle) / HD_BLOCK_SIZE;
@@ -605,7 +621,7 @@ static BYTE __stdcall HD_IO_EMUL(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG 
 									}
 								}
 
-								MoveMemory(pHDD->hd_buf, mem+pHDD->hd_memblock, HD_BLOCK_SIZE);
+								memmove(pHDD->hd_buf, mem+pHDD->hd_memblock, HD_BLOCK_SIZE);
 
 								if (bRes)
 									bRes = ImageWriteBlock(pHDD->imagehandle, pHDD->hd_diskblock, pHDD->hd_buf);
@@ -697,16 +713,16 @@ static BYTE __stdcall HD_IO_EMUL(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG 
 			g_nHD_UnitNum = d;
 			break;
 		case 0xF4:
-			pHDD->hd_memblock = pHDD->hd_memblock & 0xFF00 | d;
+			pHDD->hd_memblock = (pHDD->hd_memblock & 0xFF00) | d;
 			break;
 		case 0xF5:
-			pHDD->hd_memblock = pHDD->hd_memblock & 0x00FF | (d << 8);
+			pHDD->hd_memblock = (pHDD->hd_memblock & 0x00FF) | (d << 8);
 			break;
 		case 0xF6:
-			pHDD->hd_diskblock = pHDD->hd_diskblock & 0xFF00 | d;
+			pHDD->hd_diskblock = (pHDD->hd_diskblock & 0xFF00) | d;
 			break;
 		case 0xF7:
-			pHDD->hd_diskblock = pHDD->hd_diskblock & 0x00FF | (d << 8);
+			pHDD->hd_diskblock = (pHDD->hd_diskblock & 0x00FF) | (d << 8);
 			break;
 		default:
 #if HD_LED
@@ -721,7 +737,7 @@ static BYTE __stdcall HD_IO_EMUL(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG 
 	if( pHDD->hd_status_prev != pHDD->hd_status_next ) // Update LEDs if state changes
 	{
 		pHDD->hd_status_prev = pHDD->hd_status_next;
-		FrameRefreshStatus(DRAW_LEDS);
+		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);
 	}
 #endif
 
@@ -750,7 +766,7 @@ bool HD_ImageSwap(void)
 	HD_SaveLastDiskImage(HARDDISK_1);
 	HD_SaveLastDiskImage(HARDDISK_2);
 
-	FrameRefreshStatus(DRAW_LEDS, false);
+	GetFrame().FrameRefreshStatus(DRAW_LEDS);
 
 	return true;
 }
@@ -881,7 +897,7 @@ static bool HD_LoadSnapshotHDDUnit(YamlLoadHelper& yamlLoadHelper, UINT unit)
 	return bResSelectImage;
 }
 
-bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, const std::string strSaveStatePath)
+bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, const std::string & strSaveStatePath)
 {
 	if (slot != 7)	// fixme
 		throw std::string("Card: wrong slot");
@@ -898,9 +914,7 @@ bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, co
 	// Unplug all HDDs first in case HDD-2 is to be plugged in as HDD-1
 	for (UINT i=0; i<NUM_HARDDISKS; i++)
 	{
-		if (!HD_Unplug(i))
-			return false;
-
+		HD_Unplug(i);
 		g_HardDisk[i].clear();
 	}
 
@@ -912,7 +926,7 @@ bool HD_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version, co
 
 	HD_SetEnabled(true);
 
-	FrameRefreshStatus(DRAW_LEDS);
+	GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);
 
 	return true;
 }

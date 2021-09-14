@@ -9,10 +9,12 @@
 *.VC.db
 
 # Build results
-[Dd]ebug*/
-[Dd]ebugPublic/
-[Rr]elease*/
-[Rr]eleases/
+[Dd]ebug/
+[Dd]ebug v141_xp/
+[Dd]ebug RetroAchievements/
+[Rr]elease/
+[Rr]elease v141_xp/
+[Rr]elease RetroAchievements/
 x64/
 x86/
 build/
@@ -185,4 +187,4 @@ UpgradeLog*.htm
 FakesAssemblies/
 
 # Generated version header
-source/BuildVer.h
+source/RA_BuildVer.h

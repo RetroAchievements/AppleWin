@@ -3,6 +3,10 @@
 #include "resource.h"
 #include "version.h"
 
+#ifdef USE_RETROACHIEVEMENTS
+#include "RA_BuildVer.h"
+#endif
+
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -55,6 +59,7 @@ FULLSCR_BUTTON          BITMAP                  "FULLSCR.BMP"
 RUN_BUTTON              BITMAP                  "RUN.BMP"
 RUNP_BUTTON             BITMAP                  "RUNP.BMP"
 RUN3000E_BUTTON         BITMAP                  "RUN3000E.BMP"
+RUNBASE64A_BUTTON       BITMAP                  "RUNBASE64A.BMP"
 DEBUG_BUTTON            BITMAP                  "DEBUG.BMP"
 DRIVE1_BUTTON           BITMAP                  "DRIVE1.BMP"
 DRIVE2_BUTTON           BITMAP                  "DRIVE2.BMP"
@@ -89,11 +94,11 @@ CAPTION "Configuration"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     LTEXT           "&Model:",IDC_STATIC,5,7,40,8
-    COMBOBOX        IDC_COMPUTER,45,5,90,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMPUTER,45,5,91,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Confirm reboot",IDC_CHECK_CONFIRM_REBOOT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,142,8,62,10
     GROUPBOX        "Video",IDC_STATIC,5,22,200,56
     LTEXT           "Mo&de:",IDC_STATIC,12,33,33,8
-    COMBOBOX        IDC_VIDEOTYPE,45,30,90,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_VIDEOTYPE,33,30,103,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "Monochrome &Color...",IDC_MONOCOLOR,12,46,80,14
     CONTROL         "50% Scan lines",IDC_CHECK_HALF_SCAN_LINES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,142,33,62,10
     CONTROL         "Vertical blend",IDC_CHECK_VERTICAL_BLEND,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,142,48,62,10
@@ -114,12 +119,12 @@ BEGIN
     CONTROL         "50Hz video",IDC_CHECK_50HZ_VIDEO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,142,141,51,10
 END
 
-IDD_PROPPAGE_INPUT DIALOGEX 0, 0, 210, 215
+IDD_PROPPAGE_INPUT DIALOGEX 0, 0, 211, 240
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Input"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "Joystick Control",IDC_STATIC,5,7,200,101
+    GROUPBOX        "Joystick Control",IDC_STATIC,5,7,200,135
     LTEXT           "Joystick &1:",IDC_STATIC,12,20,40,8
     COMBOBOX        IDC_JOYSTICK0,52,18,110,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Joystick &2:",IDC_STATIC,12,35,40,8
@@ -130,21 +135,26 @@ BEGIN
     LTEXT           "&Y-trim:",IDC_STATIC,115,56,28,8
     CTEXT           "0",IDC_STATIC,137,49,24,20,SS_CENTERIMAGE
     CONTROL         "Spin1",IDC_SPIN_YTRIM,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY,161,53,10,14
-    CONTROL         "Allow cursor keys to be read from keyboard ",IDC_CURSORCONTROL,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,75,155,10
+    CONTROL         "Allow cursor keys to be read from keyboard",IDC_CURSORCONTROL,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,75,150,10
+    CONTROL         "Swap 0/1",IDC_SWAPBUTTONS0AND1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,162,75,41,10
     CONTROL         "Auto-fire (all 3 buttons)",IDC_AUTOFIRE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,90,89,10
     CONTROL         "Keyboard auto-centering",IDC_CENTERINGCONTROL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,102,90,96,10
+    LTEXT           "4Play Joystick card:",IDC_STATIC,8,108,84,10
+    COMBOBOX        IDC_FOURPLAY_CONFIG,93,106,55,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "SNES MAX card:",IDC_STATIC,8,123,82,10
+    COMBOBOX        IDC_SNESMAX_CONFIG,93,122,55,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "&Scroll Lock acts as toggle for full-speed CPU",IDC_SCROLLLOCK_TOGGLE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,113,166,10
-    CONTROL         "&Mouse interface in slot 4",IDC_MOUSE_IN_SLOT4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,127,106,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,147,166,10
+    CONTROL         "&Mouse interface in slot 4",IDC_MOUSE_IN_SLOT4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,161,106,10
     CONTROL         "Show &crosshairs in window's frame",IDC_MOUSE_CROSSHAIR,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,141,159,10
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,175,159,10
     CONTROL         "&Restrict mouse to Apple window",IDC_MOUSE_RESTRICT_TO_WINDOW,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,155,121,10
-    LTEXT           "Microsoft CP/M SoftCard:",IDC_STATIC,8,170,122,10
-    COMBOBOX        IDC_CPM_CONFIG,93,168,55,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Paste &From Clipboard",IDC_PASTE_FROM_CLIPBOARD,8,192,81,14
-    LTEXT           "(Shift+Insert during emulation)",IDC_STATIC,93,195,111,8
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,189,121,10
+    LTEXT           "Microsoft CP/M SoftCard:",IDC_STATIC,8,204,83,10
+    COMBOBOX        IDC_CPM_CONFIG,93,202,55,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Paste &From Clipboard",IDC_PASTE_FROM_CLIPBOARD,8,219,81,14
+    LTEXT           "(Shift+Insert during emulation)",IDC_STATIC,93,222,111,8
 END
 
 IDD_PROPPAGE_SOUND DIALOGEX 0, 0, 210, 191
@@ -171,24 +181,31 @@ STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_DISABLED | WS_CAPTIO
 CAPTION "Disk"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "Floppy Disk Drives",IDC_STATIC,5,7,200,72
-    LTEXT           "&Disk access speed:",IDC_STATIC,12,21,64,8
-    COMBOBOX        IDC_DISKTYPE,80,18,100,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    GROUPBOX        "Hard Disk Drives",IDC_STATIC,5,83,200,64
-    CONTROL         "&Enable hard disk controller in slot 7",IDC_HDD_ENABLE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,96,122,10
-    PUSHBUTTON      "Swap",IDC_HDD_SWAP,156,92,40,14
-    LTEXT           "&Path to CiderPress:",IDC_STATIC,7,155,74,8
-    EDITTEXT        IDC_CIDERPRESS_FILENAME,7,165,143,12,ES_AUTOHSCROLL | ES_READONLY
-    PUSHBUTTON      "&Browse...",IDC_CIDERPRESS_BROWSE,156,164,50,14
-    LTEXT           "HDD 1:",IDC_STATIC,11,113,23,8
-    LTEXT           "HDD 2:",IDC_STATIC,11,130,23,8
-    COMBOBOX        IDC_COMBO_HDD1,46,112,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    COMBOBOX        IDC_COMBO_HDD2,46,128,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Disk 1:",IDC_STATIC,10,41,23,8
-    LTEXT           "Disk 2:",IDC_STATIC,10,58,23,8
-    COMBOBOX        IDC_COMBO_DISK1,40,40,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    COMBOBOX        IDC_COMBO_DISK2,40,57,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "Floppy Disk Drives",IDC_STATIC,5,7,200,125
+    CONTROL         "&Enhanced disk access speed (all drives)",IDC_ENHANCE_DISK_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,19,150,10
+
+    LTEXT           "Disk 1:",IDC_STATIC,10,36,23,8
+    LTEXT           "Disk 2:",IDC_STATIC,10,53,23,8
+    COMBOBOX        IDC_COMBO_DISK1,40,35,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO_DISK2,40,52,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    CONTROL         "Enable &Disk II controller in slot 5",IDC_DISKII_SLOT5_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,76,122,10
+    LTEXT           "Disk 1:",IDC_STATIC,11,93,23,8
+    LTEXT           "Disk 2:",IDC_STATIC,11,110,23,8
+    COMBOBOX        IDC_COMBO_DISK1_SLOT5,40,92,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO_DISK2_SLOT5,40,108,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    GROUPBOX        "Hard Disk Drives",IDC_STATIC,5,133,200,64
+    CONTROL         "Enable &hard disk controller in slot 7",IDC_HDD_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,146,122,10
+    PUSHBUTTON      "Swap",IDC_HDD_SWAP,156,146,40,14
+    LTEXT           "HDD 1:",IDC_STATIC,11,163,23,8
+    LTEXT           "HDD 2:",IDC_STATIC,11,180,23,8
+    COMBOBOX        IDC_COMBO_HDD1,46,162,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO_HDD2,46,178,150,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    LTEXT           "&CiderPress path:",IDC_STATIC,7,205,60,8
+    EDITTEXT        IDC_CIDERPRESS_FILENAME,62,203,95,12,ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "&Browse...",IDC_CIDERPRESS_BROWSE,161,202,50,14
 END
 
 IDD_TFE_SETTINGS_DIALOG DIALOGEX 0, 0, 270, 100
@@ -199,7 +216,7 @@ BEGIN
     LTEXT           "Ethernet",IDC_TFE_SETTINGS_ENABLE_T,9,7,30,8
     COMBOBOX        IDC_TFE_SETTINGS_ENABLE,45,5,50,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Interface",IDC_TFE_SETTINGS_INTERFACE_T,9,24,30,8
-    COMBOBOX        IDC_TFE_SETTINGS_INTERFACE,45,22,200,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_TFE_SETTINGS_INTERFACE,45,22,210,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "",IDC_TFE_SETTINGS_INTERFACE_NAME,9,44,250,8
     LTEXT           "",IDC_TFE_SETTINGS_INTERFACE_DESC,9,60,250,8
     DEFPUSHBUTTON   "Ok",IDOK,20,75,50,14
@@ -272,15 +289,23 @@ BEGIN
     BEGIN
         BLOCK "04090000"
         BEGIN
-            VALUE "Comments", "https://github.com/AppleWin"
             VALUE "CompanyName", "AppleWin"
             VALUE "FileDescription", "Apple //e Emulator for Windows"
+            VALUE "LegalCopyright", " 1994-2021 Michael O'Brien, Oliver Schmidt, Tom Charlesworth, Michael Pohoreski, Nick Westgate, Linards Ticmanis"
+            VALUE "ProductName", "Apple //e Emulator"
+#ifdef USE_RETROACHIEVEMENTS
+            VALUE "Comments", "https://github.com/AppleWin"
+            VALUE "FileVersion", RAPPLEWIN_VERSION
+            VALUE "InternalName", "RAPPLEWIN"
+            VALUE "OriginalFilename", "RAPPLEWIN.EXE"
+            VALUE "ProductVersion", RAPPLEWIN_VERSION_PRODUCT
+#else
+            VALUE "Comments", "https://github.com/RetroAchievements/AppleWin"
             VALUE "FileVersion", APPLEWIN_VERSION_STR
             VALUE "InternalName", "APPLEWIN"
-            VALUE "LegalCopyright", " 1994-2019 Michael O'Brien, Oliver Schmidt, Tom Charlesworth, Michael Pohoreski, Nick Westgate, Linards Ticmanis"
             VALUE "OriginalFilename", "APPLEWIN.EXE"
-            VALUE "ProductName", "Apple //e Emulator"
             VALUE "ProductVersion", APPLEWIN_VERSION_STR
+#endif
         END
     END
     BLOCK "VarFileInfo"
@@ -307,7 +332,8 @@ END
 // FIRMWARE
 //
 
-IDR_DISK2_FW            FIRMWARE                "Disk2.rom"
+IDR_DISK2_13SECTOR_FW   FIRMWARE                "Disk2-13sector.rom"
+IDR_DISK2_16SECTOR_FW   FIRMWARE                "Disk2.rom"
 IDR_SSC_FW              FIRMWARE                "SSC.rom"
 IDR_HDDRVR_FW           FIRMWARE                "Hddrvr.bin"
 IDR_PRINTDRVR_FW        FIRMWARE                "Parallel.rom"
@@ -323,13 +349,23 @@ IDR_TKCLOCK_FW          FIRMWARE                "TKClock.rom"
 
 IDR_APPLE2_ROM          ROM                     "Apple2.rom"
 IDR_APPLE2_PLUS_ROM     ROM                     "Apple2_Plus.rom"
+IDR_APPLE2_JPLUS_ROM    ROM                     "Apple2_JPlus.rom"
 IDR_APPLE2E_ROM         ROM                     "Apple2e.rom"
 IDR_APPLE2E_ENHANCED_ROM ROM                     "Apple2e_Enhanced.rom"
 IDR_PRAVETS_82_ROM      ROM                     "Pravets82.rom"
 IDR_PRAVETS_8M_ROM      ROM                     "Pravets8M.rom"
 IDR_PRAVETS_8C_ROM      ROM                     "Pravets8C.rom"
 IDR_TK3000_2E_ROM       ROM                     "TK3000e.rom"
+IDR_BASE_64A_ROM        ROM                     "Base64A.rom"
 IDR_FREEZES_F8_ROM      ROM                     "FREEZES_NON-AUTOSTART_F8_ROM.rom"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// VIDEO ROM
+//
+
+IDR_APPLE2_JPLUS_VIDEO_ROM    ROM               "Apple2_JPlus_Video.rom"
+IDR_BASE64A_VIDEO_ROM         ROM               "Base64A_German_Video.rom"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -371,7 +407,7 @@ GUIDELINES DESIGNINFO
 BEGIN
     IDD_PROPPAGE_INPUT, DIALOG
     BEGIN
-        BOTTOMMARGIN, 182
+        BOTTOMMARGIN, 231
     END
 
     IDD_PROPPAGE_DISK, DIALOG
@@ -427,7 +463,7 @@ CAPTION "About AppleWin"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     ICON            "",IDC_APPLEWIN_ICON,15,10,21,20
-    LTEXT           "Static",IDC_APPLEWIN_VERSION,46,17,81,8
+    LTEXT           "Static",IDC_APPLEWIN_VERSION,46,17,181,8
     GROUPBOX        "GNU General Public License",IDC_GPL_BORDER,7,37,226,111,BS_CENTER | WS_TABSTOP
     EDITTEXT        IDC_GPL_TEXT,11,57,213,88,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | NOT WS_BORDER | WS_VSCROLL
     DEFPUSHBUTTON   "I accept",IDOK,63,159,48,14

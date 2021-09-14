@@ -26,6 +26,18 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "DiskDefs.h"
 #include <string>
 
+#ifdef _MSC_VER
+
+#define RAND_THRESHOLD(num, den) ((RAND_MAX * num) / den)
+
+#else
+
+// RAND_MAX is a massive number which overflows when (* num) is applied above
+#define RAND_THRESHOLD(num, den) ((RAND_MAX / den) * num)
+
+#endif
+
+
 	#define TRACK_DENIBBLIZED_SIZE (16 * 256)	// #Sectors x Sector-size
 
 	#define	TRACKS_STANDARD	35
@@ -52,7 +64,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		eIMAGE_ERROR_GZ,
 		eIMAGE_ERROR_ZIP,
 		eIMAGE_ERROR_REJECTED_MULTI_ZIP,
-		eIMAGE_ERROR_UNSUPPORTED_MULTI_ZIP,
 		eIMAGE_ERROR_UNABLE_TO_OPEN,
 		eIMAGE_ERROR_UNABLE_TO_OPEN_GZ,
 		eIMAGE_ERROR_UNABLE_TO_OPEN_ZIP,
@@ -67,10 +78,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 struct ImageInfo;
 
 ImageError_e ImageOpen(const std::string & pszImageFilename, ImageInfo** ppImageInfo, bool* pWriteProtected, const bool bCreateIfNecessary, std::string& strFilenameInZip, const bool bExpectFloppy=true);
-void ImageClose(ImageInfo* const pImageInfo, const bool bOpenError=false);
+void ImageClose(ImageInfo* const pImageInfo);
 BOOL ImageBoot(ImageInfo* const pImageInfo);
-void ImageDestroy(void);
-void ImageInitialize(void);
 
 void ImageReadTrack(ImageInfo* const pImageInfo, float phase, LPBYTE pTrackImageBuffer, int* pNibbles, UINT* pBitCount, bool enhanceDisk);
 void ImageWriteTrack(ImageInfo* const pImageInfo, float phase, LPBYTE pTrackImageBuffer, int nNibbles);
@@ -86,5 +95,6 @@ bool ImageIsWOZ(ImageInfo* const pImageInfo);
 BYTE ImageGetOptimalBitTiming(ImageInfo* const pImageInfo);
 UINT ImagePhaseToTrack(ImageInfo* const pImageInfo, const float phase, const bool limit=true);
 UINT ImageGetMaxNibblesPerTrack(ImageInfo* const pImageInfo);
+bool ImageIsBootSectorFormatSector13(ImageInfo* const pImageInfo);
 
 void GetImageTitle(LPCTSTR pPathname, std::string & pImageName, std::string & pFullName);

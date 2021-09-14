@@ -1,12 +1,14 @@
 #include "stdafx.h"
 
-#include "../../source/Applewin.h"
+#include "../../source/Windows/AppleWin.h"
 #include "../../source/CPU.h"
 #include "../../source/Memory.h"
+#include "../../source/SynchronousEventManager.h"
 
 // From Applewin.cpp
 bool g_bFullSpeed = false;
 enum AppMode_e g_nAppMode = MODE_RUNNING;
+SynchronousEventManager g_SynchronousEventMgr;
 
 // From Memory.cpp
 LPBYTE         memwrite[0x100];		// TODO: Init
@@ -14,6 +16,11 @@ LPBYTE         mem          = NULL;	// TODO: Init
 LPBYTE         memdirty     = NULL;	// TODO: Init
 iofunction		IORead[256] = {0};	// TODO: Init
 iofunction		IOWrite[256] = {0};	// TODO: Init
+
+BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles)
+{
+	return 0;
+}
 
 // From CPU.cpp
 #define	 AF_SIGN       0x80
@@ -27,8 +34,7 @@ iofunction		IOWrite[256] = {0};	// TODO: Init
 
 regsrec regs;
 
-static const int IRQ_CHECK_TIMEOUT = 128;
-static signed int g_nIrqCheckTimeout = IRQ_CHECK_TIMEOUT;
+bool g_irqOnLastOpcodeCycle = false;
 
 static eCpuType g_ActiveCPU = CPU_65C02;
 
@@ -54,7 +60,7 @@ static __forceinline void DoIrqProfiling(DWORD uCycles)
 {
 }
 
-static __forceinline void CheckInterruptSources(ULONG uExecutedCycles, const bool bVideoUpdate)
+static __forceinline void CheckSynchronousInterruptSources(UINT cycles, ULONG uExecutedCycles)
 {
 }
 
@@ -81,12 +87,33 @@ void NTSC_VideoUpdateCycles( long cycles6502 )
 
 #include "../../source/CPU/cpu_general.inl"
 #include "../../source/CPU/cpu_instructions.inl"
+
+#define READ _READ_WITH_IO_F8xx
+#define WRITE(a) _WRITE_WITH_IO_F8xx(a)
+#define HEATMAP_X(pc)
+
 #include "../../source/CPU/cpu6502.h"  // MOS 6502
+
+#undef READ
+#undef WRITE
+
+//-------
+
+#define READ _READ
+#define WRITE(a) _WRITE(a)
+
 #include "../../source/CPU/cpu65C02.h"  // WDC 65C02
+
+#undef READ
+#undef WRITE
+#undef HEATMAP_X
+
+//-------------------------------------
 
 void init(void)
 {
-	mem = (LPBYTE)VirtualAlloc(NULL,64*1024,MEM_COMMIT,PAGE_READWRITE);
+	// memory must be zero initialised like MemInitiaize() does.
+	mem = (LPBYTE)calloc(64, 1024);
 
 	for (UINT i=0; i<256; i++)
 		memwrite[i] = mem+i*256;
@@ -374,7 +401,7 @@ const BYTE g_OpcodeTimings[256][4] =
 	{7,7,1,1},	// 3B
 	{4,5,4,5},	// 3C
 	{4,5,4,5},	// 3D
-	{6,6,6,7},	// 3E
+	{7,7,6,7},	// 3E
 	{7,7,1,1},	// 3F
 	{6,6,6,6},	// 40
 	{6,6,6,6},	// 41
@@ -406,7 +433,7 @@ const BYTE g_OpcodeTimings[256][4] =
 	{7,7,1,1},	// 5B
 	{4,5,8,8},	// 5C
 	{4,5,4,5},	// 5D
-	{6,6,6,7},	// 5E
+	{7,7,6,7},	// 5E
 	{7,7,1,1},	// 5F
 	{6,6,6,6},	// 60
 	{6,6,6,6},	// 61
@@ -438,7 +465,7 @@ const BYTE g_OpcodeTimings[256][4] =
 	{7,7,1,1},	// 7B
 	{4,5,6,6},	// 7C
 	{4,5,4,5},	// 7D
-	{6,6,6,7},	// 7E
+	{7,7,6,7},	// 7E
 	{7,7,1,1},	// 7F
 	{2,2,3,3},	// 80
 	{6,6,6,6},	// 81
@@ -1242,6 +1269,62 @@ int GH321_test()
 
 //-------------------------------------
 
+int testCB(int id, int cycles, ULONG uExecutedCycles)
+{
+	return 0;
+}
+
+int SyncEvents_test(void)
+{
+	SyncEvent syncEvent0(0, 0x10, testCB);
+	SyncEvent syncEvent1(1, 0x20, testCB);
+	SyncEvent syncEvent2(2, 0x30, testCB);
+	SyncEvent syncEvent3(3, 0x40, testCB);
+
+	g_SynchronousEventMgr.Insert(&syncEvent0);
+	g_SynchronousEventMgr.Insert(&syncEvent1);
+	g_SynchronousEventMgr.Insert(&syncEvent2);
+	g_SynchronousEventMgr.Insert(&syncEvent3);
+	// id0 -> id1 -> id2 -> id3
+	if (syncEvent0.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent1.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent2.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent3.m_cyclesRemaining != 0x10) return 1;
+
+	g_SynchronousEventMgr.Remove(1);
+	g_SynchronousEventMgr.Remove(3);
+	g_SynchronousEventMgr.Remove(0);
+	if (syncEvent2.m_cyclesRemaining != 0x30) return 1;
+	g_SynchronousEventMgr.Remove(2);
+
+	//
+
+	syncEvent0.m_cyclesRemaining = 0x40;
+	syncEvent1.m_cyclesRemaining = 0x30;
+	syncEvent2.m_cyclesRemaining = 0x20;
+	syncEvent3.m_cyclesRemaining = 0x10;
+
+	g_SynchronousEventMgr.Insert(&syncEvent0);
+	g_SynchronousEventMgr.Insert(&syncEvent1);
+	g_SynchronousEventMgr.Insert(&syncEvent2);
+	g_SynchronousEventMgr.Insert(&syncEvent3);
+	// id3 -> id2 -> id1 -> id0
+	if (syncEvent0.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent1.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent2.m_cyclesRemaining != 0x10) return 1;
+	if (syncEvent3.m_cyclesRemaining != 0x10) return 1;
+
+	g_SynchronousEventMgr.Remove(3);
+	g_SynchronousEventMgr.Remove(0);
+	g_SynchronousEventMgr.Remove(1);
+	if (syncEvent2.m_cyclesRemaining != 0x20) return 1;
+	g_SynchronousEventMgr.Remove(2);
+
+	return 0;
+}
+
+//-------------------------------------
+
 int _tmain(int argc, _TCHAR* argv[])
 {
 	int res = 1;
@@ -1264,6 +1347,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (res) return res;
 
 	res = GH292_test();
+	if (res) return res;
+
+	res = SyncEvents_test();
 	if (res) return res;
 
 	return 0;

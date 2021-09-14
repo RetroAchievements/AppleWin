@@ -29,13 +29,14 @@ public:
 	YamlHelper(void) :
 		m_hFile(NULL)
 	{
+		memset(&m_parser, 0, sizeof(m_parser));
+		memset(&m_newEvent, 0, sizeof(m_newEvent));
 		MakeAsciiToHexTable();
 	}
 
 	~YamlHelper(void)
 	{
-		if (m_hFile)
-			fclose(m_hFile);
+		FinaliseParser();
 	}
 
 	int InitParser(const char* pPathname);
@@ -45,11 +46,11 @@ public:
 	void GetMapStartEvent(void);
 
 private:
-	void GetNextEvent(bool bInMap = false);
+	void GetNextEvent(void);
 	int ParseMap(MapYaml& mapYaml);
-	std::string GetMapValue(MapYaml& mapYaml, const std::string key, bool& bFound);
+	std::string GetMapValue(MapYaml& mapYaml, const std::string &key, bool& bFound);
 	UINT LoadMemory(MapYaml& mapYaml, const LPBYTE pMemBase, const size_t kAddrSpaceSize);
-	bool GetSubMap(MapYaml** mapYaml, const std::string key);
+	bool GetSubMap(MapYaml** mapYaml, const std::string &key, const bool canBeNull /*= false*/);
 	void GetMapRemainder(std::string& mapName, MapYaml& mapYaml);
 
 	void MakeAsciiToHexTable(void);
@@ -73,10 +74,10 @@ public:
 	YamlLoadHelper(YamlHelper& yamlHelper)
 		: m_yamlHelper(yamlHelper),
 		  m_pMapYaml(&yamlHelper.m_mapYaml),
-		  m_bIteratingOverMap(false),
 		  m_bDoGetMapRemainder(true),
 		  m_topLevelMapName(yamlHelper.m_scalarName),
-		  m_currentMapName(m_topLevelMapName)
+		  m_currentMapName(m_topLevelMapName),
+		  m_bIteratingOverMap(false)
 	{
 		if (!m_yamlHelper.ParseMap(yamlHelper.m_mapYaml))
 		{
@@ -97,16 +98,16 @@ public:
 	bool LoadBool(const std::string key);
 	std::string LoadString_NoThrow(const std::string& key, bool& bFound);
 	std::string LoadString(const std::string& key);
-	float LoadFloat(const std::string key);
-	double LoadDouble(const std::string key);
+	float LoadFloat(const std::string & key);
+	double LoadDouble(const std::string & key);
 	void LoadMemory(const LPBYTE pMemBase, const size_t size);
 	void LoadMemory(std::vector<BYTE>& memory, const size_t size);
 
-	bool GetSubMap(const std::string key)
+	bool GetSubMap(const std::string & key, const bool canBeNull=false)
 	{
 		YamlStackItem item = {m_pMapYaml, m_currentMapName};
 		m_stackMap.push(item);
-		bool res = m_yamlHelper.GetSubMap(&m_pMapYaml, key);
+		bool res = m_yamlHelper.GetSubMap(&m_pMapYaml, key, canBeNull);
 		if (!res)
 			m_stackMap.pop();
 		else
@@ -169,9 +170,13 @@ private:
 class YamlSaveHelper
 {
 public:
-	YamlSaveHelper(std::string pathname) :
+	YamlSaveHelper(const std::string & pathname) :
 		m_hFile(NULL),
-		m_indent(0)
+		m_indent(0),
+		m_pWcStr(NULL),
+		m_wcStrSize(0),
+		m_pMbStr(NULL),
+		m_mbStrSize(0)
 	{
 		m_hFile = fopen(pathname.c_str(), "wt");
 
@@ -202,6 +207,9 @@ public:
 			fprintf(m_hFile, "...\n");
 			fclose(m_hFile);
 		}
+
+		delete[] m_pWcStr;
+		delete[] m_pMbStr;
 	}
 
 	void Save(const char* format, ...);
@@ -251,7 +259,7 @@ public:
 	class Slot : public Label
 	{
 	public:
-		Slot(YamlSaveHelper& rYamlSaveHelper, std::string type, UINT slot, UINT version) :
+		Slot(YamlSaveHelper& rYamlSaveHelper, const std::string & type, UINT slot, UINT version) :
 			Label(rYamlSaveHelper, "%d:\n", slot)
 		{
 			rYamlSaveHelper.Save("%s: %s\n", SS_YAML_KEY_CARD, type.c_str());
@@ -262,7 +270,7 @@ public:
 	};
 
 	void FileHdr(UINT version);
-	void UnitHdr(std::string type, UINT version);
+	void UnitHdr(const std::string & type, UINT version);
 
 private:
 	FILE* m_hFile;
@@ -270,4 +278,9 @@ private:
 	int m_indent;
 	static const UINT kMaxIndent = 50*2;
 	char m_szIndent[kMaxIndent];
+
+	LPWSTR m_pWcStr;
+	int m_wcStrSize;
+	LPSTR m_pMbStr;
+	int m_mbStrSize;
 };

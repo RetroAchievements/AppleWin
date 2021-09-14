@@ -5,6 +5,14 @@
       <Configuration>Debug NoDX</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug RetroAchievements|Win32">
+      <Configuration>Debug RetroAchievements</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug v141_xp|Win32">
+      <Configuration>Debug v141_xp</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
@@ -13,22 +21,31 @@
       <Configuration>Release NoDX</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Release RetroAchievements|Win32">
+      <Configuration>Release RetroAchievements</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release v141_xp|Win32">
+      <Configuration>Release v141_xp</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="RAInterface\RA_Emulators.h" />
+    <ClInclude Include="RAInterface\RA_Interface.h" />
     <ClInclude Include="resource\resource.h" />
     <ClInclude Include="resource\winres.h" />
     <ClInclude Include="source\6821.h" />
-    <ClInclude Include="source\Applewin.h" />
     <ClInclude Include="source\AY8910.h" />
     <ClInclude Include="source\Card.h" />
     <ClInclude Include="source\CardManager.h" />
+    <ClInclude Include="source\CmdLine.h" />
     <ClInclude Include="source\Common.h" />
     <ClInclude Include="source\CommonVICE\6510core.h" />
-    <ClInclude Include="source\CommonVICE\alarm.h" />
     <ClInclude Include="source\CommonVICE\interrupt.h" />
     <ClInclude Include="source\CommonVICE\mem.h" />
     <ClInclude Include="source\CommonVICE\types.h" />
@@ -45,15 +62,16 @@
     <ClInclude Include="source\Configuration\PropertySheet.h" />
     <ClInclude Include="source\Configuration\PropertySheetDefs.h" />
     <ClInclude Include="source\Configuration\PropertySheetHelper.h" />
+    <ClInclude Include="source\Core.h" />
     <ClInclude Include="source\CPU.h" />
     <ClInclude Include="source\CPU\cpu6502.h" />
     <ClInclude Include="source\CPU\cpu65C02.h" />
-    <ClInclude Include="source\CPU\cpu65d02.h" />
     <ClInclude Include="source\Debugger\Debug.h" />
     <ClInclude Include="source\Debugger\DebugDefs.h" />
     <ClInclude Include="source\Debugger\Debugger_Assembler.h" />
     <ClInclude Include="source\Debugger\Debugger_Color.h" />
     <ClInclude Include="source\Debugger\Debugger_Console.h" />
+    <ClInclude Include="source\Debugger\Debugger_Disassembler.h" />
     <ClInclude Include="source\Debugger\Debugger_DisassemblerData.h" />
     <ClInclude Include="source\Debugger\Debugger_Display.h" />
     <ClInclude Include="source\Debugger\Debugger_Help.h" />
@@ -61,6 +79,7 @@
     <ClInclude Include="source\Debugger\Debugger_Range.h" />
     <ClInclude Include="source\Debugger\Debugger_Symbols.h" />
     <ClInclude Include="source\Debugger\Debugger_Types.h" />
+    <ClInclude Include="source\Debugger\Debugger_Win32.h" />
     <ClInclude Include="source\Debugger\Util_MemoryTextFile.h" />
     <ClInclude Include="source\Debugger\Util_Text.h" />
     <ClInclude Include="source\Disk.h" />
@@ -70,8 +89,10 @@
     <ClInclude Include="source\DiskImage.h" />
     <ClInclude Include="source\DiskImageHelper.h" />
     <ClInclude Include="source\DiskLog.h" />
-    <ClInclude Include="source\Frame.h" />
+    <ClInclude Include="source\FourPlay.h" />
+    <ClInclude Include="source\FrameBase.h" />
     <ClInclude Include="source\Harddisk.h" />
+    <ClInclude Include="source\Interface.h" />
     <ClInclude Include="source\Joystick.h" />
     <ClInclude Include="source\Keyboard.h" />
     <ClInclude Include="source\LanguageCard.h" />
@@ -85,6 +106,7 @@
     <ClInclude Include="source\ParallelPrinter.h" />
     <ClInclude Include="source\Pravets.h" />
     <ClInclude Include="source\Registry.h" />
+    <ClInclude Include="source\RetroAchievements.h" />
     <ClInclude Include="source\RGBMonitor.h" />
     <ClInclude Include="source\Riff.h" />
     <ClInclude Include="source\SAM.h" />
@@ -92,22 +114,30 @@
     <ClInclude Include="source\SaveState_Structs_common.h" />
     <ClInclude Include="source\SaveState_Structs_v1.h" />
     <ClInclude Include="source\SerialComms.h" />
+    <ClInclude Include="source\SNESMAX.h" />
     <ClInclude Include="source\SoundCore.h" />
     <ClInclude Include="source\Speaker.h" />
     <ClInclude Include="source\Speech.h" />
+    <ClInclude Include="source\SSI263.h" />
     <ClInclude Include="source\SSI263Phonemes.h" />
     <ClInclude Include="source\StdAfx.h" />
+    <ClInclude Include="source\SynchronousEventManager.h" />
     <ClInclude Include="source\Tape.h" />
     <ClInclude Include="source\Tfe\Bittypes.h" />
     <ClInclude Include="source\Tfe\Bpf.h" />
     <ClInclude Include="source\Tfe\Ip6_misc.h" />
     <ClInclude Include="source\Tfe\Pcap-stdinc.h" />
     <ClInclude Include="source\Tfe\Pcap.h" />
-    <ClInclude Include="source\Tfe\Tfe.h" />
-    <ClInclude Include="source\Tfe\Tfearch.h" />
-    <ClInclude Include="source\Tfe\Tfesupp.h" />
+    <ClInclude Include="source\Tfe\tfe.h" />
+    <ClInclude Include="source\Tfe\tfearch.h" />
+    <ClInclude Include="source\Tfe\tfesupp.h" />
     <ClInclude Include="source\Tfe\Uilib.h" />
+    <ClInclude Include="source\Utilities.h" />
     <ClInclude Include="source\Video.h" />
+    <ClInclude Include="source\Windows\AppleWin.h" />
+    <ClInclude Include="source\Windows\DirectInput.h" />
+    <ClInclude Include="source\Windows\HookFilter.h" />
+    <ClInclude Include="source\Windows\Win32Frame.h" />
     <ClInclude Include="source\YamlHelper.h" />
     <ClInclude Include="source\z80emu.h" />
     <ClInclude Include="source\Z80VICE\daa.h" />
@@ -125,10 +155,28 @@
     <Text Include="docs\Wishlist.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="RAInterface\RA_Interface.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="source\6821.cpp" />
-    <ClCompile Include="source\Applewin.cpp" />
     <ClCompile Include="source\AY8910.cpp" />
     <ClCompile Include="source\CardManager.cpp" />
+    <ClCompile Include="source\CmdLine.cpp" />
     <ClCompile Include="source\Configuration\About.cpp" />
     <ClCompile Include="source\Configuration\PageAdvanced.cpp" />
     <ClCompile Include="source\Configuration\PageConfig.cpp" />
@@ -138,8 +186,23 @@
     <ClCompile Include="source\Configuration\PageSound.cpp" />
     <ClCompile Include="source\Configuration\PropertySheet.cpp" />
     <ClCompile Include="source\Configuration\PropertySheetHelper.cpp" />
+    <ClCompile Include="source\Core.cpp" />
     <ClCompile Include="source\CPU.cpp" />
+    <ClCompile Include="source\Debugger\Debugger_Disassembler.cpp" />
+    <ClCompile Include="source\Debugger\Debugger_Win32.cpp" />
     <ClCompile Include="source\Disk2CardManager.cpp" />
+    <ClCompile Include="source\FourPlay.cpp" />
+    <ClCompile Include="source\FrameBase.cpp" />
+    <ClCompile Include="source\RetroAchievements.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="source\RGBMonitor.cpp" />
     <ClCompile Include="source\SAM.cpp" />
     <ClCompile Include="source\Debugger\Debug.cpp" />
@@ -158,7 +221,6 @@
     <ClCompile Include="source\DiskFormatTrack.cpp" />
     <ClCompile Include="source\DiskImage.cpp" />
     <ClCompile Include="source\DiskImageHelper.cpp" />
-    <ClCompile Include="source\Frame.cpp" />
     <ClCompile Include="source\Harddisk.cpp" />
     <ClCompile Include="source\Joystick.cpp" />
     <ClCompile Include="source\Keyboard.cpp" />
@@ -176,59 +238,100 @@
     <ClCompile Include="source\Riff.cpp" />
     <ClCompile Include="source\SaveState.cpp" />
     <ClCompile Include="source\SerialComms.cpp" />
+    <ClCompile Include="source\SNESMAX.cpp" />
     <ClCompile Include="source\SoundCore.cpp" />
     <ClCompile Include="source\Speaker.cpp" />
     <ClCompile Include="source\Speech.cpp" />
+    <ClCompile Include="source\SSI263.cpp" />
     <ClCompile Include="source\StdAfx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="source\SynchronousEventManager.cpp" />
     <ClCompile Include="source\Tape.cpp" />
-    <ClCompile Include="source\Tfe\Tfe.cpp">
+    <ClCompile Include="source\Tfe\tfe.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="source\Tfe\Tfearch.cpp">
+    <ClCompile Include="source\Tfe\tfearch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="source\Tfe\Tfesupp.cpp">
+    <ClCompile Include="source\Tfe\tfesupp.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="source\Tfe\Uilib.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="source\Utilities.cpp" />
     <ClCompile Include="source\Video.cpp" />
+    <ClCompile Include="source\Windows\AppleWin.cpp" />
+    <ClCompile Include="source\Windows\DirectInput.cpp" />
+    <ClCompile Include="source\Windows\HookFilter.cpp" />
+    <ClCompile Include="source\Windows\Win32Frame.cpp" />
+    <ClCompile Include="source\Windows\WinFrame.cpp" />
     <ClCompile Include="source\YamlHelper.cpp" />
     <ClCompile Include="source\z80emu.cpp" />
     <ClCompile Include="source\Z80VICE\daa.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="source\Z80VICE\z80.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="source\Z80VICE\z80mem.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
@@ -236,7 +339,12 @@
     <None Include="resource\Apple2.rom" />
     <None Include="resource\Apple2e.rom" />
     <None Include="resource\Apple2e_Enhanced.rom" />
+    <None Include="resource\Apple2_JPlus.rom" />
+    <None Include="resource\Apple2_JPlus_Video.rom" />
     <None Include="resource\Apple2_Plus.rom" />
+    <None Include="resource\Base64A.rom" />
+    <None Include="resource\Base64A_German_Video.rom" />
+    <None Include="resource\Disk2-13sector.rom" />
     <None Include="resource\DISK2.rom" />
     <None Include="resource\Freezes_Non-autostart_F8_Rom.rom" />
     <None Include="resource\Hddrvr.bin" />
@@ -267,6 +375,7 @@
   <ItemGroup>
     <Image Include="resource\Applewin.bmp" />
     <Image Include="resource\APPLEWIN.ICO" />
+    <Image Include="resource\ApplewinLogo.bmp" />
     <Image Include="resource\CAPSOFF.BMP" />
     <Image Include="resource\CAPSOFF_P8.BMP" />
     <Image Include="resource\CAPSON.BMP" />
@@ -298,23 +407,42 @@
     <Image Include="resource\LED_CAPS_ON_P8.BMP" />
     <Image Include="resource\RUN.BMP" />
     <Image Include="resource\RUN3000E.bmp" />
+    <Image Include="resource\RUNBASE64A.BMP" />
     <Image Include="resource\RUNP.BMP" />
     <Image Include="resource\SETUP.BMP" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="resource\Applewin.rc" />
+    <ResourceCompile Include="resource\Applewin.rc">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">USE_RETROACHIEVEMENTS</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">USE_RETROACHIEVEMENTS</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">$(ProjectDir)source\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">$(ProjectDir)source\</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{0A960136-A00A-4D4B-805F-664D9950D2CA}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>AppleWin</RootNamespace>
     <ProjectName>AppleWin</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'" Label="Configuration">
@@ -327,6 +455,20 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141_xp</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -343,10 +485,22 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'" Label="PropertySheets">
@@ -356,10 +510,24 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <TargetName>RAppleWin</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <TargetName>RAppleWin</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">
@@ -372,15 +540,77 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;ddraw.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
+      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+    </Link>
+    <PreBuildEvent>
+      <Command>echo Performing unit-test: TestCPU6502
+.\Debug\TestCPU6502.exe</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Performing unit-test: TestCPU6502</Message>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;USE_RETROACHIEVEMENTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;RAInterface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
+      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+    </Link>
+    <PreBuildEvent>
+      <Command>echo Performing unit-test: TestCPU6502
+.\Debug\TestCPU6502.exe
+$(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RAppleWin RAPPLEWIN</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Performing unit-test: TestCPU6502</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(ProjectDir)RAInterface\CopyOverlay.bat $(TargetDir)</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <DisableSpecificWarnings>4995</DisableSpecificWarnings>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
@@ -399,14 +629,15 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;NO_DIRECT_X;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
@@ -427,17 +658,89 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;ddraw.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
+      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+    </Link>
+    <PreBuildEvent>
+      <Command>echo Performing unit-test: TestCPU6502
+.\Release\TestCPU6502.exe</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Performing unit-test: TestCPU6502</Message>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;USE_RETROACHIEVEMENTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;RAInterface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
+      <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+    </Link>
+    <PreBuildEvent>
+      <Command>echo Performing unit-test: TestCPU6502
+.\Release\TestCPU6502.exe
+$(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RAppleWin RAPPLEWIN</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Performing unit-test: TestCPU6502</Message>
+    </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>$(ProjectDir)RAInterface\CopyOverlay.bat $(TargetDir)</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4995</DisableSpecificWarnings>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
@@ -459,17 +762,18 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;NO_DSHOW_STRSAFE;NO_DIRECT_X;YAML_DECLARE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>source\cpu;source\emulator;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>source;source\cpu;source\debugger;zlib;zip_lib;libyaml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>

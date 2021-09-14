@@ -28,10 +28,38 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "Registry.h"
+#include "CmdLine.h"
+
+namespace _ini {
+	//===========================================================================
+	BOOL RegLoadString(LPCTSTR section, LPCTSTR key, BOOL /*peruser*/, LPTSTR buffer, DWORD chars)
+	{
+		DWORD n = GetPrivateProfileString(section, key, NULL, buffer, chars, g_sConfigFile.c_str());
+		return n > 0;
+	}
+
+	//===========================================================================
+	void RegSaveString(LPCTSTR section, LPCTSTR key, BOOL /*peruser*/, const std::string& buffer)
+	{
+		BOOL updated = WritePrivateProfileString(section, key, buffer.c_str(), g_sConfigFile.c_str());
+		_ASSERT(updated || GetLastError() == 0);
+	}
+
+	//===========================================================================
+	void RegDeleteString(LPCTSTR section, BOOL /*peruser*/)
+	{
+		BOOL updated = WritePrivateProfileString(section, NULL, NULL, g_sConfigFile.c_str());
+		_ASSERT(updated || GetLastError() == 0);
+	}
+}
 
 //===========================================================================
 BOOL RegLoadString (LPCTSTR section, LPCTSTR key, BOOL peruser, LPTSTR buffer, DWORD chars)
 {
+	if (!g_sConfigFile.empty())
+		return _ini::RegLoadString(section, key, peruser, buffer, chars);
+
 	TCHAR fullkeyname[256];
 	StringCbPrintf(fullkeyname, 256, TEXT("Software\\AppleWin\\CurrentVersion\\%s"), section);
 
@@ -43,7 +71,7 @@ BOOL RegLoadString (LPCTSTR section, LPCTSTR key, BOOL peruser, LPTSTR buffer, D
 		0,
 		KEY_READ,
 		&keyhandle);
-	if (status == 0)
+	if (status == ERROR_SUCCESS)
 	{
 		DWORD type;
 		DWORD size = chars;
@@ -88,6 +116,9 @@ BOOL RegLoadValue (LPCTSTR section, LPCTSTR key, BOOL peruser, DWORD* value, DWO
 
 //===========================================================================
 void RegSaveString (LPCTSTR section, LPCTSTR key, BOOL peruser, const std::string & buffer) {
+	if (!g_sConfigFile.empty())
+		return _ini::RegSaveString(section, key, peruser, buffer);
+
 	TCHAR fullkeyname[256];
 	StringCbPrintf(fullkeyname, 256, TEXT("Software\\AppleWin\\CurrentVersion\\%s"), section);
 
@@ -103,7 +134,7 @@ void RegSaveString (LPCTSTR section, LPCTSTR key, BOOL peruser, const std::strin
 		(LPSECURITY_ATTRIBUTES)NULL,
 		&keyhandle,
 		&disposition);
-	if (status == 0)
+	if (status == ERROR_SUCCESS)
 	{
 		RegSetValueEx(
 			keyhandle,
@@ -121,4 +152,53 @@ void RegSaveValue (LPCTSTR section, LPCTSTR key, BOOL peruser, DWORD value) {
 	TCHAR buffer[32] = TEXT("");
 	StringCbPrintf(buffer, 32, "%d", value);
 	RegSaveString(section, key, peruser, buffer);
+}
+
+//===========================================================================
+static std::string& RegGetSlotSection(UINT slot)
+{
+	static std::string section;
+	section = REG_CONFIG_SLOT;
+	section += (char)('0' + slot);
+	return section;
+}
+
+std::string& RegGetConfigSlotSection(UINT slot)
+{
+	static std::string section;
+	section = REG_CONFIG "\\";
+	section += RegGetSlotSection(slot);
+	return section;
+}
+
+void RegDeleteConfigSlotSection(UINT slot)
+{
+	BOOL peruser = TRUE;
+
+	if (!g_sConfigFile.empty())
+	{
+		std::string section = REG_CONFIG "\\";
+		section += RegGetSlotSection(slot);
+		return _ini::RegDeleteString(section.c_str(), peruser);
+	}
+
+	TCHAR fullkeyname[256];
+	StringCbPrintf(fullkeyname, 256, TEXT("Software\\AppleWin\\CurrentVersion\\%s"), REG_CONFIG);
+
+	HKEY keyhandle;
+	LSTATUS status = RegOpenKeyEx(
+		(peruser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE),
+		fullkeyname,
+		0,
+		KEY_READ,
+		&keyhandle);
+	if (status == ERROR_SUCCESS)
+	{
+		std::string& keySlot = RegGetSlotSection(slot);
+		LSTATUS status2 = RegDeleteKey(keyhandle, keySlot.c_str());
+		if (status2 != ERROR_SUCCESS && status2 != ERROR_FILE_NOT_FOUND)
+			_ASSERT(0);
+	}
+
+	RegCloseKey(keyhandle);
 }

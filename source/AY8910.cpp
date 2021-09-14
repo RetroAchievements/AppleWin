@@ -26,12 +26,9 @@
 
 #include "StdAfx.h"
 
-#include <windows.h>
-#include <stdio.h>
-#include <crtdbg.h>
 #include "AY8910.h"
 
-#include "Applewin.h"		// For g_fh
+#include "Core.h"		// For g_fh
 #include "YamlHelper.h"
 
 /* The AY white noise RNG algorithm is based on info from MAME's ay8910.c -
@@ -471,6 +468,7 @@ sound_write_buf_pstereo( libspectrum_signed_word * out, int c )
 #define AY_ENV_HOLD	1
 
 #define HZ_COMMON_DENOMINATOR 50
+#include "Log.h"
 
 void CAY8910::sound_ay_overlay( void )
 {
@@ -495,8 +493,23 @@ void CAY8910::sound_ay_overlay( void )
   sfreq = sound_generator_freq / HZ_COMMON_DENOMINATOR;
 //  cpufreq = machine_current->timings.processor_speed / HZ_COMMON_DENOMINATOR;
   cpufreq = (libspectrum_dword) (m_fCurrentCLK_AY8910 / HZ_COMMON_DENOMINATOR);	// [TC]
+  int dbgCount=0;
   for( f = 0; f < ay_change_count; f++ )
+  {
     ay_change[f].ofs = (USHORT) (( ay_change[f].tstates * sfreq ) / cpufreq);	// [TC] Added cast
+
+	if (ay_change[f].ofs >= sound_generator_framesiz)	// [TC] Ensure that all ay_change's get processed
+	{
+		ay_change[f].ofs = sound_generator_framesiz-1;	// [TC] - as parent, sound_frame(), just dumps outstanding changes (ay_change_count=0)
+		dbgCount++;
+	}
+  }
+#if defined(_DEBUG) && 0
+  if (dbgCount)
+  {
+	  LogOutput("ay_change: saved %d\n", dbgCount);	// [TC] previously would've been dumped!
+  }
+#endif
 
   libspectrum_signed_word* pBuf1 = g_ppSoundBuffers[0];
   libspectrum_signed_word* pBuf2 = g_ppSoundBuffers[1];
@@ -710,6 +723,48 @@ void CAY8910::sound_ay_overlay( void )
 	break;
     }
   }
+}
+
+BYTE CAY8910::sound_ay_read( int reg )
+{
+	reg &= 15;
+
+	BYTE val = 0;
+	bool got = false;
+
+	if (ay_change_count)
+	{
+		for (int i=ay_change_count-1; i>=0; i--)
+		{
+			if (ay_change[i].reg == reg)
+			{
+				val = ay_change[i].val;	// return the most recently written reg's value
+				got = true;
+				break;
+			}
+		}
+	}
+
+	if (!got)
+		val = sound_ay_registers[reg];
+
+	switch (reg & 15)
+	{
+	case 1:
+	case 3:
+	case 5:
+	case 13:
+		val &= 15;
+		break;
+	case 6:
+	case 8:
+	case 9:
+	case 10:
+		val &= 31;
+		break;
+	}
+
+	return val;
 }
 
 // AppleWin:TC  Holding down ScrollLock will result in lots of AY changes /ay_change_count/
@@ -991,7 +1046,7 @@ sound_beeper( int is_tape, int on )
 #define SS_YAML_KEY_CHANGE "Change"
 #define SS_YAML_VALUE_CHANGE_FORMAT "%d, %d, 0x%1X, 0x%02X"
 
-void CAY8910::SaveSnapshot(YamlSaveHelper& yamlSaveHelper, std::string& suffix)
+void CAY8910::SaveSnapshot(YamlSaveHelper& yamlSaveHelper, const std::string& suffix)
 {
 	std::string unit = std::string(SS_YAML_KEY_AY8910) + suffix;
 	YamlSaveHelper::Label label(yamlSaveHelper, "%s:\n", unit.c_str());
@@ -1046,7 +1101,7 @@ void CAY8910::SaveSnapshot(YamlSaveHelper& yamlSaveHelper, std::string& suffix)
 	}
 }
 
-bool CAY8910::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, std::string& suffix)
+bool CAY8910::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, const std::string& suffix)
 {
 	std::string unit = std::string(SS_YAML_KEY_AY8910) + suffix;
 	if (!yamlLoadHelper.GetSubMap(unit))
@@ -1148,6 +1203,10 @@ bool CAY8910::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, std::string& suffix)
 static CAY8910 g_AY8910[MAX_8910];
 static unsigned __int64 g_uLastCumulativeCycles = 0;
 
+BYTE AYReadReg(int chip, int r)
+{
+	return g_AY8910[chip].sound_ay_read(r);
+}
 
 void _AYWriteReg(int chip, int r, int v)
 {
@@ -1201,7 +1260,7 @@ BYTE* AY8910_GetRegsPtr(UINT uChip)
 	return g_AY8910[uChip].GetAYRegsPtr();
 }
 
-UINT AY8910_SaveSnapshot(YamlSaveHelper& yamlSaveHelper, UINT uChip, std::string& suffix)
+UINT AY8910_SaveSnapshot(YamlSaveHelper& yamlSaveHelper, UINT uChip, const std::string& suffix)
 {
 	if (uChip >= MAX_8910)
 		return 0;
@@ -1210,7 +1269,7 @@ UINT AY8910_SaveSnapshot(YamlSaveHelper& yamlSaveHelper, UINT uChip, std::string
 	return 1;
 }
 
-UINT AY8910_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT uChip, std::string& suffix)
+UINT AY8910_LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT uChip, const std::string& suffix)
 {
 	if (uChip >= MAX_8910)
 		return 0;

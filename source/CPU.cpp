@@ -86,24 +86,26 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "Applewin.h"
-#include "CardManager.h"
 #include "CPU.h"
-#include "Frame.h"
+#include "Core.h"
+#include "CardManager.h"
 #include "Memory.h"
 #include "Mockingboard.h"
 #include "MouseInterface.h"
 #ifdef USE_SPEECH_API
 #include "Speech.h"
 #endif
-#include "Video.h"
+#include "SynchronousEventManager.h"
 #include "NTSC.h"
+#include "Log.h"
 
 #include "z80emu.h"
 #include "Z80VICE/z80.h"
 #include "Z80VICE/z80mem.h"
 
 #include "YamlHelper.h"
+
+#define LOG_IRQ_TAKEN_AND_RTI 0
 
 // 6502 Accumulator Bit Flags
 	#define	 AF_SIGN       0x80
@@ -145,8 +147,6 @@ static volatile UINT32 g_bmNMI = 0;
 static volatile BOOL g_bNmiFlank = FALSE; // Positive going flank on NMI line
 
 static bool g_irqDefer1Opcode = false;
-
-static bool g_isMouseCardInstalled = false;
 
 //
 
@@ -193,6 +193,11 @@ void SetActiveCpu(eCpuType cpu)
 	g_ActiveCPU = cpu;
 }
 
+bool IsIrqAsserted(void)
+{
+	return g_bmIRQ ? true : false;
+}
+
 bool Is6502InterruptEnabled(void)
 {
 	return !(regs.ps & AF_INTERRUPT);
@@ -203,20 +208,10 @@ void ResetCyclesExecutedForDebugger(void)
 	g_nCyclesExecuted = 0;
 }
 
-void SetMouseCardInstalled(bool installed)
-{
-	g_isMouseCardInstalled = installed;
-}
-
 //
 
 #include "CPU/cpu_general.inl"
-
 #include "CPU/cpu_instructions.inl"
-
-// Break into debugger on invalid opcodes
-//#define INV IsDebugBreakOnInvalid(AM_1);
-#define INV
 
 /****************************************************************************
 *
@@ -243,6 +238,10 @@ static __forceinline void DoIrqProfiling(DWORD uCycles)
 	if(regs.ps & AF_INTERRUPT)
 		return;		// Still in Apple's ROM
 
+#if LOG_IRQ_TAKEN_AND_RTI
+	LogOutput("ISR-end\n\n");
+#endif
+
 	g_nCycleIrqEnd = g_nCumulativeCycles + uCycles;
 	g_nCycleIrqTime = (UINT) (g_nCycleIrqEnd - g_nCycleIrqStart);
 
@@ -268,21 +267,10 @@ static __forceinline void DoIrqProfiling(DWORD uCycles)
 
 //===========================================================================
 
-BYTE CpuRead(USHORT addr, ULONG uExecutedCycles)
-{
-	return READ;
-}
-
-void CpuWrite(USHORT addr, BYTE a, ULONG uExecutedCycles)
-{
-	WRITE(a);
-}
-
-//===========================================================================
-
 #ifdef USE_SPEECH_API
 
-const USHORT COUT = 0xFDED;
+const USHORT COUT1 = 0xFDF0;			// GH#934 - ProDOS: COUT1 better than using COUT/$FDED
+const USHORT BASICOUT = 0xC307;			// GH#934 - 80COL: use BASICOUT
 
 const UINT OUTPUT_BUFFER_SIZE = 256;
 char g_OutputBuffer[OUTPUT_BUFFER_SIZE+1+1];	// +1 for EOL, +1 for NULL
@@ -383,7 +371,7 @@ static __forceinline void Fetch(BYTE& iOpcode, ULONG uExecutedCycles)
 		: *(mem+PC);
 
 #ifdef USE_SPEECH_API
-	if (PC == COUT && g_Speech.IsEnabled() && !g_bFullSpeed)
+	if ((PC == COUT1 || PC == BASICOUT) && g_Speech.IsEnabled() && !g_bFullSpeed)
 		CaptureCOUT();
 #endif
 
@@ -413,8 +401,13 @@ static __forceinline void NMI(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 #endif
 }
 
-// NB. No need to save to save-state, as IRQ() follows CheckInterruptSources(), and IRQ() always sets it to false.
-static bool g_irqOnLastOpcodeCycle = false;
+static __forceinline void CheckSynchronousInterruptSources(UINT cycles, ULONG uExecutedCycles)
+{
+	g_SynchronousEventMgr.Update(cycles, uExecutedCycles);
+}
+
+// NB. No need to save to save-state, as IRQ() follows CheckSynchronousInterruptSources(), and IRQ() always sets it to false.
+bool g_irqOnLastOpcodeCycle = false;
 
 static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
 {
@@ -438,62 +431,125 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 		PUSH(regs.pc & 0xFF)
 		EF_TO_AF
 		PUSH(regs.ps & ~AF_BREAK)
-		regs.ps = regs.ps | AF_INTERRUPT & ~AF_DECIMAL;
+		regs.ps = (regs.ps | AF_INTERRUPT) & (~AF_DECIMAL);
 		regs.pc = * (WORD*) (mem+0xFFFE);
 		UINT uExtraCycles = 0;	// Needed for CYC(a) macro
 		CYC(7)
+#if defined(_DEBUG) && LOG_IRQ_TAKEN_AND_RTI
+		std::string irq6522;
+		MB_Get6522IrqDescription(irq6522);
+		const char* pSrc =	(g_bmIRQ & 1) ? irq6522.c_str() :
+							(g_bmIRQ & 2) ? "SPEECH" :
+							(g_bmIRQ & 4) ? "SSC" :
+							(g_bmIRQ & 8) ? "MOUSE" : "UNKNOWN";
+		LogOutput("IRQ (%08X) (%s)\n", (UINT)g_nCycleIrqStart, pSrc);
+#endif
+		CheckSynchronousInterruptSources(7, uExecutedCycles);
 	}
 
 	g_irqOnLastOpcodeCycle = false;
 }
 
-const int IRQ_CHECK_OPCODE_FULL_SPEED = 40;	// ~128 cycles (assume 3 cycles per opcode)
-static int g_fullSpeedOpcodeCount = IRQ_CHECK_OPCODE_FULL_SPEED;
-
-static __forceinline void CheckInterruptSources(ULONG uExecutedCycles, const bool bVideoUpdate)
-{
-	if (!bVideoUpdate)
-	{
-		g_fullSpeedOpcodeCount--;
-		if (g_fullSpeedOpcodeCount >= 0)
-			return;
-		g_fullSpeedOpcodeCount = IRQ_CHECK_OPCODE_FULL_SPEED;
-	}
-
-	if (MB_UpdateCycles(uExecutedCycles))
-		g_irqOnLastOpcodeCycle = true;
-
-	if (g_isMouseCardInstalled)
-		g_CardMgr.GetMouseCard()->SetVBlank( !VideoGetVblBar(uExecutedCycles) );
-}
-
-// GH#608: IRQ needs to occur within 17 cycles (6 opcodes) of configuring the timer interrupt
-void CpuAdjustIrqCheck(UINT uCyclesUntilInterrupt)
-{
-	const UINT opcodesUntilInterrupt = uCyclesUntilInterrupt/3;	// assume 3 cycles per opcode
-	if (g_bFullSpeed && opcodesUntilInterrupt < IRQ_CHECK_OPCODE_FULL_SPEED)
-		g_fullSpeedOpcodeCount = opcodesUntilInterrupt;
-}
-
 //===========================================================================
 
+#define READ _READ_WITH_IO_F8xx
+#define WRITE(value) _WRITE_WITH_IO_F8xx(value)
+#define HEATMAP_X(address)
+
 #include "CPU/cpu6502.h"  // MOS 6502
+
+#undef READ
+#undef WRITE
+
+//-------
+
+#define READ _READ
+#define WRITE(value) _WRITE(value)
+
 #include "CPU/cpu65C02.h" // WDC 65C02
-#include "CPU/cpu65d02.h" // Debug CPU Memory Visualizer
+
+#undef READ
+#undef WRITE
+#undef HEATMAP_X
+
+//-----------------
+
+#define READ Heatmap_ReadByte_With_IO_F8xx(addr, uExecutedCycles)
+#define WRITE(value) Heatmap_WriteByte_With_IO_F8xx(addr, value, uExecutedCycles);
+
+#define HEATMAP_X(address) Heatmap_X(address)
+
+#include "CPU/cpu_heatmap.inl"
+
+#define Cpu6502 Cpu6502_debug
+#include "CPU/cpu6502.h"  // MOS 6502
+#undef Cpu6502
+
+#undef READ
+#undef WRITE
+
+//-------
+
+#define READ Heatmap_ReadByte(addr, uExecutedCycles)
+#define WRITE(value) Heatmap_WriteByte(addr, value, uExecutedCycles);
+
+#define Cpu65C02 Cpu65C02_debug
+#include "CPU/cpu65C02.h" // WDC 65C02
+#undef Cpu65C02
+
+#undef READ
+#undef WRITE
+#undef HEATMAP_X
 
 //===========================================================================
 
 static DWORD InternalCpuExecute(const DWORD uTotalCycles, const bool bVideoUpdate)
 {
-	if (GetMainCpu() == CPU_6502)
-		return Cpu6502(uTotalCycles, bVideoUpdate);		// Apple ][, ][+, //e, Clones
+	if (g_nAppMode == MODE_RUNNING || g_nAppMode == MODE_BENCHMARK)
+	{
+		if (GetMainCpu() == CPU_6502)
+			return Cpu6502(uTotalCycles, bVideoUpdate);		// Apple ][, ][+, //e, Clones
+		else
+			return Cpu65C02(uTotalCycles, bVideoUpdate);	// Enhanced Apple //e
+	}
 	else
-		return Cpu65C02(uTotalCycles, bVideoUpdate);	// Enhanced Apple //e
+	{
+		_ASSERT(g_nAppMode == MODE_STEPPING || g_nAppMode == MODE_DEBUG);
+		if (GetMainCpu() == CPU_6502)
+			return Cpu6502_debug(uTotalCycles, bVideoUpdate);	// Apple ][, ][+, //e, Clones
+		else
+			return Cpu65C02_debug(uTotalCycles, bVideoUpdate);	// Enhanced Apple //e
+	}
 }
 
 //
 // ----- ALL GLOBALLY ACCESSIBLE FUNCTIONS ARE BELOW THIS LINE -----
 //
+
+//===========================================================================
+
+// Called by z80_RDMEM()
+BYTE CpuRead(USHORT addr, ULONG uExecutedCycles)
+{
+	if (g_nAppMode == MODE_RUNNING)
+	{
+		return _READ_WITH_IO_F8xx;	// Superset of _READ
+	}
+
+	return Heatmap_ReadByte_With_IO_F8xx(addr, uExecutedCycles);
+}
+
+// Called by z80_WRMEM()
+void CpuWrite(USHORT addr, BYTE value, ULONG uExecutedCycles)
+{
+	if (g_nAppMode == MODE_RUNNING)
+	{
+		_WRITE_WITH_IO_F8xx(value);	// Superset of _WRITE
+		return;
+	}
+
+	Heatmap_WriteByte_With_IO_F8xx(addr, value, uExecutedCycles);
+}
 
 //===========================================================================
 
@@ -554,6 +610,11 @@ ULONG CpuGetCyclesThisVideoFrame(const ULONG nExecutedCycles)
 
 DWORD CpuExecute(const DWORD uCycles, const bool bVideoUpdate)
 {
+#ifdef LOG_PERF_TIMINGS
+	extern UINT64 g_timeCpu;
+	PerfMarker perfMarker(g_timeCpu);
+#endif
+
 	g_nCyclesExecuted =	0;
 
 #ifdef _DEBUG
@@ -647,7 +708,6 @@ void CpuIrqAssert(eIRQSRC Device)
 
 void CpuIrqDeassert(eIRQSRC Device)
 {
-	_ASSERT(g_bCritSectionValid);
 	if (g_bCritSectionValid) EnterCriticalSection(&g_CriticalSection);
 	g_bmIRQ &= ~(1<<Device);
 	if (g_bCritSectionValid) LeaveCriticalSection(&g_CriticalSection);

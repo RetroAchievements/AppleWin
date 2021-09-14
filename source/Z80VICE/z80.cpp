@@ -26,7 +26,6 @@
 
 #include "../StdAfx.h"
 
-#include "../Applewin.h"
 #include "../CPU.h"
 #include "../Memory.h"
 #include "../YamlHelper.h"
@@ -40,7 +39,7 @@
 #include <stdlib.h>
 
 #include "../CommonVICE/6510core.h"	// [AppleWin-TC]
-#include "../CommonVICE/alarm.h"
+//#include "../CommonVICE/alarm.h"  // [AppleWin-TC]
 #include "daa.h"
 //#include "debug.h"				// [AppleWin-TC]
 #include "../CommonVICE/interrupt.h"

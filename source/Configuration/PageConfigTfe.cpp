@@ -23,12 +23,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
+#include "PageConfigTfe.h"
+
 #include "../Common.h"
 #include "../Registry.h"
 #include "../resource/resource.h"
-#include "../Tfe/Tfe.h"
-#include "../Tfe/Tfesupp.h"
-#include "PageConfigTfe.h"
+#include "../Tfe/tfe.h"
+#include "../Tfe/tfesupp.h"
 
 CPageConfigTfe* CPageConfigTfe::ms_this = 0;	// reinit'd in ctor
 
@@ -56,13 +57,13 @@ uilib_dialog_group CPageConfigTfe::ms_rightgroup[] =
 	{0, 0}
 };
 
-BOOL CALLBACK CPageConfigTfe::DlgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CALLBACK CPageConfigTfe::DlgProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	// Switch from static func to our instance
 	return CPageConfigTfe::ms_this->DlgProcInternal(hwnd, msg, wparam, lparam);
 }
 
-BOOL CPageConfigTfe::DlgProcInternal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+INT_PTR CPageConfigTfe::DlgProcInternal(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	switch (msg)
 	{
@@ -143,10 +144,7 @@ int CPageConfigTfe::gray_ungray_items(HWND hwnd)
 	int enable;
 	int number;
 
-	//resources_get_value("ETHERNET_DISABLED", (void *)&disabled);
-	DWORD dwDisabled;
-	REGLOAD_DEFAULT(TEXT("Uthernet Disabled"), &dwDisabled, 0);
-	int disabled = dwDisabled ? 1 : 0;
+	int disabled = 0;
 	get_disabled_state(&disabled);
 
 	if (disabled)
@@ -195,28 +193,18 @@ void CPageConfigTfe::init_tfe_dialog(HWND hwnd)
 	HWND temp_hwnd;
 	int active_value;
 
-	int tfe_enable;
 	int xsize, ysize;
-
-	char *interface_name = NULL;
 
 	uilib_get_group_extent(hwnd, ms_leftgroup, &xsize, &ysize);
 	uilib_adjust_group_width(hwnd, ms_leftgroup);
 	uilib_move_group(hwnd, ms_rightgroup, xsize + 30);
 
-	//resources_get_value("ETHERNET_ACTIVE", (void *)&tfe_enabled);
-	get_tfe_enabled(&tfe_enable);
-
-	//resources_get_value("ETHERNET_AS_RR", (void *)&tfe_as_rr_net);
-	active_value = (tfe_enable ? 1 : 0);
+	active_value = (m_tfe_enabled > 0 ? 1 : 0);
 
 	temp_hwnd=GetDlgItem(hwnd,IDC_TFE_SETTINGS_ENABLE);
 	SendMessage(temp_hwnd, CB_ADDSTRING, 0, (LPARAM)"Disabled");
 	SendMessage(temp_hwnd, CB_ADDSTRING, 0, (LPARAM)"Uthernet");
 	SendMessage(temp_hwnd, CB_SETCURSEL, (WPARAM)active_value, 0);
-
-	//resources_get_value("ETHERNET_INTERFACE", (void *)&interface_name);
-	interface_name = (char *) get_tfe_interface();
 
 	if (tfe_enumadapter_open())
 	{
@@ -231,7 +219,7 @@ void CPageConfigTfe::init_tfe_dialog(HWND hwnd)
 		{
 			BOOL this_entry = FALSE;
 
-			if (strcmp(pname, interface_name) == 0)
+			if (strcmp(pname, m_tfe_interface_name.c_str()) == 0)
 			{
 				this_entry = TRUE;
 			}
@@ -273,7 +261,6 @@ void CPageConfigTfe::init_tfe_dialog(HWND hwnd)
 void CPageConfigTfe::save_tfe_dialog(HWND hwnd)
 {
 	int active_value;
-	int tfe_enabled;
 	char buffer[256];
 
 	buffer[255] = 0;
@@ -282,16 +269,13 @@ void CPageConfigTfe::save_tfe_dialog(HWND hwnd)
 	// RGJ - Added check for NULL interface so we don't set it active without a valid interface selected
 	if (strlen(buffer) > 0)
 	{
-		RegSaveString(TEXT(REG_CONFIG), TEXT(REGVALUE_UTHERNET_INTERFACE), 1, buffer);
-
+		m_tfe_interface_name = buffer;
 		active_value = SendMessage(GetDlgItem(hwnd, IDC_TFE_SETTINGS_ENABLE), CB_GETCURSEL, 0, 0);
-
-		tfe_enabled = active_value >= 1 ? 1 : 0;
-		REGSAVE(TEXT(REGVALUE_UTHERNET_ACTIVE)  ,tfe_enabled);
+		m_tfe_enabled = active_value > 0 ? 1 : 0;
 	}
 	else
 	{
-		REGSAVE(TEXT(REGVALUE_UTHERNET_ACTIVE)  ,0);
+		m_tfe_enabled = 0;
+		m_tfe_interface_name.clear();
 	}
 }
-

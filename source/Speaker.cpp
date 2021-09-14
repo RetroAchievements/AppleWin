@@ -28,15 +28,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "StdAfx.h"
 
-#include "Applewin.h"
+#include "Speaker.h"
+#include "Core.h"
 #include "CPU.h"
-#include "Frame.h"
+#include "Interface.h"
 #include "Log.h"
 #include "Memory.h"
 #include "SoundCore.h"
-#include "Speaker.h"
-#include "Video.h"	// VideoRedrawScreen()
 #include "YamlHelper.h"
+#include "Riff.h"
 
 #include "Debugger/Debug.h"	// For DWORD extbench
 
@@ -78,33 +78,32 @@ double		    g_fClksPerSpkrSample;		// Setup in SetClksPerSpkrSample()
 bool			g_bQuieterSpeaker = false;
 
 // Globals
-static DWORD	lastcyclenum	= 0;
-static DWORD	toggles			= 0;
 static unsigned __int64	g_nSpkrQuietCycleCount = 0;
 static unsigned __int64 g_nSpkrLastCycle = 0;
 static bool g_bSpkrToggleFlag = false;
-static VOICE SpeakerVoice = {0};
+static VOICE SpeakerVoice;
 static bool g_bSpkrAvailable = false;
 
 //-----------------------------------------------------------------------------
 
 // Forward refs:
-ULONG   Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSamples);
-ULONG   Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples);
-void    Spkr_SetActive(bool bActive);
+static ULONG   Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSamples);
+static ULONG   Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples);
+static void    Spkr_SetActive(bool bActive);
+static void    Spkr_DSUninit();
 
 //=============================================================================
 
 static void DisplayBenchmarkResults ()
 {
   DWORD totaltime = GetTickCount()-extbench;
-  VideoRedrawScreen();
+  GetFrame().VideoRedrawScreen();
   TCHAR buffer[64];
   wsprintf(buffer,
            TEXT("This benchmark took %u.%02u seconds."),
            (unsigned)(totaltime / 1000),
            (unsigned)((totaltime / 10) % 100));
-  MessageBox(g_hFrameWindow,
+  GetFrame().FrameMessageBox(
              buffer,
              TEXT("Benchmark Results"),
              MB_ICONINFORMATION | MB_SETFOREGROUND);
@@ -226,7 +225,7 @@ void SpkrInitialize ()
 {
 	if(g_fh)
 	{
-		fprintf(g_fh, "Spkr Config: soundtype = %d ",soundtype);
+		fprintf(g_fh, "Spkr Config: soundtype = %d ", (int) soundtype);
 		switch(soundtype)
 		{
 			case SOUND_NONE:   fprintf(g_fh, "(NONE)\n"); break;
@@ -238,10 +237,24 @@ void SpkrInitialize ()
 	if(g_bDisableDirectSound)
 	{
 		SpeakerVoice.bMute = true;
+		LogFileOutput("SpkrInitialize: g_bDisableDirectSound=1... SpeakerVoice.bMute=true\n");
 	}
 	else
 	{
 		g_bSpkrAvailable = Spkr_DSInit();
+		LogFileOutput("Spkr_DSInit(), res=%d\n", g_bSpkrAvailable ? 1 : 0);
+		if (!g_bSpkrAvailable)
+		{
+			GetFrame().FrameMessageBox(
+				TEXT("The emulator is unable to initialize a waveform ")
+				TEXT("output device.  Make sure you have a sound card ")
+				TEXT("and a driver installed and that Windows is ")
+				TEXT("correctly configured to use the driver.  Also ")
+				TEXT("ensure that no other program is currently using ")
+				TEXT("the device."),
+				TEXT("Configuration"),
+				MB_ICONEXCLAMATION | MB_SETFOREGROUND);
+		}
 	}
 
 	//
@@ -276,37 +289,18 @@ void SpkrReset()
 	InitRemainderBuffer();
 	Spkr_SubmitWaveBuffer(NULL, 0);
 	Spkr_SetActive(false);
-	Spkr_Demute();
+	Spkr_Unmute();
 }
 
 //=============================================================================
 
-BOOL SpkrSetEmulationType (HWND window, SoundType_e newtype)
+void SpkrSetEmulationType (SoundType_e newtype)
 {
   SpkrDestroy();	// GH#295: Destroy for all types (even SOUND_NONE)
 
   soundtype = newtype;
   if (soundtype != SOUND_NONE)
     SpkrInitialize();
-
-  if (soundtype != newtype)
-    switch (newtype) {
-
-      case SOUND_WAVE:
-        MessageBox(window,
-                   TEXT("The emulator is unable to initialize a waveform ")
-                   TEXT("output device.  Make sure you have a sound card ")
-                   TEXT("and a driver installed and that windows is ")
-                   TEXT("correctly configured to use the driver.  Also ")
-                   TEXT("ensure that no other program is currently using ")
-                   TEXT("the device."),
-                   TEXT("Configuration"),
-                   MB_ICONEXCLAMATION | MB_SETFOREGROUND);
-        return 0;
-
-    }
-
-  return 1;
 }
 
 //=============================================================================
@@ -399,7 +393,9 @@ BYTE __stdcall SpkrToggle (WORD, WORD, BYTE, BYTE, ULONG nExecutedCycles)
       if (g_bQuieterSpeaker)	// quieten the speaker if 8 bit DAC in use
         speakerDriveLevel /= 4;	// NB. Don't shift -ve number right: undefined behaviour (MSDN says: implementation-dependent)
 
-      ResetDCFilter();
+      // When full-speed: Don't ResetDCFilter(), otherwise get occasional clicks when speaker toggled
+      if (!g_bFullSpeed)
+        ResetDCFilter();
 
       if (g_nSpeakerData == speakerDriveLevel)
         g_nSpeakerData = ~speakerDriveLevel;
@@ -415,6 +411,11 @@ BYTE __stdcall SpkrToggle (WORD, WORD, BYTE, BYTE, ULONG nExecutedCycles)
 // Called by ContinueExecution()
 void SpkrUpdate (DWORD totalcycles)
 {
+#ifdef LOG_PERF_TIMINGS
+	extern UINT64 g_timeSpeaker;
+	PerfMarker perfMarker(g_timeSpeaker);
+#endif
+
   if(!g_bSpkrToggleFlag)
   {
 	  if(!g_nSpkrQuietCycleCount)
@@ -575,10 +576,11 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 
 	if(nNumSamplesToUse >= 128)	// Limit the buffer unlock/locking to a minimum
 	{
-		if(!DSGetLock(SpeakerVoice.lpDSBvoice,
-							dwByteOffset, (DWORD)nNumSamplesToUse*sizeof(short),
-							&pDSLockedBuffer0, &dwDSLockedBufferSize0,
-							&pDSLockedBuffer1, &dwDSLockedBufferSize1))
+		hr = DSGetLock(SpeakerVoice.lpDSBvoice,
+			dwByteOffset, (DWORD)nNumSamplesToUse * sizeof(short),
+			&pDSLockedBuffer0, &dwDSLockedBufferSize0,
+			&pDSLockedBuffer1, &dwDSLockedBufferSize1);
+		if (FAILED(hr))
 			return nNumSamples;
 
 		//
@@ -674,7 +676,8 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 
 		// Don't call DSZeroVoiceBuffer() - get noise with "VIA AC'97 Enhanced Audio Controller"
 		// . I guess SpeakerVoice.Stop() isn't really working and the new zero buffer causes noise corruption when submitted.
-		DSZeroVoiceWritableBuffer(&SpeakerVoice, "Spkr", g_dwDSSpkrBufferSize);
+		bool res = DSZeroVoiceWritableBuffer(&SpeakerVoice, g_dwDSSpkrBufferSize);
+		LogFileOutput("Spkr_SubmitWaveBuffer: DSZeroVoiceWritableBuffer, res=%d\n", res ? 1 : 0);
 
 		return 0;
 	}
@@ -687,8 +690,11 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 
 	DWORD dwCurrentPlayCursor, dwCurrentWriteCursor;
 	HRESULT hr = SpeakerVoice.lpDSBvoice->GetCurrentPosition(&dwCurrentPlayCursor, &dwCurrentWriteCursor);
-	if(FAILED(hr))
+	if (FAILED(hr))
+	{
+		LogFileOutput("Spkr_SubmitWaveBuffer: GetCurrentPosition failed (%08X)\n", hr);
 		return nNumSamples;
+	}
 
 	if(dwByteOffset == (DWORD)-1)
 	{
@@ -772,11 +778,15 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 	{
 		//sprintf(szDbg, "[Submit]    C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X +++\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamplesToUse); OutputDebugString(szDbg);
 
-		if(!DSGetLock(SpeakerVoice.lpDSBvoice,
-							dwByteOffset, (DWORD)nNumSamplesToUse*sizeof(short),
-							&pDSLockedBuffer0, &dwDSLockedBufferSize0,
-							&pDSLockedBuffer1, &dwDSLockedBufferSize1))
+		hr = DSGetLock(SpeakerVoice.lpDSBvoice,
+			dwByteOffset, (DWORD)nNumSamplesToUse * sizeof(short),
+			&pDSLockedBuffer0, &dwDSLockedBufferSize0,
+			&pDSLockedBuffer1, &dwDSLockedBufferSize1);
+		if (FAILED(hr))
+		{
+			LogFileOutput("Spkr_SubmitWaveBuffer: DSGetLock failed\n");
 			return nNumSamples;
+		}
 
 		memcpy(pDSLockedBuffer0, &pSpeakerBuffer[0], dwDSLockedBufferSize0);
 #ifdef RIFF_SPKR
@@ -794,8 +804,11 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 		// Commit sound buffer
 		hr = SpeakerVoice.lpDSBvoice->Unlock((void*)pDSLockedBuffer0, dwDSLockedBufferSize0,
 											(void*)pDSLockedBuffer1, dwDSLockedBufferSize1);
-		if(FAILED(hr))
+		if (FAILED(hr))
+		{
+			LogFileOutput("Spkr_SubmitWaveBuffer: Unlock failed (%08X)\n", hr);
 			return nNumSamples;
+		}
 
 		dwByteOffset = (dwByteOffset + (DWORD)nNumSamplesToUse*sizeof(short)*g_nSPKR_NumChannels) % g_dwDSSpkrBufferSize;
 	}
@@ -805,20 +818,24 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 
 //-----------------------------------------------------------------------------
 
+// NB. Not currently used
 void Spkr_Mute()
 {
 	if(SpeakerVoice.bActive && !SpeakerVoice.bMute)
 	{
-		SpeakerVoice.lpDSBvoice->SetVolume(DSBVOLUME_MIN);
+		HRESULT hr = SpeakerVoice.lpDSBvoice->SetVolume(DSBVOLUME_MIN);
+		LogFileOutput("Spkr_Mute: SetVolume(%d) res = %08X\n", DSBVOLUME_MIN, hr);
 		SpeakerVoice.bMute = true;
 	}
 }
 
-void Spkr_Demute()
+// NB. Only called by SpkrReset()
+void Spkr_Unmute()
 {
 	if(SpeakerVoice.bActive && SpeakerVoice.bMute)
 	{
-		SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+		HRESULT hr = SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+		LogFileOutput("Spkr_Unmute: SetVolume(%d) res = %08X\n", SpeakerVoice.nVolume, hr);
 		SpeakerVoice.bMute = false;
 	}
 }
@@ -865,8 +882,11 @@ void SpkrSetVolume(DWORD dwVolume, DWORD dwVolumeMax)
 
 	SpeakerVoice.nVolume = NewVolume(dwVolume, dwVolumeMax);
 
-	if(SpeakerVoice.bActive)
-		SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+	if (SpeakerVoice.bActive && !SpeakerVoice.bMute)
+	{
+		HRESULT hr = SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+		LogFileOutput("SpkrSetVolume: SetVolume(%d) res = %08X\n", SpeakerVoice.nVolume, hr);
+	}
 }
 
 //=============================================================================
@@ -877,20 +897,26 @@ bool Spkr_DSInit()
 	// Create single Apple speaker voice
 	//
 
-	if(!g_bDSAvailable)
-		return false;
-
-	SpeakerVoice.bIsSpeaker = true;
-
-	HRESULT hr = DSGetSoundBuffer(&SpeakerVoice, DSBCAPS_CTRLVOLUME, g_dwDSSpkrBufferSize, SPKR_SAMPLE_RATE, 1);
-	if(FAILED(hr))
+	if (!g_bDSAvailable)
 	{
-		if(g_fh) fprintf(g_fh, "Spkr: DSGetSoundBuffer failed (%08X)\n",hr);
+		LogFileOutput("Spkr_DSInit: g_bDSAvailable=0\n");
 		return false;
 	}
 
-	if(!DSZeroVoiceBuffer(&SpeakerVoice, "Spkr", g_dwDSSpkrBufferSize))
+	SpeakerVoice.bIsSpeaker = true;
+
+	HRESULT hr = DSGetSoundBuffer(&SpeakerVoice, DSBCAPS_CTRLVOLUME, g_dwDSSpkrBufferSize, SPKR_SAMPLE_RATE, 1, "Spkr");
+	if (FAILED(hr))
+	{
+		LogFileOutput("Spkr_DSInit: DSGetSoundBuffer failed (%08X)\n", hr);
 		return false;
+	}
+
+	if (!DSZeroVoiceBuffer(&SpeakerVoice, g_dwDSSpkrBufferSize))
+	{
+		LogFileOutput("Spkr_DSInit: DSZeroVoiceBuffer failed\n");
+		return false;
+	}
 
 	SpeakerVoice.bActive = true;
 
@@ -898,19 +924,23 @@ bool Spkr_DSInit()
 	if(!SpeakerVoice.nVolume)
 		SpeakerVoice.nVolume = DSBVOLUME_MAX;
 
-	SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+	hr = SpeakerVoice.lpDSBvoice->SetVolume(SpeakerVoice.nVolume);
+	LogFileOutput("Spkr_DSInit: SetVolume(%d) res = %08X\n", SpeakerVoice.nVolume, hr);
 
 	//
 
 	DWORD dwCurrentPlayCursor, dwCurrentWriteCursor;
 	hr = SpeakerVoice.lpDSBvoice->GetCurrentPosition(&dwCurrentPlayCursor, &dwCurrentWriteCursor);
-	if(SUCCEEDED(hr) && (dwCurrentPlayCursor == dwCurrentWriteCursor))
+	if (FAILED(hr))
+		LogFileOutput("Spkr_DSInit: GetCurrentPosition failed (%08X)\n", hr);
+	if (SUCCEEDED(hr) && (dwCurrentPlayCursor == dwCurrentWriteCursor))
 	{
 		// KLUDGE: For my WinXP PC with "VIA AC'97 Enhanced Audio Controller"
 		// . Not required for my Win98SE/WinXP PC with PCI "Soundblaster Live!"
 		Sleep(200);
 
 		hr = SpeakerVoice.lpDSBvoice->GetCurrentPosition(&dwCurrentPlayCursor, &dwCurrentWriteCursor);
+		LogFileOutput("Spkr_DSInit: GetCurrentPosition kludge (%08X)\n", hr);
 		char szDbg[100];
 		sprintf(szDbg, "[DSInit] PC=%08X, WC=%08X, Diff=%08X\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor); OutputDebugString(szDbg);
 	}
@@ -918,13 +948,10 @@ bool Spkr_DSInit()
 	return true;
 }
 
-void Spkr_DSUninit()
+static void Spkr_DSUninit()
 {
 	if(SpeakerVoice.lpDSBvoice && SpeakerVoice.bActive)
-	{
-		SpeakerVoice.lpDSBvoice->Stop();
-		SpeakerVoice.bActive = false;
-	}
+		DSVoiceStop(&SpeakerVoice);
 
 	DSReleaseSoundBuffer(&SpeakerVoice);
 }

@@ -1,7 +1,8 @@
-#ifndef AY8910_H
-#define AY8910_H
+#pragma once
 
 #define MAX_8910 4
+
+BYTE AYReadReg(int chip, int r);	// TC
 
 //-------------------------------------
 // MAME interface
@@ -17,8 +18,8 @@ BYTE* AY8910_GetRegsPtr(UINT uChip);
 
 void AY8910UpdateSetCycles();
 
-UINT AY8910_SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, UINT uChip, std::string& suffix);
-UINT AY8910_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT uChip, std::string& suffix);
+UINT AY8910_SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, UINT uChip, const std::string& suffix);
+UINT AY8910_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT uChip, const std::string& suffix);
 
 //-------------------------------------
 // FUSE stuff
@@ -41,13 +42,14 @@ public:
 
 	void sound_ay_init( void );
 	void sound_init( const char *device );
+	BYTE sound_ay_read( int reg );	// TC
 	void sound_ay_write( int reg, int val, libspectrum_dword now );
 	void sound_ay_reset( void );
 	void sound_frame( void );
 	BYTE* GetAYRegsPtr( void ) { return &sound_ay_registers[0]; }
 	static void SetCLK( double CLK ) { m_fCurrentCLK_AY8910 = CLK; }
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, std::string& suffix);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, std::string& suffix);
+	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, const std::string& suffix);
+	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, const std::string& suffix);
 
 private:
 	void init( void );
@@ -87,5 +89,3 @@ private:
 	// Vars shared between all AY's
 	static double m_fCurrentCLK_AY8910;
 };
-
-#endif

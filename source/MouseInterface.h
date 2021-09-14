@@ -1,6 +1,9 @@
+#pragma once
+
 #include "6821.h"
 #include "Common.h"
 #include "Card.h"
+#include "SynchronousEventManager.h"
 
 class CMouseInterface : public Card
 {
@@ -14,6 +17,7 @@ public:
 	void Initialize(LPBYTE pCxRomPeripheral, UINT uSlot);
 //	void Uninitialize();
 	void Reset();
+	UINT GetSlot(void) { return m_uSlot; }
 	static BYTE __stdcall IORead(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles);
 	static BYTE __stdcall IOWrite(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles);
 
@@ -23,7 +27,6 @@ public:
 	bool IsEnabled() { return m_bEnabled; }	// NB. m_bEnabled == true implies that m_bActive == true
 	bool IsActiveAndEnabled() { return /*IsActive() &&*/ IsEnabled(); }	// todo: just use IsEnabled()
 	void SetEnabled(bool bEnabled) { m_bEnabled = bEnabled; }
-	void SetVBlank(bool bVBL);
 	void GetXY(int& iX, int& iMinX, int& iMaxX, int& iY, int& iMinY, int& iMaxY)
 	{
 		iX    = m_iX;
@@ -61,6 +64,8 @@ protected:
 	int ClampY();
 	void SetClampX(int iMinX, int iMaxX);
 	void SetClampY(int iMinY, int iMaxY);
+
+	static int SyncEventCallback(int id, int cycles, ULONG uExecutedCycles);
 
 	void SaveSnapshotMC6821(class YamlSaveHelper& yamlSaveHelper, std::string key);
 	void LoadSnapshotMC6821(class YamlLoadHelper& yamlLoadHelper, std::string key);
@@ -102,11 +107,6 @@ protected:
 	bool	m_bEnabled;		// Windows' mouse events get passed to Apple]['s mouse h/w (m_bEnabled == true implies that m_bActive == true)
 	LPBYTE	m_pSlotRom;
 	UINT	m_uSlot;
-};
 
-namespace DIMouse
-{
-	HRESULT DirectInputInit( HWND hDlg );
-	void DirectInputUninit( HWND hDlg );
-	HRESULT ReadImmediateData( long* pX=NULL, long* pY=NULL );
+	SyncEvent m_syncEvent;
 };

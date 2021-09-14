@@ -6,8 +6,6 @@ const double CLK_6502_NTSC = (_14M_NTSC * 65.0) / (65.0*14.0+2.0); // 65 cycles 
 const double CLK_6502_PAL  = (_14M_PAL  * 65.0) / (65.0*14.0+2.0);
 //const double CLK_6502 = 23 * 44100;			// 1014300
 
-#define NUM_SLOTS 8
-
 #define  MAX(a,b)          (((a) > (b)) ? (a) : (b))
 #define  MIN(a,b)          (((a) < (b)) ? (a) : (b))
 
@@ -24,6 +22,7 @@ enum AppMode_e
 	, MODE_RUNNING  // 6502 is running at normal/full speed (Debugger breakpoints may or may not be active)
 	, MODE_DEBUG    // 6502 is paused
 	, MODE_STEPPING // 6502 is running at normal/full speed (Debugger breakpoints always active)
+	, MODE_BENCHMARK
 };
 
 #define  SPEED_MIN         0
@@ -48,14 +47,15 @@ enum AppMode_e
 // TODO: Move to StringTable.h
 #define	TITLE_APPLE_2			TEXT("Apple ][ Emulator")
 #define	TITLE_APPLE_2_PLUS		TEXT("Apple ][+ Emulator")
+#define	TITLE_APPLE_2_JPLUS		TEXT("Apple ][ J-Plus Emulator")
 #define	TITLE_APPLE_2E			TEXT("Apple //e Emulator")
 #define	TITLE_APPLE_2E_ENHANCED	TEXT("Enhanced Apple //e Emulator")
 #define TITLE_APPLE_2C          TEXT("Apple //e Emulator")
-#define TITLE_APPLE_2D          TEXT("Apple )(d Virtual Debug Hardware") 
 #define	TITLE_PRAVETS_82        TEXT("Pravets 82 Emulator")
 #define	TITLE_PRAVETS_8M        TEXT("Pravets 8M Emulator")
 #define	TITLE_PRAVETS_8A        TEXT("Pravets 8A Emulator")
 #define	TITLE_TK3000_2E         TEXT("TK3000 //e Emulator")
+#define	TITLE_BASE64A           TEXT("Base64A Emulator")
 
 #define TITLE_PAUSED       TEXT("* PAUSED *")
 #define TITLE_STEPPING     TEXT("Stepping")
@@ -85,6 +85,7 @@ enum AppMode_e
 #define  REGVALUE_CURSOR_CONTROL		"Joystick Cursor Control"
 #define  REGVALUE_CENTERING_CONTROL		"Joystick Centering Control"
 #define  REGVALUE_AUTOFIRE           "Autofire"
+#define  REGVALUE_SWAP_BUTTONS_0_AND_1 "Swap buttons 0 and 1"
 #define  REGVALUE_MOUSE_CROSSHAIR    "Mouse crosshair"
 #define  REGVALUE_MOUSE_RESTRICT_TO_WINDOW "Mouse restrict to window"
 #define  REGVALUE_THE_FREEZES_F8_ROM "The Freeze's F8 Rom"
@@ -106,18 +107,13 @@ enum AppMode_e
 #define  REGVALUE_CUSTOM_SPEED       "Custom Speed"
 #define  REGVALUE_EMULATION_SPEED    "Emulation Speed"
 #define  REGVALUE_WINDOW_SCALE       "Window Scale"
-#define  REGVALUE_UTHERNET_ACTIVE       "Uthernet Active"
+#define  REGVALUE_UTHERNET_ACTIVE       "Uthernet Active"	// GH#977: Deprecated from 1.30.4
 #define  REGVALUE_UTHERNET_INTERFACE    "Uthernet Interface"
-#define  REGVALUE_SLOT0					"Slot 0"
-#define  REGVALUE_SLOT1					"Slot 1"
-#define  REGVALUE_SLOT2					"Slot 2"
-#define  REGVALUE_SLOT3					"Slot 3"
-#define  REGVALUE_SLOT4					"Slot 4"
-#define  REGVALUE_SLOT5					"Slot 5"
-#define  REGVALUE_SLOT6					"Slot 6"
-#define  REGVALUE_SLOT7					"Slot 7"
-#define  REGVALUE_SLOTAUX				"Slot Auxilary"
+#define  REGVALUE_SLOT4					"Slot 4"			// GH#977: Deprecated from 1.30.4
+#define  REGVALUE_SLOT5					"Slot 5"			// GH#977: Deprecated from 1.30.4
 #define  REGVALUE_VERSION				"Version"
+#define REG_CONFIG_SLOT				"Slot "
+#define  REGVALUE_CARD_TYPE			"Card type"
 
 // Preferences 
 #define REG_PREFS						"Preferences"
@@ -131,15 +127,20 @@ enum AppMode_e
 #define REGVALUE_PREF_LAST_HARDDISK_2 "Last Harddisk Image 2"
 
 #define WM_USER_BENCHMARK	WM_USER+1
-#define WM_USER_RESTART		WM_USER+2
-#define WM_USER_SAVESTATE	WM_USER+3
-#define WM_USER_LOADSTATE	WM_USER+4
-#define VK_SNAPSHOT_560		WM_USER+5 // PrintScreen
-#define VK_SNAPSHOT_280		WM_USER+6 // PrintScreen+Shift
-#define WM_USER_TCP_SERIAL	WM_USER+7
-#define WM_USER_BOOT		WM_USER+8
-#define WM_USER_FULLSCREEN	WM_USER+9
-#define VK_SNAPSHOT_TEXT	WM_USER+10 // PrintScreen+Ctrl
+#define WM_USER_SAVESTATE	WM_USER+2
+#define WM_USER_LOADSTATE	WM_USER+3
+#define VK_SNAPSHOT_560		WM_USER+4 // PrintScreen
+#define VK_SNAPSHOT_280		WM_USER+5 // PrintScreen+Shift
+#define WM_USER_TCP_SERIAL	WM_USER+6
+#define WM_USER_BOOT		WM_USER+7
+#define WM_USER_FULLSCREEN	WM_USER+8
+#define VK_SNAPSHOT_TEXT	WM_USER+9 // PrintScreen+Ctrl
+
+#ifdef _MSC_VER
+#define PATH_SEPARATOR '\\'
+#else
+#define PATH_SEPARATOR '/'
+#endif
 
 enum eIRQSRC {IS_6522=0, IS_SPEECH, IS_SSC, IS_MOUSE};
 
@@ -151,15 +152,13 @@ enum eIRQSRC {IS_6522=0, IS_SPEECH, IS_SSC, IS_MOUSE};
  //e  10
  //e+ 11
  //c  20
- //d  40
 */
 #define APPLE2E_MASK	0x10
 #define APPLE2C_MASK	0x20
-#define APPLE2D_MASK    0x40
 #define APPLECLONE_MASK	0x100
 
 #define IS_APPLE2		((g_Apple2Type & (APPLE2E_MASK|APPLE2C_MASK)) == 0)
-#define IS_APPLE2E()	(g_Apple2Type & APPLE2E_MASK)
+//#define IS_APPLE2E()	(g_Apple2Type & APPLE2E_MASK)	// unused
 #define IS_APPLE2C()	(g_Apple2Type & APPLE2C_MASK)
 #define IS_CLONE()		(g_Apple2Type & APPLECLONE_MASK)
 
@@ -167,16 +166,17 @@ enum eIRQSRC {IS_6522=0, IS_SPEECH, IS_SSC, IS_MOUSE};
 enum eApple2Type {
 					A2TYPE_APPLE2=0,
 					A2TYPE_APPLE2PLUS,
+					A2TYPE_APPLE2JPLUS,
 					A2TYPE_APPLE2E=APPLE2E_MASK,
 					A2TYPE_APPLE2EENHANCED,
 					A2TYPE_UNDEFINED,
 					A2TYPE_APPLE2C=APPLE2C_MASK,
-					A2TYPE_APPLE2D=APPLE2D_MASK,
 
 					// ][ clones start here:
 					A2TYPE_CLONE=APPLECLONE_MASK,
 					A2TYPE_PRAVETS8M,								// Apple ][ clone
 					A2TYPE_PRAVETS82,								// Apple ][ clone
+					A2TYPE_BASE64A,									// Apple ][ clone
 					// (Gap for more Apple ][ clones)
 					A2TYPE_CLONE_A2_MAX,
 
@@ -195,9 +195,14 @@ inline bool IsApple2Original(eApple2Type type)		// Apple ][
 	return type == A2TYPE_APPLE2;
 }
 
-inline bool IsApple2Plus(eApple2Type type)			// Apple ][,][+
+inline bool IsApple2Plus(eApple2Type type)			// Apple ][,][+,][J-Plus
 {
 	return ((type & (APPLE2E_MASK|APPLE2C_MASK)) == 0) && !(type & APPLECLONE_MASK);
+}
+
+inline bool IsApple2JPlus(eApple2Type type)			// Apple ][J-Plus
+{
+	return type == A2TYPE_APPLE2JPLUS;
 }
 
 inline bool IsClone(eApple2Type type)
@@ -205,9 +210,14 @@ inline bool IsClone(eApple2Type type)
 	return (type & APPLECLONE_MASK) != 0;
 }
 
-inline bool IsApple2PlusOrClone(eApple2Type type)	// Apple ][,][+ or clone ][,][+
+inline bool IsApple2PlusOrClone(eApple2Type type)	// Apple ][,][+,][J-Plus or clone ][,][+
 {
 	return (type & (APPLE2E_MASK|APPLE2C_MASK)) == 0;
+}
+
+inline bool IsAppleIIeOrAbove(eApple2Type type)		// Apple //e,Enhanced//e,//c or clone //e,Enhanced//e
+{
+	return !IsApple2PlusOrClone(type);
 }
 
 extern eApple2Type g_Apple2Type;
@@ -219,6 +229,16 @@ inline bool IsEnhancedIIE(void)
 inline bool IsEnhancedIIEorIIC(void)
 {
 	return ( (g_Apple2Type == A2TYPE_APPLE2EENHANCED) || (g_Apple2Type == A2TYPE_TK30002E) || IS_APPLE2C() );
+}
+
+inline bool IsCopamBase64A(eApple2Type type)		// Copam Base64A
+{
+	return type == A2TYPE_BASE64A;
+}
+
+inline bool IsPravets(eApple2Type type)
+{
+	return type == A2TYPE_PRAVETS8M || type == A2TYPE_PRAVETS82 || type == A2TYPE_PRAVETS8A;
 }
 
 enum eBUTTON {BUTTON0=0, BUTTON1};

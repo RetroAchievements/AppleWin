@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common.h"
 enum JOYNUM {JN_JOYSTICK0=0, JN_JOYSTICK1};
 
 enum JOY0CHOICE {J0C_DISABLED=0, J0C_JOYSTICK1, J0C_KEYBD_CURSORS, J0C_KEYBD_NUMPAD, J0C_MOUSE, J0C_MAX};
@@ -25,7 +26,6 @@ void    JoySetTrim(short nValue, bool bAxisX);
 short   JoyGetTrim(bool bAxisX);
 void	JoyportControl(const UINT uControl);
 void	JoySetHookAltKeys(bool hook);
-void	JoySwapButton0and1(bool swap);
 void	JoySetButtonVirtualKey(UINT button, UINT virtKey);
 void    JoySaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
 void    JoyLoadSnapshot(class YamlLoadHelper& yamlLoadHelper);

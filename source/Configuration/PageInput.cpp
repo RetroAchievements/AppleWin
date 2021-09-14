@@ -22,14 +22,15 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 #include "StdAfx.h"
+
+#include "PageInput.h"
+#include "PropertySheet.h"
+
 #include "../SaveState_Structs_common.h"
 #include "../Common.h"
-
 #include "../Keyboard.h"
 #include "../Registry.h"
 #include "../resource/resource.h"
-#include "PageInput.h"
-#include "PropertySheetHelper.h"
 
 CPageInput* CPageInput::ms_this = 0;	// reinit'd in ctor
 
@@ -62,14 +63,25 @@ const TCHAR CPageInput::m_szCPMSlotChoice_Slot5[] = TEXT("Slot 5\0");
 const TCHAR CPageInput::m_szCPMSlotChoice_Unplugged[] = TEXT("Unplugged\0");
 const TCHAR CPageInput::m_szCPMSlotChoice_Unavailable[] = TEXT("Unavailable\0");
 
+const TCHAR CPageInput::m_szFourPlaySlotChoice_Slot3[] = TEXT("Slot 3\0");
+const TCHAR CPageInput::m_szFourPlaySlotChoice_Slot4[] = TEXT("Slot 4\0");
+const TCHAR CPageInput::m_szFourPlaySlotChoice_Slot5[] = TEXT("Slot 5\0");
+const TCHAR CPageInput::m_szFourPlaySlotChoice_Unplugged[] = TEXT("Unplugged\0");
+const TCHAR CPageInput::m_szFourPlaySlotChoice_Unavailable[] = TEXT("Unavailable\0");
 
-BOOL CALLBACK CPageInput::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+const TCHAR CPageInput::m_szSNESMAXSlotChoice_Slot3[] = TEXT("Slot 3\0");
+const TCHAR CPageInput::m_szSNESMAXSlotChoice_Slot4[] = TEXT("Slot 4\0");
+const TCHAR CPageInput::m_szSNESMAXSlotChoice_Slot5[] = TEXT("Slot 5\0");
+const TCHAR CPageInput::m_szSNESMAXSlotChoice_Unplugged[] = TEXT("Unplugged\0");
+const TCHAR CPageInput::m_szSNESMAXSlotChoice_Unavailable[] = TEXT("Unavailable\0");
+
+INT_PTR CALLBACK CPageInput::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	// Switch from static func to our instance
 	return CPageInput::ms_this->DlgProcInternal(hWnd, message, wparam, lparam);
 }
 
-BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+INT_PTR CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	switch (message)
 	{
@@ -85,11 +97,11 @@ BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 				InitOptions(hWnd);
 				break;
 			case PSN_KILLACTIVE:
-				SetWindowLong(hWnd, DWL_MSGRESULT, FALSE);			// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, FALSE);			// Changes are valid
 				break;
 			case PSN_APPLY:
 				DlgOK(hWnd);
-				SetWindowLong(hWnd, DWL_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
+				SetWindowLongPtr(hWnd, DWLP_MSGRESULT, PSNRET_NOERROR);	// Changes are valid
 				break;
 			case PSN_QUERYCANCEL:
 				// Can use this to ask user to confirm cancel
@@ -123,20 +135,20 @@ BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 		switch (LOWORD(wparam))
 		{
 		case IDC_JOYSTICK0:
-			if(HIWORD(wparam) == CBN_SELCHANGE)
+			if (HIWORD(wparam) == CBN_SELCHANGE)
 			{
 				DWORD dwNewJoyType = (DWORD)SendDlgItemMessage(hWnd, IDC_JOYSTICK0, CB_GETCURSEL, 0, 0);
-				const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[4] == CT_MouseInterface;
+				const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] == CT_MouseInterface;
 				JoySetEmulationType(hWnd, m_nJoy0ChoiceTranlationTbl[dwNewJoyType], JN_JOYSTICK0, bIsSlot4Mouse);
 				InitOptions(hWnd);
 			}
 			break;
 
 		case IDC_JOYSTICK1:
-			if(HIWORD(wparam) == CBN_SELCHANGE)
+			if (HIWORD(wparam) == CBN_SELCHANGE)
 			{
 				DWORD dwNewJoyType = (DWORD)SendDlgItemMessage(hWnd, IDC_JOYSTICK1, CB_GETCURSEL, 0, 0);
-				const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[4] == CT_MouseInterface;
+				const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] == CT_MouseInterface;
 				JoySetEmulationType(hWnd, m_nJoy1ChoiceTranlationTbl[dwNewJoyType], JN_JOYSTICK1, bIsSlot4Mouse);
 				InitOptions(hWnd);
 			}
@@ -149,14 +161,14 @@ BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 		case IDC_MOUSE_IN_SLOT4:
 			{
 				const UINT uNewState = IsDlgButtonChecked(hWnd, IDC_MOUSE_IN_SLOT4) ? 1 : 0;
-				m_PropertySheetHelper.GetConfigNew().m_Slot[4] = uNewState ? CT_MouseInterface : CT_Empty;
+				m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = uNewState ? CT_MouseInterface : CT_Empty;
 
 				InitOptions(hWnd);	// re-init
 			}
 			break;
 
 		case IDC_CPM_CONFIG:
-			if(HIWORD(wparam) == CBN_SELCHANGE)
+			if (HIWORD(wparam) == CBN_SELCHANGE)
 			{
 				const DWORD NewCPMChoiceItem = (DWORD) SendDlgItemMessage(hWnd, IDC_CPM_CONFIG, CB_GETCURSEL, 0, 0);
 				const CPMCHOICE NewCPMChoice = m_CPMComboItemToChoice[NewCPMChoiceItem];
@@ -164,18 +176,80 @@ BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 					break;
 
 				// Whatever has changed, the old slot will now be empty
-				const SS_CARDTYPE Slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[4];
-				const SS_CARDTYPE Slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[5];
-				if (Slot4 == CT_Z80)
-					m_PropertySheetHelper.GetConfigNew().m_Slot[4] = CT_Empty;
-				else if (Slot5 == CT_Z80)
-					m_PropertySheetHelper.GetConfigNew().m_Slot[5] = CT_Empty;
+				const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+				const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
+				if (slot4 == CT_Z80)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_Empty;
+				else if (slot5 == CT_Z80)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_Empty;
 
 				// Insert CP/M card into new slot (or leave slot empty)
 				if (NewCPMChoice == CPM_SLOT4)
-					m_PropertySheetHelper.GetConfigNew().m_Slot[4] = CT_Z80;
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_Z80;
 				else if (NewCPMChoice == CPM_SLOT5)
-					m_PropertySheetHelper.GetConfigNew().m_Slot[5] = CT_Z80;
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_Z80;
+
+				InitOptions(hWnd);	// re-init
+			}
+			break;
+
+		case IDC_FOURPLAY_CONFIG:
+			if (HIWORD(wparam) == CBN_SELCHANGE)
+			{
+				const DWORD NewFourPlayChoiceItem = (DWORD) SendDlgItemMessage(hWnd, IDC_FOURPLAY_CONFIG, CB_GETCURSEL, 0, 0);
+				const FOURPLAYCHOICE NewFourPlayChoice = m_FourPlayComboItemToChoice[NewFourPlayChoiceItem];
+				if (NewFourPlayChoice == m_FourPlayChoice)
+					break;
+
+				// Whatever has changed, the old slot will now be empty
+				const SS_CARDTYPE slot3 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3];
+				const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+				const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
+				if (slot3 == CT_FourPlay)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = CT_Empty;
+				else if (slot4 == CT_FourPlay)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_Empty;
+				else if (slot5 == CT_FourPlay)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_Empty;
+
+				// Insert 4Play card into new slot (or leave slot empty)
+				if (NewFourPlayChoice == FOURPLAY_SLOT3)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = CT_FourPlay;
+				else if (NewFourPlayChoice == FOURPLAY_SLOT4)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_FourPlay;
+				else if (NewFourPlayChoice == FOURPLAY_SLOT5)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_FourPlay;
+
+				InitOptions(hWnd);	// re-init
+			}
+			break;
+
+		case IDC_SNESMAX_CONFIG:
+			if (HIWORD(wparam) == CBN_SELCHANGE)
+			{
+				const DWORD NewSNESMAXChoiceItem = (DWORD) SendDlgItemMessage(hWnd, IDC_SNESMAX_CONFIG, CB_GETCURSEL, 0, 0);
+				const SNESMAXCHOICE NewSNESMAXChoice = m_SNESMAXComboItemToChoice[NewSNESMAXChoiceItem];
+				if (NewSNESMAXChoice == m_SNESMAXChoice)
+					break;
+
+				// Whatever has changed, the old slot will now be empty
+				const SS_CARDTYPE slot3 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3];
+				const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+				const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
+				if (slot3 == CT_SNESMAX)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = CT_Empty;
+				else if (slot4 == CT_SNESMAX)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_Empty;
+				else if (slot5 == CT_SNESMAX)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_Empty;
+
+				// Insert SNES MAX card into new slot (or leave slot empty)
+				if (NewSNESMAXChoice == SNESMAX_SLOT3)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = CT_SNESMAX;
+				else if (NewSNESMAXChoice == SNESMAX_SLOT4)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] = CT_SNESMAX;
+				else if (NewSNESMAXChoice == SNESMAX_SLOT5)
+					m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5] = CT_SNESMAX;
 
 				InitOptions(hWnd);	// re-init
 			}
@@ -197,6 +271,7 @@ BOOL CPageInput::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPARAM 
 
 			CheckDlgButton(hWnd, IDC_CURSORCONTROL, m_uCursorControl ? BST_CHECKED : BST_UNCHECKED);
 			CheckDlgButton(hWnd, IDC_AUTOFIRE, m_bmAutofire ? BST_CHECKED : BST_UNCHECKED);
+			CheckDlgButton(hWnd, IDC_SWAPBUTTONS0AND1, m_bSwapButtons0and1 ? BST_CHECKED : BST_UNCHECKED);
 			CheckDlgButton(hWnd, IDC_CENTERINGCONTROL, m_uCenteringControl == JOYSTICK_MODE_CENTERING ? BST_CHECKED : BST_UNCHECKED);
 			CheckDlgButton(hWnd, IDC_SCROLLLOCK_TOGGLE, m_uScrollLockToggle ? BST_CHECKED : BST_UNCHECKED);
 
@@ -234,6 +309,7 @@ void CPageInput::DlgOK(HWND hWnd)
 
 	m_uCursorControl = IsDlgButtonChecked(hWnd, IDC_CURSORCONTROL) ? 1 : 0;
 	m_bmAutofire = IsDlgButtonChecked(hWnd, IDC_AUTOFIRE) ? 7 : 0;	// bitmap of 3 bits
+	m_bSwapButtons0and1 = IsDlgButtonChecked(hWnd, IDC_SWAPBUTTONS0AND1) ? true : false;
 	m_uCenteringControl = IsDlgButtonChecked(hWnd, IDC_CENTERINGCONTROL) ? 1 : 0;
 	m_uMouseShowCrosshair = IsDlgButtonChecked(hWnd, IDC_MOUSE_CROSSHAIR) ? 1 : 0;
 	m_uMouseRestrictToWindow = IsDlgButtonChecked(hWnd, IDC_MOUSE_RESTRICT_TO_WINDOW) ? 1 : 0;
@@ -243,6 +319,7 @@ void CPageInput::DlgOK(HWND hWnd)
 	REGSAVE(TEXT(REGVALUE_SCROLLLOCK_TOGGLE), m_uScrollLockToggle);
 	REGSAVE(TEXT(REGVALUE_CURSOR_CONTROL), m_uCursorControl);
 	REGSAVE(TEXT(REGVALUE_AUTOFIRE), m_bmAutofire);
+	REGSAVE(TEXT(REGVALUE_SWAP_BUTTONS_0_AND_1), m_bSwapButtons0and1);
 	REGSAVE(TEXT(REGVALUE_CENTERING_CONTROL), m_uCenteringControl);
 	REGSAVE(TEXT(REGVALUE_MOUSE_CROSSHAIR), m_uMouseShowCrosshair);
 	REGSAVE(TEXT(REGVALUE_MOUSE_RESTRICT_TO_WINDOW), m_uMouseRestrictToWindow);
@@ -264,7 +341,7 @@ void CPageInput::InitJoystickChoices(HWND hWnd, int nJoyNum, int nIdcValue)
 	TCHAR** ppszJoyChoices;
 	int nOtherJoyNum = nJoyNum == JN_JOYSTICK0 ? JN_JOYSTICK1 : JN_JOYSTICK0;
 
-	if(nJoyNum == JN_JOYSTICK0)
+	if (nJoyNum == JN_JOYSTICK0)
 	{
 		pnzJoystickChoices = m_joystick0choices;
 		pnJoyTranslationTbl = m_nJoy0ChoiceTranlationTbl;
@@ -343,19 +420,21 @@ void CPageInput::InitJoystickChoices(HWND hWnd, int nJoyNum, int nIdcValue)
 
 void CPageInput::InitSlotOptions(HWND hWnd)
 {
-	const SS_CARDTYPE Slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[4];
+	const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
 
-	const bool bIsSlot4Mouse = Slot4 == CT_MouseInterface;
+	const bool bIsSlot4Mouse = slot4 == CT_MouseInterface;
 	CheckDlgButton(hWnd, IDC_MOUSE_IN_SLOT4, bIsSlot4Mouse ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(hWnd, IDC_MOUSE_CROSSHAIR, m_uMouseShowCrosshair ? BST_CHECKED : BST_UNCHECKED);
 	CheckDlgButton(hWnd, IDC_MOUSE_RESTRICT_TO_WINDOW, m_uMouseRestrictToWindow ? BST_CHECKED : BST_UNCHECKED);
 
-	const bool bIsSlot4Empty = Slot4 == CT_Empty;
+	const bool bIsSlot4Empty = slot4 == CT_Empty;
 	EnableWindow(GetDlgItem(hWnd, IDC_MOUSE_IN_SLOT4), ((bIsSlot4Mouse || bIsSlot4Empty) && !JoyUsingMouse()) ? TRUE : FALSE);
 	EnableWindow(GetDlgItem(hWnd, IDC_MOUSE_CROSSHAIR), bIsSlot4Mouse ? TRUE : FALSE);
 	EnableWindow(GetDlgItem(hWnd, IDC_MOUSE_RESTRICT_TO_WINDOW), bIsSlot4Mouse ? TRUE : FALSE);
 
 	InitCPMChoices(hWnd);
+	InitFourPlayChoices(hWnd);
+	InitSNESMAXChoices(hWnd);
 
 	InitJoystickChoices(hWnd, JN_JOYSTICK0, IDC_JOYSTICK0);
 	InitJoystickChoices(hWnd, JN_JOYSTICK1, IDC_JOYSTICK1);
@@ -366,11 +445,11 @@ void CPageInput::InitSlotOptions(HWND hWnd)
 
 void CPageInput::InitCPMChoices(HWND hWnd)
 {
-	const SS_CARDTYPE Slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[4];
-	const SS_CARDTYPE Slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[5];
+	const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+	const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
 
-	if (Slot4 == CT_Z80)		m_CPMChoice = CPM_SLOT4;
-	else if (Slot5 == CT_Z80)	m_CPMChoice = CPM_SLOT5;
+	if (slot4 == CT_Z80)		m_CPMChoice = CPM_SLOT4;
+	else if (slot5 == CT_Z80)	m_CPMChoice = CPM_SLOT5;
 	else						m_CPMChoice = CPM_UNPLUGGED;
 
 	for (UINT i=0; i<_CPM_MAX_CHOICES; i++)
@@ -379,10 +458,10 @@ void CPageInput::InitCPMChoices(HWND hWnd)
 	UINT uStringOffset = 0;
 	UINT uComboItemIdx = 0;
 
-	const bool bIsSlot4Empty = Slot4 == CT_Empty;
-	const bool bIsSlot4CPM   = Slot4 == CT_Z80;
-	const bool bIsSlot5Empty = Slot5 == CT_Empty;
-	const bool bIsSlot5CPM   = Slot5 == CT_Z80;
+	const bool bIsSlot4Empty = slot4 == CT_Empty;
+	const bool bIsSlot4CPM   = slot4 == CT_Z80;
+	const bool bIsSlot5Empty = slot5 == CT_Empty;
+	const bool bIsSlot5CPM   = slot5 == CT_Z80;
 
 	if (bIsSlot4Empty || bIsSlot4CPM)
 	{
@@ -435,4 +514,176 @@ void CPageInput::InitCPMChoices(HWND hWnd)
 	}
 
 	m_PropertySheetHelper.FillComboBox(hWnd, IDC_CPM_CONFIG, m_szCPMSlotChoices, uCurrentChoice);
+}
+
+void CPageInput::InitFourPlayChoices(HWND hWnd)
+{
+	const SS_CARDTYPE slot3 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3];
+	const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+	const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
+
+	if (slot3 == CT_FourPlay)		m_FourPlayChoice = FOURPLAY_SLOT3;
+	else if (slot4 == CT_FourPlay)	m_FourPlayChoice = FOURPLAY_SLOT4;
+	else if (slot5 == CT_FourPlay)	m_FourPlayChoice = FOURPLAY_SLOT5;
+	else							m_FourPlayChoice = FOURPLAY_UNPLUGGED;
+
+	for (UINT i=0; i<_FOURPLAY_MAX_CHOICES; i++)
+		m_FourPlayComboItemToChoice[i] = FOURPLAY_UNAVAILABLE;
+
+	UINT uStringOffset = 0;
+	UINT uComboItemIdx = 0;
+
+	const bool bIsSlot3Empty = slot3 == CT_Empty;
+	const bool bIsSlot3FourPlay = slot3 == CT_FourPlay;
+	const bool bIsSlot4Empty = slot4 == CT_Empty;
+	const bool bIsSlot4FourPlay = slot4 == CT_FourPlay;
+	const bool bIsSlot5Empty = slot5 == CT_Empty;
+	const bool bIsSlot5FourPlay = slot5 == CT_FourPlay;
+
+	if (bIsSlot3Empty || bIsSlot3FourPlay)
+	{
+		const UINT uStrLen = strlen(m_szFourPlaySlotChoice_Slot3) + 1;
+		memcpy(&m_szFourPlaySlotChoices[uStringOffset], m_szFourPlaySlotChoice_Slot3, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_FourPlayComboItemToChoice[uComboItemIdx++] = FOURPLAY_SLOT3;
+	}
+
+	if (bIsSlot4Empty || bIsSlot4FourPlay)
+	{
+		const UINT uStrLen = strlen(m_szFourPlaySlotChoice_Slot4)+1;
+		memcpy(&m_szFourPlaySlotChoices[uStringOffset], m_szFourPlaySlotChoice_Slot4, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_FourPlayComboItemToChoice[uComboItemIdx++] = FOURPLAY_SLOT4;
+	}
+
+	if (bIsSlot5Empty || bIsSlot5FourPlay)
+	{
+		const UINT uStrLen = strlen(m_szFourPlaySlotChoice_Slot5)+1;
+		memcpy(&m_szFourPlaySlotChoices[uStringOffset], m_szFourPlaySlotChoice_Slot5, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_FourPlayComboItemToChoice[uComboItemIdx++] = FOURPLAY_SLOT5;
+	}
+
+	if (uStringOffset)
+	{
+		const UINT uStrLen = strlen(m_szFourPlaySlotChoice_Unplugged)+1;
+		memcpy(&m_szFourPlaySlotChoices[uStringOffset], m_szFourPlaySlotChoice_Unplugged, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_FourPlayComboItemToChoice[uComboItemIdx] = FOURPLAY_UNPLUGGED;
+	}
+	else
+	{
+		const UINT uStrLen = strlen(m_szFourPlaySlotChoice_Unavailable)+1;
+		memcpy(&m_szFourPlaySlotChoices[uStringOffset], m_szFourPlaySlotChoice_Unavailable, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_FourPlayChoice = FOURPLAY_UNAVAILABLE;	// Force this
+		m_FourPlayComboItemToChoice[uComboItemIdx] = FOURPLAY_UNAVAILABLE;
+	}
+
+	m_szFourPlaySlotChoices[uStringOffset] = 0;	// Doubly null terminated
+
+	//
+
+	UINT uCurrentChoice = uComboItemIdx;	// Default to last item (either UNPLUGGED or UNAVAILABLE)
+	for (UINT i=0; i<=uComboItemIdx; i++)
+	{
+		if (m_FourPlayComboItemToChoice[i] == m_FourPlayChoice)
+		{
+			uCurrentChoice = i;
+			break;
+		}
+	}
+
+	m_PropertySheetHelper.FillComboBox(hWnd, IDC_FOURPLAY_CONFIG, m_szFourPlaySlotChoices, uCurrentChoice);
+}
+
+void CPageInput::InitSNESMAXChoices(HWND hWnd)
+{
+	const SS_CARDTYPE slot3 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3];
+	const SS_CARDTYPE slot4 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4];
+	const SS_CARDTYPE slot5 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT5];
+
+	if (slot3 == CT_SNESMAX)		m_SNESMAXChoice = SNESMAX_SLOT3;
+	else if (slot4 == CT_SNESMAX)	m_SNESMAXChoice = SNESMAX_SLOT4;
+	else if (slot5 == CT_SNESMAX)	m_SNESMAXChoice = SNESMAX_SLOT5;
+	else							m_SNESMAXChoice = SNESMAX_UNPLUGGED;
+
+	for (UINT i=0; i<_SNESMAX_MAX_CHOICES; i++)
+		m_SNESMAXComboItemToChoice[i] = SNESMAX_UNAVAILABLE;
+
+	UINT uStringOffset = 0;
+	UINT uComboItemIdx = 0;
+
+	const bool bIsSlot3Empty = slot3 == CT_Empty;
+	const bool bIsSlot3SNESMAX = slot3 == CT_SNESMAX;
+	const bool bIsSlot4Empty = slot4 == CT_Empty;
+	const bool bIsSlot4SNESMAX = slot4 == CT_SNESMAX;
+	const bool bIsSlot5Empty = slot5 == CT_Empty;
+	const bool bIsSlot5SNESMAX = slot5 == CT_SNESMAX;
+
+	if (bIsSlot3Empty || bIsSlot3SNESMAX)
+	{
+		const UINT uStrLen = strlen(m_szSNESMAXSlotChoice_Slot3) + 1;
+		memcpy(&m_szSNESMAXSlotChoices[uStringOffset], m_szSNESMAXSlotChoice_Slot3, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_SNESMAXComboItemToChoice[uComboItemIdx++] = SNESMAX_SLOT3;
+	}
+
+	if (bIsSlot4Empty || bIsSlot4SNESMAX)
+	{
+		const UINT uStrLen = strlen(m_szSNESMAXSlotChoice_Slot4)+1;
+		memcpy(&m_szSNESMAXSlotChoices[uStringOffset], m_szSNESMAXSlotChoice_Slot4, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_SNESMAXComboItemToChoice[uComboItemIdx++] = SNESMAX_SLOT4;
+	}
+
+	if (bIsSlot5Empty || bIsSlot5SNESMAX)
+	{
+		const UINT uStrLen = strlen(m_szSNESMAXSlotChoice_Slot5)+1;
+		memcpy(&m_szSNESMAXSlotChoices[uStringOffset], m_szSNESMAXSlotChoice_Slot5, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_SNESMAXComboItemToChoice[uComboItemIdx++] = SNESMAX_SLOT5;
+	}
+
+	if (uStringOffset)
+	{
+		const UINT uStrLen = strlen(m_szSNESMAXSlotChoice_Unplugged)+1;
+		memcpy(&m_szSNESMAXSlotChoices[uStringOffset], m_szSNESMAXSlotChoice_Unplugged, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_SNESMAXComboItemToChoice[uComboItemIdx] = SNESMAX_UNPLUGGED;
+	}
+	else
+	{
+		const UINT uStrLen = strlen(m_szSNESMAXSlotChoice_Unavailable)+1;
+		memcpy(&m_szSNESMAXSlotChoices[uStringOffset], m_szSNESMAXSlotChoice_Unavailable, uStrLen);
+		uStringOffset += uStrLen;
+
+		m_SNESMAXChoice = SNESMAX_UNAVAILABLE;	// Force this
+		m_SNESMAXComboItemToChoice[uComboItemIdx] = SNESMAX_UNAVAILABLE;
+	}
+
+	m_szSNESMAXSlotChoices[uStringOffset] = 0;	// Doubly null terminated
+
+	//
+
+	UINT uCurrentChoice = uComboItemIdx;	// Default to last item (either UNPLUGGED or UNAVAILABLE)
+	for (UINT i=0; i<=uComboItemIdx; i++)
+	{
+		if (m_SNESMAXComboItemToChoice[i] == m_SNESMAXChoice)
+		{
+			uCurrentChoice = i;
+			break;
+		}
+	}
+
+	m_PropertySheetHelper.FillComboBox(hWnd, IDC_SNESMAX_CONFIG, m_szSNESMAXSlotChoices, uCurrentChoice);
 }

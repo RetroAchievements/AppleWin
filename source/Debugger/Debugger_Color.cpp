@@ -134,6 +134,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		W8,   // FG_VIDEOSCANNER_TITLE
 		Y8,   // FG_VIDEOSCANNER_INVISIBLE
 		G8,   // FG_VIDEOSCANNER_VISIBLE
+
+		C3,   // BG_IRQ_TITLE
+		R8,   // FG_IRQ_TITLE
 	};
 
 
@@ -163,7 +166,7 @@ bool DebuggerSetColor( const int iScheme, const int iColor, const COLORREF nColo
 		bStatus = true;
 	}
 
-	// Propogate to console since it has its own copy of colors
+	// Propagate to console since it has its own copy of colors
 	if (iColor == FG_CONSOLE_OUTPUT)
 	{
 		COLORREF nConsole = DebuggerGetColor( FG_CONSOLE_OUTPUT );
@@ -199,13 +202,13 @@ static void _SetupColorRamp(const int iPrimary, int & iColor_)
 		g_aColorPalette[iColor_] = nColor;
 #if DEBUG_COLOR_RAMP
 		wsprintf(sText, TEXT("RGB(%3d,%3d,%3d), "), nR, nG, nB);
-		_tcscat(sRamp, sText);
+		strcat(sRamp, sText);
 #endif
 		iColor_++;
 	}
 #if DEBUG_COLOR_RAMP
 	wsprintf(sText, TEXT(" // %d%d%d\n"), bB, bG, bR);
-	_tcscat(sRamp, sText);
+	strcat(sRamp, sText);
 	OutputDebugString(sRamp);
 	sRamp[0] = 0;
 #endif
