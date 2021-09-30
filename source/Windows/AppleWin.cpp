@@ -180,7 +180,12 @@ static void ContinueExecution(void)
 	if (g_bFullSpeed)
 	{
 		if (!bWasFullSpeed)
+		{
 			GetFrame().VideoRedrawScreenDuringFullSpeed(0, true);	// Init for full-speed mode
+#ifdef USE_RETROACHIEVEMENTS
+			RA_SuspendRepaint();
+#endif
+		}
 
 		// Don't call Spkr_Mute() - will get speaker clicks
 		MB_Mute();
@@ -198,7 +203,12 @@ static void ContinueExecution(void)
 	else
 	{
 		if (bWasFullSpeed)
+		{
+#ifdef USE_RETROACHIEVEMENTS
+			RA_ResumeRepaint();
+#endif
 			GetFrame().VideoRedrawScreenAfterFullSpeed(g_dwCyclesThisFrame);
+		}
 
 		// Don't call Spkr_Unmute()
 		MB_Unmute();
