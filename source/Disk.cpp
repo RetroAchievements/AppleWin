@@ -2277,6 +2277,12 @@ bool Disk2InterfaceCard::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT
 		m_seqFunc.loadMode = 0;	// Wasn't saved until v5
 	}
 
+#ifdef USE_RETROACHIEVEMENTS
+	// prevent deactivating the game while loading the state.
+	// the active game will be validated when the disk snapshot is restored.
+	loading_file.title_id = loaded_title->title_id;
+#endif
+
 	// Eject all disks first in case Drive-2 contains disk to be inserted into Drive-1
 	for (UINT i=0; i<NUM_DRIVES; i++)
 	{
