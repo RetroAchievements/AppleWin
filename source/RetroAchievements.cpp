@@ -315,45 +315,47 @@ void RA_OnGameClose(int file_type)
     {
     case FileType::FLOPPY_DISK:
         free_file_info(&loaded_floppy_disk);
-        if (loaded_hard_disk.data_len > 0 && !RA_HardcoreModeIsActive())
+
+        // if we were using the floppy disk for the loaded title and we're not in hardcore, switch to the hard disk loaded title
+        if (loaded_title == NULL && loaded_hard_disk.data_len > 0 && !RA_HardcoreModeIsActive())
         {
             loaded_title = &loaded_hard_disk;
             RA_UpdateAppTitle(loaded_title->name);
             RA_ActivateGame(loaded_title->title_id);
         }
         break;
+
     case FileType::HARD_DISK:
         free_file_info(&loaded_hard_disk);
-        if (loaded_floppy_disk.data_len > 0 && !RA_HardcoreModeIsActive())
+
+        // if we were using the hard disk for the loaded title and we're not in hardcore, switch to the floppy disk loaded title
+        if (loaded_title == NULL && loaded_floppy_disk.data_len > 0 && !RA_HardcoreModeIsActive())
         {
             loaded_title = &loaded_floppy_disk;
             RA_UpdateAppTitle(loaded_title->name);
             RA_ActivateGame(loaded_title->title_id);
         }
         break;
+
     default:
         break;
-    }
-
-    if (loaded_title == NULL && loading_file.data_len == 0)
-    {
-        RA_ClearTitle();
     }
 }
 
 void RA_ClearTitle()
 {
     RA_UpdateAppTitle("");
-    RA_OnLoadNewRom(NULL, 0);
+    RA_ActivateGame(0);
     should_activate = true;
 }
 
 void RA_ProcessReset()
 {
+    const int loaded_title_id = (loaded_title != NULL) ? loaded_title->title_id : 0;
+
     if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
     {
         Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
-
         if (disk2Card.IsDriveEmpty(DRIVE_1))
             RA_OnGameClose(FileType::FLOPPY_DISK);
         if (HD_IsDriveUnplugged(HARDDISK_1))
@@ -362,6 +364,7 @@ void RA_ProcessReset()
 
     if (RA_HardcoreModeIsActive())
     {
+        // don't allow both floppy and hard disk at the same time in hardcore
         if (loaded_floppy_disk.data_len > 0 && loaded_hard_disk.data_len > 0)
         {
             if (loaded_title != NULL)
@@ -381,25 +384,35 @@ void RA_ProcessReset()
                 }
             }
         }
+
+        // don't allow slow mode in hardcore
+        if (g_dwSpeed < SPEED_NORMAL)
+            g_dwSpeed = SPEED_NORMAL;
     }
 
-    if (g_dwSpeed < SPEED_NORMAL)
-    {
-        g_dwSpeed = SPEED_NORMAL;
-    }
-
+    // if something is in the floppy, or hard disk, load it
     if (loaded_floppy_disk.data_len > 0)
         loaded_title = &loaded_floppy_disk;
     else if (loaded_hard_disk.data_len > 0)
         loaded_title = &loaded_hard_disk;
 
-    if (loaded_title != NULL)
+    if (loaded_title == NULL)
     {
+        // switch to no game, clear out the previously loaded game unless we're loading a new one
+        if (loading_file.data_len == 0 && loaded_title_id != 0)
+            RA_ClearTitle();
+    }
+    else if (loaded_title->title_id != loaded_title_id)
+    {
+        // switched to a different game, RA runtime will be recreated
         RA_UpdateAppTitle(loaded_title->name);
         RA_ActivateGame(loaded_title->title_id);
     }
-
-    RA_OnReset();
+    else
+    {
+        // same game, just reset the RA runtime
+        RA_OnReset();
+    }
 }
 
 int RA_HandleMenuEvent(int id)
