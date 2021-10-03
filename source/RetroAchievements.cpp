@@ -350,12 +350,15 @@ void RA_ClearTitle()
 
 void RA_ProcessReset()
 {
-    Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
+    if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
+    {
+        Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
 
-    if (disk2Card.IsDriveEmpty(DRIVE_1)) 
-        RA_OnGameClose(FileType::FLOPPY_DISK);
-    if (HD_IsDriveUnplugged(HARDDISK_1)) 
-        RA_OnGameClose(FileType::HARD_DISK);
+        if (disk2Card.IsDriveEmpty(DRIVE_1))
+            RA_OnGameClose(FileType::FLOPPY_DISK);
+        if (HD_IsDriveUnplugged(HARDDISK_1))
+            RA_OnGameClose(FileType::HARD_DISK);
+    }
 
     if (RA_HardcoreModeIsActive())
     {
