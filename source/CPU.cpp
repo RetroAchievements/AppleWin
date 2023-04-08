@@ -90,8 +90,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "Core.h"
 #include "CardManager.h"
 #include "Memory.h"
-#include "Mockingboard.h"
-#include "MouseInterface.h"
 #ifdef USE_SPEECH_API
 #include "Speech.h"
 #endif
@@ -106,16 +104,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "YamlHelper.h"
 
 #define LOG_IRQ_TAKEN_AND_RTI 0
-
-// 6502 Accumulator Bit Flags
-	#define	 AF_SIGN       0x80
-	#define	 AF_OVERFLOW   0x40
-	#define	 AF_RESERVED   0x20
-	#define	 AF_BREAK      0x10
-	#define	 AF_DECIMAL    0x08
-	#define	 AF_INTERRUPT  0x04
-	#define	 AF_ZERO       0x02
-	#define	 AF_CARRY      0x01
 
 #define	 SHORTOPCODES  22
 #define	 BENCHOPCODES  33
@@ -147,6 +135,10 @@ static volatile UINT32 g_bmNMI = 0;
 static volatile BOOL g_bNmiFlank = FALSE; // Positive going flank on NMI line
 
 static bool g_irqDefer1Opcode = false;
+static bool g_interruptInLastExecutionBatch = false;	// Last batch of executed cycles included an interrupt (IRQ/NMI)
+
+// NB. No need to save to save-state, as IRQ() follows CheckSynchronousInterruptSources(), and IRQ() always sets it to false.
+static bool g_irqOnLastOpcodeCycle = false;
 
 //
 
@@ -206,6 +198,17 @@ bool Is6502InterruptEnabled(void)
 void ResetCyclesExecutedForDebugger(void)
 {
 	g_nCyclesExecuted = 0;
+}
+
+bool IsInterruptInLastExecution(void)
+{
+	return g_interruptInLastExecutionBatch;
+}
+
+void SetIrqOnLastOpcodeCycle(void)
+{
+	if (!(regs.ps & AF_INTERRUPT))
+		g_irqOnLastOpcodeCycle = true;
 }
 
 //
@@ -343,9 +346,7 @@ static void DebugHddEntrypoint(const USHORT PC)
 		if (!bOldPCAtC7xx /*&& PC != 0xc70a*/)
 		{
 			Count++;
-			char szDebug[100];
-			sprintf(szDebug, "HDD Entrypoint: $%04X\n", PC);
-			OutputDebugString(szDebug);
+			LogOutput("HDD Entrypoint: $%04X\n", PC);
 		}
 
 		bOldPCAtC7xx = true;
@@ -379,25 +380,31 @@ static __forceinline void Fetch(BYTE& iOpcode, ULONG uExecutedCycles)
 }
 
 //#define ENABLE_NMI_SUPPORT	// Not used - so don't enable
-static __forceinline void NMI(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
+static __forceinline bool NMI(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
 {
 #ifdef ENABLE_NMI_SUPPORT
-	if(g_bNmiFlank)
-	{
-		// NMI signals are only serviced once
-		g_bNmiFlank = FALSE;
+	if (!g_bNmiFlank)
+		return false;
+
+	// NMI signals are only serviced once
+	g_bNmiFlank = FALSE;
 #ifdef _DEBUG
-		g_nCycleIrqStart = g_nCumulativeCycles + uExecutedCycles;
+	g_nCycleIrqStart = g_nCumulativeCycles + uExecutedCycles;
 #endif
-		PUSH(regs.pc >> 8)
-		PUSH(regs.pc & 0xFF)
-		EF_TO_AF
-		PUSH(regs.ps & ~AF_BREAK)
-		regs.ps = regs.ps | AF_INTERRUPT & ~AF_DECIMAL;
-		regs.pc = * (WORD*) (mem+0xFFFA);
-		UINT uExtraCycles = 0;	// Needed for CYC(a) macro
-		CYC(7)
-	}
+	PUSH(regs.pc >> 8)
+	PUSH(regs.pc & 0xFF)
+	EF_TO_AF
+	PUSH(regs.ps & ~AF_BREAK)
+	regs.ps |= AF_INTERRUPT;
+	if (GetMainCpu() == CPU_65C02)	// GH#1099
+		regs.ps &= ~AF_DECIMAL;
+	regs.pc = * (WORD*) (mem+0xFFFA);
+	UINT uExtraCycles = 0;	// Needed for CYC(a) macro
+	CYC(7);
+	g_interruptInLastExecutionBatch = true;
+	return true;
+#else
+	return false;
 #endif
 }
 
@@ -406,19 +413,18 @@ static __forceinline void CheckSynchronousInterruptSources(UINT cycles, ULONG uE
 	g_SynchronousEventMgr.Update(cycles, uExecutedCycles);
 }
 
-// NB. No need to save to save-state, as IRQ() follows CheckSynchronousInterruptSources(), and IRQ() always sets it to false.
-bool g_irqOnLastOpcodeCycle = false;
-
-static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
+static __forceinline bool IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
 {
-	if(g_bmIRQ && !(regs.ps & AF_INTERRUPT))
+	bool irqTaken = false;
+
+	if (g_bmIRQ && !(regs.ps & AF_INTERRUPT))
 	{
-		// if 6522 interrupt occurs on opcode's last cycle, then defer IRQ by 1 opcode
+		// if interrupt (eg. from 6522) occurs on opcode's last cycle, then defer IRQ by 1 opcode
 		if (g_irqOnLastOpcodeCycle && !g_irqDefer1Opcode)
 		{
 			g_irqOnLastOpcodeCycle = false;
 			g_irqDefer1Opcode = true;	// if INT occurs again on next opcode, then do NOT defer
-			return;
+			return false;
 		}
 
 		g_irqDefer1Opcode = false;
@@ -431,23 +437,27 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 		PUSH(regs.pc & 0xFF)
 		EF_TO_AF
 		PUSH(regs.ps & ~AF_BREAK)
-		regs.ps = (regs.ps | AF_INTERRUPT) & (~AF_DECIMAL);
+		regs.ps |= AF_INTERRUPT;
+		if (GetMainCpu() == CPU_65C02)	// GH#1099
+			regs.ps &= ~AF_DECIMAL;
 		regs.pc = * (WORD*) (mem+0xFFFE);
 		UINT uExtraCycles = 0;	// Needed for CYC(a) macro
-		CYC(7)
+		CYC(7);
 #if defined(_DEBUG) && LOG_IRQ_TAKEN_AND_RTI
 		std::string irq6522;
-		MB_Get6522IrqDescription(irq6522);
+		GetCardMgr().GetMockingboardCardMgr().Get6522IrqDescription(irq6522);
 		const char* pSrc =	(g_bmIRQ & 1) ? irq6522.c_str() :
 							(g_bmIRQ & 2) ? "SPEECH" :
 							(g_bmIRQ & 4) ? "SSC" :
 							(g_bmIRQ & 8) ? "MOUSE" : "UNKNOWN";
 		LogOutput("IRQ (%08X) (%s)\n", (UINT)g_nCycleIrqStart, pSrc);
 #endif
-		CheckSynchronousInterruptSources(7, uExecutedCycles);
+		g_interruptInLastExecutionBatch = true;
+		irqTaken = true;
 	}
 
 	g_irqOnLastOpcodeCycle = false;
+	return irqTaken;
 }
 
 //===========================================================================
@@ -553,17 +563,6 @@ void CpuWrite(USHORT addr, BYTE value, ULONG uExecutedCycles)
 
 //===========================================================================
 
-void CpuDestroy ()
-{
-	if (g_bCritSectionValid)
-	{
-  		DeleteCriticalSection(&g_CriticalSection);
-		g_bCritSectionValid = false;
-	}
-}
-
-//===========================================================================
-
 // Description:
 //	Call this when an IO-reg is accessed & accurate cycle info is needed
 //  NB. Safe to call multiple times from the same IO function handler (as 'nExecutedCycles - g_nCyclesExecuted' will be zero the 2nd time)
@@ -616,9 +615,10 @@ DWORD CpuExecute(const DWORD uCycles, const bool bVideoUpdate)
 #endif
 
 	g_nCyclesExecuted =	0;
+	g_interruptInLastExecutionBatch = false;
 
 #ifdef _DEBUG
-	MB_CheckCumulativeCycles();
+	GetCardMgr().GetMockingboardCardMgr().CheckCumulativeCycles();
 #endif
 
 	// uCycles:
@@ -626,9 +626,10 @@ DWORD CpuExecute(const DWORD uCycles, const bool bVideoUpdate)
 	//  >0  : Do multi-opcode emulation
 	const DWORD uExecutedCycles = InternalCpuExecute(uCycles, bVideoUpdate);
 
-	// NB. Required for normal-speed (even though 6522 is updated after every opcode), as may've finished on IRQ()
-	MB_UpdateCycles(uExecutedCycles);	// Update 6522s (NB. Do this before updating g_nCumulativeCycles below)
-										// NB. Ensures that 6522 regs are up-to-date for any potential save-state
+	// Update 6522s (NB. Do this before updating g_nCumulativeCycles below)
+	// . Ensures that 6522 regs are up-to-date for any potential save-state
+	// . SyncEvent will trigger the 6522 TIMER1/2 underflow on the correct cycle
+	GetCardMgr().GetMockingboardCardMgr().UpdateCycles(uExecutedCycles);
 
 	const UINT nRemainingCycles = uExecutedCycles - g_nCyclesExecuted;
 	g_nCumulativeCycles	+= nRemainingCycles;
@@ -638,19 +639,67 @@ DWORD CpuExecute(const DWORD uCycles, const bool bVideoUpdate)
 
 //===========================================================================
 
-void CpuInitialize ()
+// Called by:
+// . CpuInitialize()
+// . SY6522.Reset()
+void CpuCreateCriticalSection(void)
 {
-	CpuDestroy();
-	regs.a = regs.x = regs.y = regs.ps = 0xFF;
-	regs.sp = 0x01FF;
-	CpuReset();	// Init's ps & pc. Updates sp
+	if (!g_bCritSectionValid)
+	{
+		InitializeCriticalSection(&g_CriticalSection);
+		g_bCritSectionValid = true;
+	}
+}
 
-	InitializeCriticalSection(&g_CriticalSection);
-	g_bCritSectionValid = true;
+//===========================================================================
+
+// Called from RepeatInitialization():
+// . MemInitialize() -> MemReset()
+void CpuInitialize(void)
+{
+	regs.a = regs.x = regs.y = 0xFF;
+	regs.sp = 0x01FF;
+
+	CpuReset();
+
+	CpuCreateCriticalSection();
+
 	CpuIrqReset();
 	CpuNmiReset();
 
 	z80mem_initialize();
+	z80_reset();
+}
+
+//===========================================================================
+
+void CpuDestroy()
+{
+	if (g_bCritSectionValid)
+	{
+		DeleteCriticalSection(&g_CriticalSection);
+		g_bCritSectionValid = false;
+	}
+}
+
+//===========================================================================
+
+void CpuReset()
+{
+	_ASSERT(mem != NULL);
+
+	// 7 cycles
+	regs.ps |= AF_INTERRUPT;
+	if (GetMainCpu() == CPU_65C02)	// GH#1099
+		regs.ps &= ~AF_DECIMAL;
+	regs.pc = *(WORD*)(mem + 0xFFFC);
+	regs.sp = 0x0100 | ((regs.sp - 3) & 0xFF);
+
+	regs.bJammed = 0;
+
+	g_irqDefer1Opcode = false;
+
+	SetActiveCpu(GetMainCpu());
 	z80_reset();
 }
 
@@ -679,7 +728,9 @@ void CpuSetupBenchmark ()
 			if ((++opcode >= BENCHOPCODES) || ((addr & 0x0F) >= 0x0B))
 			{
 				*(mem+addr++) = 0x4C;
-				*(mem+addr++) = (opcode >= BENCHOPCODES) ? 0x00 : ((addr >> 4)+1) << 4;
+				// split into 2 lines to avoid -Wunsequenced and undefined behaviour
+				const BYTE value = (opcode >= BENCHOPCODES) ? 0x00 : ((addr >> 4)+1) << 4;
+				*(mem+addr++) = value;
 				*(mem+addr++) = 0x03;
 				while (addr & 0x0F)
 					++addr;
@@ -708,6 +759,7 @@ void CpuIrqAssert(eIRQSRC Device)
 
 void CpuIrqDeassert(eIRQSRC Device)
 {
+	_ASSERT(g_bCritSectionValid);
 	if (g_bCritSectionValid) EnterCriticalSection(&g_CriticalSection);
 	g_bmIRQ &= ~(1<<Device);
 	if (g_bCritSectionValid) LeaveCriticalSection(&g_CriticalSection);
@@ -744,23 +796,6 @@ void CpuNmiDeassert(eIRQSRC Device)
 
 //===========================================================================
 
-void CpuReset()
-{
-	// 7 cycles
-	regs.ps = (regs.ps | AF_INTERRUPT) & ~AF_DECIMAL;
-	regs.pc = * (WORD*) (mem+0xFFFC);
-	regs.sp = 0x0100 | ((regs.sp - 3) & 0xFF);
-
-	regs.bJammed = 0;
-
-	g_irqDefer1Opcode = false;
-
-	SetActiveCpu( GetMainCpu() );
-	z80_reset();
-}
-
-//===========================================================================
-
 #define SS_YAML_KEY_CPU_TYPE "Type"
 #define SS_YAML_KEY_REGA "A"
 #define SS_YAML_KEY_REGX "X"
@@ -774,7 +809,7 @@ void CpuReset()
 #define SS_YAML_VALUE_6502 "6502"
 #define SS_YAML_VALUE_65C02 "65C02"
 
-static std::string CpuGetSnapshotStructName(void)
+static const std::string& CpuGetSnapshotStructName(void)
 {
 	static const std::string name("CPU");
 	return name;
@@ -805,7 +840,7 @@ void CpuLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 	eCpuType cpu;
 	if (cpuType == SS_YAML_VALUE_6502) cpu = CPU_6502;
 	else if (cpuType == SS_YAML_VALUE_65C02) cpu = CPU_65C02;
-	else throw std::string("Load: Unknown main CPU type");
+	else throw std::runtime_error("Load: Unknown main CPU type");
 	SetMainCpu(cpu);
 
 	regs.a  = (BYTE)     yamlLoadHelper.LoadUint(SS_YAML_KEY_REGA);

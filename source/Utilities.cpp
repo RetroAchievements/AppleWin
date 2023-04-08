@@ -33,23 +33,20 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "CPU.h"
 #include "Joystick.h"
 #include "Log.h"
-#include "Mockingboard.h"
-#include "MouseInterface.h"
 #include "ParallelPrinter.h"
 #include "Registry.h"
 #include "Riff.h"
 #include "SaveState.h"
-#include "SerialComms.h"
 #include "Speaker.h"
 #include "Memory.h"
 #include "Pravets.h"
 #include "Keyboard.h"
-#include "Mockingboard.h"
 #include "Interface.h"
 #include "SoundCore.h"
+#include "CopyProtectionDongles.h"
 
 #include "Configuration/IPropertySheet.h"
-#include "Tfe/tfe.h"
+#include "Tfe/PCapBackend.h"
 
 #ifdef USE_SPEECH_API
 #include "Speech.h"
@@ -92,8 +89,11 @@ static void LoadConfigOldJoystick_v1(const UINT uJoyNum)
 	JoySetJoyType(uJoyNum, uNewJoyType);
 }
 
-//Reads configuration from the registry entries
-void LoadConfiguration(void)
+// Reads configuration from the registry entries
+//
+// NB. loadImages=false if loading a save-state from cmd-line afterwards
+// - Registry images may have been deleted from disk, so avoid the MessageBox
+void LoadConfiguration(bool loadImages)
 {
 	DWORD dwComputerType = 0;
 	eApple2Type apple2Type = A2TYPE_APPLE2EENHANCED;
@@ -116,15 +116,13 @@ void LoadConfiguration(void)
 
 		if (dwLoadedComputerType != dwComputerType)
 		{
-			char sText[100];
-			StringCbPrintf(sText, sizeof(sText), "Unsupported Apple2Type(%d). Changing to %d", dwLoadedComputerType, dwComputerType);
+			std::string strText = StrFormat("Unsupported Apple2Type(%d). Changing to %d", dwLoadedComputerType, dwComputerType);
 
-			LogFileOutput("%s\n", sText);
+			LogFileOutput("%s\n", strText.c_str());
 
-			GetFrame().FrameMessageBox(
-				sText,
-				"Load Configuration",
-				MB_ICONSTOP | MB_SETFOREGROUND);
+			GetFrame().FrameMessageBox(strText.c_str(),
+									   "Load Configuration",
+									   MB_ICONSTOP | MB_SETFOREGROUND);
 
 			GetPropertySheet().ConfigSaveApple2Type((eApple2Type)dwComputerType);
 		}
@@ -170,6 +168,13 @@ void LoadConfiguration(void)
 	else
 		LoadConfigOldJoystick_v1(JN_JOYSTICK1);
 
+	DWORD copyProtectionDongleType;
+	std::string regSection = RegGetConfigSlotSection(GAME_IO_CONNECTOR);
+	if (RegLoadValue(regSection.c_str(), REGVALUE_GAME_IO_TYPE, TRUE, &copyProtectionDongleType))
+		SetCopyProtectionDongleType((DONGLETYPE)copyProtectionDongleType);
+	else
+		SetCopyProtectionDongleType(DT_EMPTY);
+
 	DWORD dwSoundType;
 	REGLOAD_DEFAULT(TEXT(REGVALUE_SOUND_EMULATION), &dwSoundType, REG_SOUNDTYPE_WAVE);
 	switch (dwSoundType)
@@ -196,6 +201,9 @@ void LoadConfiguration(void)
 	if(REGLOAD(TEXT(REGVALUE_FS_SHOW_SUBUNIT_STATUS), &dwTmp))
 		GetFrame().SetFullScreenShowSubunitStatus(dwTmp ? true : false);
 
+	if (REGLOAD(TEXT(REGVALUE_SHOW_DISKII_STATUS), &dwTmp))
+		GetFrame().SetWindowedModeShowDiskiiStatus(dwTmp ? true : false);
+
 	if(REGLOAD(TEXT(REGVALUE_THE_FREEZES_F8_ROM), &dwTmp))
 		GetPropertySheet().SetTheFreezesF8Rom(dwTmp);
 
@@ -203,24 +211,10 @@ void LoadConfiguration(void)
 		SpkrSetVolume(dwTmp, GetPropertySheet().GetVolumeMax());
 
 	if(REGLOAD(TEXT(REGVALUE_MB_VOLUME), &dwTmp))
-		MB_SetVolume(dwTmp, GetPropertySheet().GetVolumeMax());
+		GetCardMgr().GetMockingboardCardMgr().SetVolume(dwTmp, GetPropertySheet().GetVolumeMax());
 
 	if(REGLOAD(TEXT(REGVALUE_SAVE_STATE_ON_EXIT), &dwTmp))
 		g_bSaveStateOnExit = dwTmp ? true : false;
-
-
-	if(REGLOAD(TEXT(REGVALUE_DUMP_TO_PRINTER), &dwTmp))
-		g_bDumpToPrinter = dwTmp ? true : false;
-
-	if(REGLOAD(TEXT(REGVALUE_CONVERT_ENCODING), &dwTmp))
-		g_bConvertEncoding = dwTmp ? true : false;
-
-	if(REGLOAD(TEXT(REGVALUE_FILTER_UNPRINTABLE), &dwTmp))
-		g_bFilterUnprintable = dwTmp ? true : false;
-
-	if(REGLOAD(TEXT(REGVALUE_PRINTER_APPEND), &dwTmp))
-		g_bPrinterAppend = dwTmp ? true : false;
-
 
 	if(REGLOAD(TEXT(REGVALUE_PDL_XTRIM), &dwTmp))
 		JoySetTrim((short)dwTmp, true);
@@ -252,55 +246,30 @@ void LoadConfiguration(void)
 
 	for (UINT slot = SLOT0; slot <= SLOT7; slot++)
 	{
-		std::string& regSection = RegGetConfigSlotSection(slot);
+		std::string regSection = RegGetConfigSlotSection(slot);
 
 		if (RegLoadValue(regSection.c_str(), REGVALUE_CARD_TYPE, TRUE, &dwTmp))
 		{
 			GetCardMgr().Insert(slot, (SS_CARDTYPE)dwTmp, false);
-
-			if (slot == SLOT3)
-			{
-				tfe_enabled = 0;
-
-				if ((SS_CARDTYPE)dwTmp == CT_Uthernet)	// TODO: move this to when UthernetCard object is instantiated
-				{
-					std::string& regSection = RegGetConfigSlotSection(slot);
-					if (RegLoadString(regSection.c_str(), REGVALUE_UTHERNET_INTERFACE, TRUE, szFilename, MAX_PATH, TEXT("")))
-						update_tfe_interface(szFilename);
-
-					tfe_init(true);
-				}
-			}
-			else if (slot == SLOT7)
-			{
-				if ((SS_CARDTYPE)dwTmp == CT_GenericHDD)	// TODO: move this to when HarddiskInterfaceCard object is instantiated
-					HD_SetEnabled(true, false);
-			}
 		}
 		else	// legacy (AppleWin 1.30.3 or earlier)
 		{
 			if (slot == SLOT3)
 			{
-				tfe_enabled = 0;
+				RegLoadString(TEXT(REG_CONFIG), TEXT(REGVALUE_UTHERNET_INTERFACE), 1, szFilename, MAX_PATH, TEXT(""));
+				// copy it to the new location
+				PCapBackend::SetRegistryInterface(slot, szFilename);
 
 				DWORD tfeEnabled;
 				REGLOAD_DEFAULT(TEXT(REGVALUE_UTHERNET_ACTIVE), &tfeEnabled, 0);
-
-				GetCardMgr().Insert(SLOT3, get_tfe_enabled() ? CT_Uthernet : CT_Empty);
-
-				// TODO: move this to when UthernetCard object is instantiated
-				RegLoadString(TEXT(REG_CONFIG), TEXT(REGVALUE_UTHERNET_INTERFACE), 1, szFilename, MAX_PATH, TEXT(""));
-				update_tfe_interface(szFilename);
-
-				if (tfeEnabled)
-					tfe_init(true);
+				GetCardMgr().Insert(SLOT3, tfeEnabled ? CT_Uthernet : CT_Empty);
 			}
 			else if (slot == SLOT4 && REGLOAD(TEXT(REGVALUE_SLOT4), &dwTmp))
 				GetCardMgr().Insert(SLOT4, (SS_CARDTYPE)dwTmp);
 			else if (slot == SLOT5 && REGLOAD(TEXT(REGVALUE_SLOT5), &dwTmp))
 				GetCardMgr().Insert(SLOT5, (SS_CARDTYPE)dwTmp);
-			else if (slot == SLOT7 && REGLOAD(TEXT(REGVALUE_HDD_ENABLED), &dwTmp))
-				HD_SetEnabled(dwTmp ? true : false);
+			else if (slot == SLOT7 && REGLOAD(TEXT(REGVALUE_HDD_ENABLED), &dwTmp) && dwTmp == 1)	// GH#1015
+				GetCardMgr().Insert(SLOT7, CT_GenericHDD);
 		}
 	}
 
@@ -319,8 +288,11 @@ void LoadConfiguration(void)
 		GetCurrentDirectory(sizeof(szFilename), szFilename);
 	SetCurrentImageDir(szFilename);
 
-	HD_LoadLastDiskImage(HARDDISK_1);
-	HD_LoadLastDiskImage(HARDDISK_2);
+	if (loadImages && GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
+	{
+		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(SLOT7)).LoadLastDiskImage(HARDDISK_1);
+		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(SLOT7)).LoadLastDiskImage(HARDDISK_2);
+	}
 
 	//
 
@@ -330,7 +302,8 @@ void LoadConfiguration(void)
 		GetCurrentDirectory(sizeof(szFilename), szFilename);
 	SetCurrentImageDir(szFilename);
 
-	GetCardMgr().GetDisk2CardMgr().LoadLastDiskImage();
+	if (loadImages)
+		GetCardMgr().GetDisk2CardMgr().LoadLastDiskImage();
 
 	// Do this after populating the slots with Disk II controller(s)
 	DWORD dwEnhanceDisk;
@@ -339,13 +312,12 @@ void LoadConfiguration(void)
 
 	//
 
-	RegLoadString(TEXT(REG_CONFIG), TEXT(REGVALUE_PRINTER_FILENAME), 1, szFilename, MAX_PATH, TEXT(""));
-	Printer_SetFilename(szFilename);	// If not in Registry than default will be used
+	if (GetCardMgr().IsParallelPrinterCardInstalled())
+		GetCardMgr().GetParallelPrinterCard()->GetRegistryConfig();
 
 #endif
 
-	REGLOAD_DEFAULT(TEXT(REGVALUE_PRINTER_IDLE_LIMIT), &dwTmp, 10);
-	Printer_SetIdleLimit(dwTmp);
+	//
 
 	if (REGLOAD(TEXT(REGVALUE_WINDOW_SCALE), &dwTmp))
 		GetFrame().SetViewportScale(dwTmp);
@@ -406,18 +378,22 @@ bool DoDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 	return res;
 }
 
-static bool DoHardDiskInsert(const int nDrive, LPCSTR szFileName)
+static bool DoHardDiskInsert(const UINT slot, const int nDrive, LPCSTR szFileName)
 {
+	_ASSERT(GetCardMgr().QuerySlot(slot) == CT_GenericHDD);
+	if (GetCardMgr().QuerySlot(slot) != CT_GenericHDD)
+		return false;
+
 	if (szFileName[0] == '\0')
 	{
-		HD_Unplug(nDrive);
+		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(slot)).Unplug(nDrive);
 		return true;
 	}
 
 	std::string strPathName = GetFullPath(szFileName);
 	if (strPathName.empty()) return false;
 
-	BOOL bRes = HD_Insert(nDrive, strPathName);
+	BOOL bRes = dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(slot)).Insert(nDrive, strPathName);
 	bool res = (bRes == TRUE);
 	if (res)
 		SetCurrentDir(strPathName);
@@ -456,18 +432,21 @@ void InsertFloppyDisks(const UINT slot, LPCSTR szImageName_drive[NUM_DRIVES], bo
 		GetFrame().FrameMessageBox("Failed to insert floppy disk(s) - see log file", "Warning", MB_ICONASTERISK | MB_OK);
 }
 
-void InsertHardDisks(LPCSTR szImageName_harddisk[NUM_HARDDISKS], bool& bBoot)
+void InsertHardDisks(const UINT slot, LPCSTR szImageName_harddisk[NUM_HARDDISKS], bool& bBoot)
 {
+	_ASSERT(slot == 5 || slot == 7);
+
 	if (!szImageName_harddisk[HARDDISK_1] && !szImageName_harddisk[HARDDISK_2])
 		return;
 
-	HD_SetEnabled(true);	// Enable the Harddisk controller card
+	if (GetCardMgr().QuerySlot(slot) != CT_GenericHDD)
+		GetCardMgr().Insert(slot, CT_GenericHDD);	// Enable the Harddisk controller card
 
 	bool bRes = true;
 
 	if (szImageName_harddisk[HARDDISK_1])
 	{
-		bRes = DoHardDiskInsert(HARDDISK_1, szImageName_harddisk[HARDDISK_1]);
+		bRes = DoHardDiskInsert(slot, HARDDISK_1, szImageName_harddisk[HARDDISK_1]);
 		LogFileOutput("Init: DoHardDiskInsert(HDD1), res=%d\n", bRes);
 		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);	// harddisk activity LED
 		bBoot = true;
@@ -475,17 +454,12 @@ void InsertHardDisks(LPCSTR szImageName_harddisk[NUM_HARDDISKS], bool& bBoot)
 
 	if (szImageName_harddisk[HARDDISK_2])
 	{
-		bRes &= DoHardDiskInsert(HARDDISK_2, szImageName_harddisk[HARDDISK_2]);
+		bRes &= DoHardDiskInsert(slot, HARDDISK_2, szImageName_harddisk[HARDDISK_2]);
 		LogFileOutput("Init: DoHardDiskInsert(HDD2), res=%d\n", bRes);
 	}
 
 	if (!bRes)
 		GetFrame().FrameMessageBox("Failed to insert harddisk(s) - see log file", "Warning", MB_ICONASTERISK | MB_OK);
-}
-
-void UnplugHardDiskControllerCard(void)
-{
-	HD_SetEnabled(false);
 }
 
 void GetAppleWindowTitle()
@@ -547,8 +521,9 @@ void GetAppleWindowTitle()
 // todo: consolidate CtrlReset() and ResetMachineState()
 void ResetMachineState()
 {
-	GetCardMgr().GetDisk2CardMgr().Reset(true);
-	HD_Reset();
+	LogFileOutput("Apple II power-cycle\n");
+
+	GetCardMgr().Reset(true);
 	g_bFullSpeed = 0;	// Might've hit reset in middle of InternalCpuExecute() - so beep may get (partially) muted
 
 	MemReset();	// calls CpuInitialize(), CNoSlotClock.Reset()
@@ -557,14 +532,8 @@ void ResetMachineState()
 		dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6)).Boot();
 	GetVideo().VideoResetState();
 	KeybReset();
-	if (GetCardMgr().IsSSCInstalled())
-		GetCardMgr().GetSSC()->CommReset();
-	PrintReset();
 	JoyReset();
-	MB_Reset(true);
 	SpkrReset();
-	if (GetCardMgr().IsMouseCardInstalled())
-		GetCardMgr().GetMouseCard()->Reset();
 	SetActiveCpu(GetMainCpu());
 #ifdef USE_SPEECH_API
 	g_Speech.Reset();
@@ -606,14 +575,8 @@ void CtrlReset()
 	}
 
 	GetPravets().Reset();
-	GetCardMgr().GetDisk2CardMgr().Reset();
-	HD_Reset();
+	GetCardMgr().Reset(false);
 	KeybReset();
-	if (GetCardMgr().IsSSCInstalled())
-		GetCardMgr().GetSSC()->CommReset();
-	MB_Reset(false);
-	if (GetCardMgr().IsMouseCardInstalled())
-		GetCardMgr().GetMouseCard()->Reset();		// Deassert any pending IRQs - GH#514
 #ifdef USE_SPEECH_API
 	g_Speech.Reset();
 #endif

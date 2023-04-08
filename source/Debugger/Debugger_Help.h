@@ -14,7 +14,7 @@
 
 	void DisplayAmbigiousCommands ( int nFound );
 
-	int FindParam( LPCTSTR pLookupName, Match_e eMatch, int & iParam_, const int iParamBegin = 0, const int iParamEnd = NUM_PARAMS - 1 );
+	int FindParam( LPCTSTR pLookupName, Match_e eMatch, int & iParam_, const int iParamBegin = 0, const int iParamEnd = NUM_PARAMS - 1, const bool bCaseSensitive = false );
 	int FindCommand( LPCTSTR pName, CmdFuncPtr_t & pFunction_, int * iCommand_ = NULL );
 
 inline void  UnpackVersion( const unsigned int nVersion,
@@ -25,9 +25,5 @@ inline void  UnpackVersion( const unsigned int nVersion,
 		nFixMajor_ = (nVersion >>  8) & 0xFF;
 		nFixMinor_ = (nVersion >>  0) & 0xFF;
 	}
-
-	bool  TestStringCat ( TCHAR * pDst, LPCSTR pSrc, const int nDstSize );
-	bool  TryStringCat ( TCHAR * pDst, LPCSTR pSrc, const int nDstSize );
-	int  StringCat( TCHAR * pDst, LPCSTR pSrc, const int nDstSize );
 
 #endif

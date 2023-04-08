@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "DiskLog.h"
 #include "DiskFormatTrack.h"
 #include "DiskImage.h"
+#include "SynchronousEventManager.h"
 
 enum Drive_e
 {
@@ -69,6 +70,10 @@ public:
 		m_trackimage = NULL;
 		m_trackimagedata = false;
 		m_trackimagedirty = false;
+		m_longestSyncFFRunLength = 0;
+		m_longestSyncFFBitOffsetStart = -1;
+		m_initialBitOffset = 0;
+		m_revs = 0;
 	}
 
 public:
@@ -87,6 +92,10 @@ public:
 	LPBYTE m_trackimage;
 	bool m_trackimagedata;
 	bool m_trackimagedirty;
+	UINT m_longestSyncFFRunLength;
+	int m_longestSyncFFBitOffsetStart;
+	UINT m_initialBitOffset;	// debug
+	UINT m_revs;				// debug
 };
 
 class FloppyDrive
@@ -130,16 +139,18 @@ public:
 	Disk2InterfaceCard(UINT slot);
 	virtual ~Disk2InterfaceCard(void);
 
-	virtual void Init(void) {};
 	virtual void Reset(const bool powerCycle);
 
-	void Initialize(LPBYTE pCxRomPeripheral, UINT uSlot);
-	void Destroy(void);		// no, doesn't "destroy" the disk image.  DiskIIManagerShutdown()
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
+	virtual void Update(const ULONG nExecutedCycles);
+
+	virtual void Destroy(void);		// no, doesn't "destroy" the disk image.  DiskIIManagerShutdown()
 
 	void Boot(void);
 	void FlushCurrentTrack(const int drive);
 
 	const std::string & GetFullDiskFilename(const int drive);
+	const std::string & DiskGetFullPathName(const int drive);
 	const std::string & GetFullName(const int drive);
 	const std::string & GetBaseName(const int drive);
 	void GetFilenameAndPathForSaveState(std::string& filename, std::string& path);
@@ -151,33 +162,34 @@ public:
 
 	bool IsConditionForFullSpeed(void);
 	void NotifyInvalidImage(const int drive, LPCTSTR pszImageFilename, const ImageError_e Error);
-	bool GetProtect(const int drive);
-	void SetProtect(const int drive, const bool bWriteProtect);
 	UINT GetCurrentFirmware(void) { return m_is13SectorFirmware ? 13 : 16; }
 	int GetCurrentDrive(void);
 	int GetCurrentTrack(void);
 	float GetCurrentPhase(void);
-	int GetCurrentOffset(void);
-	BYTE GetCurrentLSSBitMask(void);
+	UINT GetCurrentBitOffset(void);
 	double GetCurrentExtraCycles(void);
+	float GetPhase(const int drive);
 	int GetTrack(const int drive);
+	static std::string FormatIntFracString(float phase, bool hex);
 	std::string GetCurrentTrackString(void);
 	std::string GetCurrentPhaseString(void);
 	LPCTSTR GetCurrentState(void);
 	bool UserSelectNewDiskImage(const int drive, LPCSTR pszFilename="");
-	void UpdateDriveState(DWORD cycles);
 	bool DriveSwap(void);
 	bool IsDriveConnected(int drive) { return m_floppyDrive[drive].m_isConnected; }
+	void SetFirmware13Sector(void) { m_force13SectorFirmware = true; }
 
-	static std::string GetSnapshotCardName(void);
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+	static const std::string& GetSnapshotCardName(void);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 
 	void LoadLastDiskImage(const int drive);
 	void SaveLastDiskImage(const int drive);
 
-	bool IsDiskImageWriteProtected(const int drive);
+	bool GetProtect(const int drive);
+	void SetProtect(const int drive, const bool bWriteProtect);
 	bool IsDriveEmpty(const int drive);
+	bool IsWozImageInDrive(const int drive);
 
 	bool GetEnhanceDisk(void);
 	void SetEnhanceDisk(bool bEnhanceDisk);
@@ -194,7 +206,6 @@ private:
 	void AllocTrack(const int drive, const UINT minSize=NIBBLES_PER_TRACK);
 	void ReadTrack(const int drive, ULONG uExecutedCycles);
 	void WriteTrack(const int drive);
-	const std::string & DiskGetFullPathName(const int drive);
 	void ResetLogicStateSequencer(void);
 	UINT GetBitCellDelta(const ULONG uExecutedCycles);
 	void UpdateBitStreamPosition(FloppyDisk& floppy, const ULONG bitCellDelta);
@@ -203,15 +214,20 @@ private:
 	void DataLatchReadWOZ(WORD pc, WORD addr, UINT bitCellRemainder);
 	void DataLoadWriteWOZ(WORD pc, WORD addr, UINT bitCellRemainder);
 	void DataShiftWriteWOZ(WORD pc, WORD addr, ULONG uExecutedCycles);
-	void SetSequencerFunction(WORD addr);
-	void DumpSectorWOZ(FloppyDisk floppy);
+	void SetSequencerFunction(WORD addr, ULONG executedCycles);
+	void FindTrackSeamWOZ(FloppyDisk& floppy, float track);
 	void DumpTrackWOZ(FloppyDisk floppy);
 	bool GetFirmware(WORD lpNameId, BYTE* pDst);
 	void InitFirmware(LPBYTE pCxRomPeripheral);
 	void UpdateLatchForEmptyDrive(FloppyDrive* pDrive);
+	void InsertSyncEvent(void);
+	static int SyncEventCallback(int id, int cycles, ULONG uExecutedCycles);
+	void ControlStepperDeferred(void);
+	void ControlStepperLogging(WORD address, unsigned __int64 cumulativeCycles);
 
 	void PreJitterCheck(int phase, BYTE latch);
 	void AddJitter(int phase, FloppyDisk& floppy);
+	void AddTrackSeamJitter(float phasePrecise, FloppyDisk& floppy);
 
 	void SaveSnapshotFloppy(YamlSaveHelper& yamlSaveHelper, UINT unit);
 	void SaveSnapshotDriveUnit(YamlSaveHelper& yamlSaveHelper, UINT unit);
@@ -222,7 +238,7 @@ private:
 
 	void __stdcall ControlStepper(WORD, WORD address, BYTE, BYTE, ULONG uExecutedCycles);
 	void __stdcall ControlMotor(WORD, WORD address, BYTE, BYTE, ULONG uExecutedCycles);
-	void __stdcall Enable(WORD, WORD address, BYTE, BYTE, ULONG uExecutedCycles);
+	bool __stdcall Enable(WORD, WORD address, BYTE, BYTE, ULONG uExecutedCycles);
 	void __stdcall ReadWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG uExecutedCycles);
 	void __stdcall DataLatchReadWriteWOZ(WORD pc, WORD addr, BYTE bWrite, ULONG uExecutedCycles);
 	void __stdcall LoadWriteProtect(WORD, WORD, BYTE write, BYTE value, ULONG);
@@ -239,6 +255,7 @@ private:
 	BYTE m_13SectorFirmware[DISK2_FW_SIZE];
 	BYTE m_16SectorFirmware[DISK2_FW_SIZE];
 	bool m_is13SectorFirmware;
+	bool m_force13SectorFirmware;
 
 	WORD m_currDrive;
 	FloppyDrive m_floppyDrive[NUM_DRIVES];
@@ -250,7 +267,6 @@ private:
 	WORD m_magnetStates;	// state bits for stepper motor magnet states (phases 0 - 3)
 
 	bool m_saveDiskImage;
-	UINT m_slot;
 	unsigned __int64 m_diskLastCycle;
 	unsigned __int64 m_diskLastReadLatchCycle;
 	FormatTrack m_formatTrack;
@@ -263,7 +279,6 @@ private:
 	// Logic State Sequencer (for WOZ):
 	BYTE m_shiftReg;
 	int m_latchDelay;
-	bool m_resetSequencer;
 	bool m_writeStarted;
 
 	enum SEQFUNC {readSequencing=0, dataShiftWrite, checkWriteProtAndInitWrite, dataLoadWrite};	// UTAIIe 9-14
@@ -279,6 +294,11 @@ private:
 
 	SEQUENCER_FUNCTION m_seqFunc;
 	UINT m_dbgLatchDelayedCnt;
+
+	bool m_deferredStepperEvent;
+	WORD m_deferredStepperAddress;
+	unsigned __int64 m_deferredStepperCumulativeCycles;
+	SyncEvent m_syncEvent;
 
 	// Jitter (GH#930)
 	static const BYTE m_T00S00Pattern[];

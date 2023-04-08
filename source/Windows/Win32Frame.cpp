@@ -9,6 +9,7 @@
 #include "Memory.h"
 #include "CardManager.h"
 #include "Debugger/Debug.h"
+#include "Tfe/PCapBackend.h"
 #include "../resource/resource.h"
 
 // Win32Frame methods are implemented in AppleWin, WinFrame and WinVideo.
@@ -22,7 +23,7 @@ Win32Frame::Win32Frame()
 	g_hLogoBitmap = (HBITMAP)0;
 	g_hDeviceBitmap = (HBITMAP)0;
 	g_hDeviceDC = (HDC)0;
-	g_bAltEnter_ToggleFullScreen = false;
+	g_bAltEnter_ToggleFullScreen = true;	// Alt+Enter defaults to toggling full screen
 	g_bIsFullScreen = false;
 	g_bShowingCursor = true;
 	g_bLastCursorInAppleViewport = false;
@@ -33,16 +34,12 @@ Win32Frame::Win32Frame()
 	g_bFrameActive = false;
 	g_windowMinimized = false;
 	g_bFullScreen_ShowSubunitStatus = true;
-	g_win_fullscreen_scale = 1;
 	g_win_fullscreen_offsetx = 0;
 	g_win_fullscreen_offsety = 0;
 	m_bestWidthForFullScreen = 0;
 	m_bestHeightForFullScreen = 0;
 	m_changedDisplaySettings = false;
 
-	g_nViewportCX = GetVideo().GetFrameBufferBorderlessWidth() * kDEFAULT_VIEWPORT_SCALE;
-	g_nViewportCY = GetVideo().GetFrameBufferBorderlessHeight() * kDEFAULT_VIEWPORT_SCALE;
-	g_nViewportScale = kDEFAULT_VIEWPORT_SCALE; // saved REGSAVE
 	g_nMaxViewportScale = kDEFAULT_VIEWPORT_SCALE;	// Max scale in Windowed mode with borders, buttons etc (full-screen may be +1)
 
 	btnfacebrush = (HBRUSH)0;
@@ -52,8 +49,6 @@ Win32Frame::Win32Frame()
 	buttonactive = -1;
 	buttondown = -1;
 	buttonover = -1;
-	buttonx = BUTTONX;	// NB. macro uses g_nViewportCX
-	buttony = BUTTONY;
 	g_hFrameDC = (HDC)0;
 	memset(&framerect, 0, sizeof(framerect));
 
@@ -65,20 +60,23 @@ Win32Frame::Win32Frame()
 
 	g_bScrollLock_FullSpeed = false;
 
-	g_nTrackDrive1 = -1;
-	g_nTrackDrive2 = -1;
-	g_nSectorDrive1 = -1;
-	g_nSectorDrive2 = -1;
-	strcpy_s(g_sTrackDrive1, sizeof(g_sTrackDrive1), "??");
-	strcpy_s(g_sTrackDrive2, sizeof(g_sTrackDrive1), "??");
-	strcpy_s(g_sSectorDrive1, sizeof(g_sTrackDrive1), "??");
-	strcpy_s(g_sSectorDrive2, sizeof(g_sTrackDrive1), "??");
+	for (UINT slot = SLOT0; slot < NUM_SLOTS; slot++)
+	{
+		g_nSector[slot][0] = -1;
+		g_nSector[slot][1] = -1;
+	}
 
 	g_eStatusDrive1 = DISK_STATUS_OFF;
 	g_eStatusDrive2 = DISK_STATUS_OFF;
+
+	// Set g_nViewportScale, g_nViewportCX, g_nViewportCY & buttonx, buttony
+	SetViewportScale(kDEFAULT_VIEWPORT_SCALE, true);
+
+	// Set m_showDiskiiStatus, m_redrawDiskiiStatus
+	SetWindowedModeShowDiskiiStatus(false);
 }
 
-void Win32Frame::videoCreateDIBSection(Video & video)
+void Win32Frame::VideoCreateDIBSection(bool resetVideoState)
 {
 	// CREATE THE DEVICE CONTEXT
 	HWND window = GetDesktopWindow();
@@ -91,7 +89,10 @@ void Win32Frame::videoCreateDIBSection(Video & video)
 
 	// CREATE THE FRAME BUFFER DIB SECTION
 	if (g_hDeviceBitmap)
+	{
 		DeleteObject(g_hDeviceBitmap);
+		GetVideo().Destroy();
+	}
 
 	uint8_t* pFramebufferbits;
 
@@ -102,29 +103,33 @@ void Win32Frame::videoCreateDIBSection(Video & video)
 		(LPVOID*)&pFramebufferbits, 0, 0
 	);
 	SelectObject(g_hDeviceDC, g_hDeviceBitmap);
-	video.Initialize(pFramebufferbits);
+	GetVideo().Initialize(pFramebufferbits, resetVideoState);
 }
 
-void Win32Frame::Initialize(void)
+void Win32Frame::Initialize(bool resetVideoState)
 {
-	// LOAD THE LOGO
-	g_hLogoBitmap = LoadBitmap(g_hInstance, MAKEINTRESOURCE(IDB_APPLEWIN));
+	if (g_hLogoBitmap == NULL)
+	{
+		// LOAD THE LOGO
+		g_hLogoBitmap = LoadBitmap(g_hInstance, MAKEINTRESOURCE(IDB_APPLEWIN));
+	}
+
+	if (g_pFramebufferinfo)
+		delete[] g_pFramebufferinfo;
 
 	// CREATE A BITMAPINFO STRUCTURE FOR THE FRAME BUFFER
 	g_pFramebufferinfo = (LPBITMAPINFO) new BYTE[sizeof(BITMAPINFOHEADER) + 256 * sizeof(RGBQUAD)];
 
-	Video & video = GetVideo();
-
 	memset(g_pFramebufferinfo, 0, sizeof(BITMAPINFOHEADER) + 256 * sizeof(RGBQUAD));
 	g_pFramebufferinfo->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	g_pFramebufferinfo->bmiHeader.biWidth = video.GetFrameBufferWidth();
-	g_pFramebufferinfo->bmiHeader.biHeight = video.GetFrameBufferHeight();
+	g_pFramebufferinfo->bmiHeader.biWidth = GetVideo().GetFrameBufferWidth();
+	g_pFramebufferinfo->bmiHeader.biHeight = GetVideo().GetFrameBufferHeight();
 	g_pFramebufferinfo->bmiHeader.biPlanes = 1;
 	g_pFramebufferinfo->bmiHeader.biBitCount = 32;
 	g_pFramebufferinfo->bmiHeader.biCompression = BI_RGB;
 	g_pFramebufferinfo->bmiHeader.biClrUsed = 0;
 
-	videoCreateDIBSection(video);
+	VideoCreateDIBSection(resetVideoState);
 
 #if 0
 	DDInit();	// For WaitForVerticalBlank()
@@ -255,28 +260,27 @@ void Win32Frame::Benchmark(void)
 				}
 			}
 			if (error) {
-				TCHAR outstr[256];
-				wsprintf(outstr,
-					TEXT("The emulator experienced an error %u clock cycles ")
-					TEXT("into the CPU benchmark.  Prior to the error, the ")
-					TEXT("program counter was at $%04X.  After the error, it ")
-					TEXT("had jumped to $%04X."),
+				std::string strText = StrFormat(
+					"The emulator experienced an error %u clock cycles "
+					"into the CPU benchmark.  Prior to the error, the "
+					"program counter was at $%04X.  After the error, it "
+					"had jumped to $%04X.",
 					(unsigned)loop,
 					(unsigned)lastpc,
 					(unsigned)regs.pc);
 				FrameMessageBox(
-					outstr,
-					TEXT("Benchmarks"),
+					strText.c_str(),
+					"Benchmarks",
 					MB_ICONINFORMATION | MB_SETFOREGROUND);
 			}
 			else
 				FrameMessageBox(
-					TEXT("The emulator was unable to locate the exact ")
-					TEXT("point of the error.  This probably means that ")
-					TEXT("the problem is external to the emulator, ")
-					TEXT("happening asynchronously, such as a problem in ")
-					TEXT("a timer interrupt handler."),
-					TEXT("Benchmarks"),
+					"The emulator was unable to locate the exact "
+					"point of the error.  This probably means that "
+					"the problem is external to the emulator, "
+					"happening asynchronously, such as a problem in "
+					"a timer interrupt handler.",
+					"Benchmarks",
 					MB_ICONINFORMATION | MB_SETFOREGROUND);
 		}
 
@@ -296,8 +300,7 @@ void Win32Frame::Benchmark(void)
 			while (cycles > 0) {
 				DWORD executedcycles = CpuExecute(103, true);
 				cycles -= executedcycles;
-				GetCardMgr().GetDisk2CardMgr().UpdateDriveState(executedcycles);
-				JoyUpdateButtonLatch(executedcycles);
+				GetCardMgr().GetDisk2CardMgr().Update(executedcycles);
 			}
 		}
 		if (cycle & 1)
@@ -312,21 +315,20 @@ void Win32Frame::Benchmark(void)
 
 	// DISPLAY THE RESULTS
 	DisplayLogo();
-	TCHAR outstr[256];
-	wsprintf(outstr,
-		TEXT("Pure Video FPS:\t%u hires, %u text\n")
-		TEXT("Pure CPU MHz:\t%u.%u%s (video update)\n")
-		TEXT("Pure CPU MHz:\t%u.%u%s (full-speed)\n\n")
-		TEXT("EXPECTED AVERAGE VIDEO GAME\n")
-		TEXT("PERFORMANCE: %u FPS"),
+	std::string strText = StrFormat(
+		"Pure Video FPS:\t%u hires, %u text\n"
+		"Pure CPU MHz:\t%u.%u%s (video update)\n"
+		"Pure CPU MHz:\t%u.%u%s (full-speed)\n\n"
+		"EXPECTED AVERAGE VIDEO GAME\n"
+		"PERFORMANCE: %u FPS",
 		(unsigned)totalhiresfps,
 		(unsigned)totaltextfps,
-		(unsigned)(totalmhz10[0] / 10), (unsigned)(totalmhz10[0] % 10), (LPCTSTR)(IS_APPLE2 ? TEXT(" (6502)") : TEXT("")),
-		(unsigned)(totalmhz10[1] / 10), (unsigned)(totalmhz10[1] % 10), (LPCTSTR)(IS_APPLE2 ? TEXT(" (6502)") : TEXT("")),
+		(unsigned)(totalmhz10[0] / 10), (unsigned)(totalmhz10[0] % 10), (LPCTSTR)(IS_APPLE2 ? " (6502)" : ""),
+		(unsigned)(totalmhz10[1] / 10), (unsigned)(totalmhz10[1] % 10), (LPCTSTR)(IS_APPLE2 ? " (6502)" : ""),
 		(unsigned)realisticfps);
 	FrameMessageBox(
-		outstr,
-		TEXT("Benchmarks"),
+		strText.c_str(),
+		"Benchmarks",
 		MB_ICONINFORMATION | MB_SETFOREGROUND);
 }
 
@@ -410,16 +412,15 @@ void Win32Frame::DisplayLogo(void)
 	SetTextAlign(hFrameDC, TA_RIGHT | TA_TOP);
 	SetBkMode(hFrameDC, TRANSPARENT);
 
-	TCHAR szVersion[64];
-	StringCbPrintf(szVersion, 64, "Version %s", VERSIONSTRING);
+	std::string strVersion = "Version " + g_VERSIONSTRING;
 	int xoff = GetFullScreenOffsetX(), yoff = GetFullScreenOffsetY();
 
 #define  DRAWVERSION(x,y,c)                 \
 	SetTextColor(hFrameDC,c);               \
 	TextOut(hFrameDC,                       \
 		scale*540+x+xoff,scale*358+y+yoff,  \
-		szVersion,                          \
-		strlen(szVersion));
+		strVersion.c_str(),                 \
+		strVersion.length());
 
 	if (GetDeviceCaps(hFrameDC, PLANES) * GetDeviceCaps(hFrameDC, BITSPIXEL) <= 4) {
 		DRAWVERSION(2, 2, RGB(0x00, 0x00, 0x00));
@@ -433,7 +434,7 @@ void Win32Frame::DisplayLogo(void)
 	}
 
 #if _DEBUG
-	StringCbPrintf(szVersion, 64, "DEBUG");
+	strVersion = "DEBUG";
 	DRAWVERSION(2, -358 * scale, RGB(0x00, 0x00, 0x00));
 	DRAWVERSION(1, -357 * scale, RGB(0x00, 0x00, 0x00));
 	DRAWVERSION(0, -356 * scale, RGB(0xFF, 0x00, 0xFF));
@@ -616,4 +617,16 @@ BYTE* Win32Frame::GetResource(WORD id, LPCSTR lpType, DWORD dwExpectedSize)
 	BYTE* pResource = (BYTE*)LockResource(hResData);	// NB. Don't need to unlock resource
 
 	return pResource;
+}
+
+std::string Win32Frame::Video_GetScreenShotFolder() const
+{
+	// save in current folder
+	return std::string();
+}
+
+std::shared_ptr<NetworkBackend> Win32Frame::CreateNetworkBackend(const std::string & interfaceName)
+{
+	std::shared_ptr<NetworkBackend> backend(new PCapBackend(interfaceName));
+	return backend;
 }

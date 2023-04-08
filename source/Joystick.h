@@ -14,7 +14,6 @@ void    JoyReset();
 void    JoySetButton(eBUTTON,eBUTTONSTATE);
 BOOL    JoySetEmulationType(HWND,DWORD,int, const bool bMousecardActive);
 void    JoySetPosition(int,int,int,int);
-void    JoyUpdateButtonLatch(const UINT nExecutionPeriodUsec);
 BOOL    JoyUsingMouse();
 BOOL    JoyUsingKeyboard();
 BOOL    JoyUsingKeyboardCursors();
@@ -28,7 +27,7 @@ void	JoyportControl(const UINT uControl);
 void	JoySetHookAltKeys(bool hook);
 void	JoySetButtonVirtualKey(UINT button, UINT virtKey);
 void    JoySaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-void    JoyLoadSnapshot(class YamlLoadHelper& yamlLoadHelper);
+void    JoyLoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT version);
 
 BYTE __stdcall JoyReadButton(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles);
 BYTE __stdcall JoyReadPosition(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles);

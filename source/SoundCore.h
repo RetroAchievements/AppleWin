@@ -4,10 +4,6 @@
 
 #define SAFE_RELEASE(p)      { if(p) { (p)->Release(); (p)=NULL; } }
 
-// Define max 1 of these:
-//#define RIFF_SPKR
-//#define RIFF_MB
-
 struct VOICE
 {
 	LPDIRECTSOUNDBUFFER lpDSBvoice;
@@ -34,6 +30,8 @@ struct VOICE
 		bRecentlyActive = false;
 		name = "";
 	}
+
+	~VOICE(void);
 };
 
 typedef VOICE* PVOICE;

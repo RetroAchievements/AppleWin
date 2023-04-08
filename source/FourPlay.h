@@ -6,27 +6,25 @@ class FourPlayCard : public Card
 {
 public:
 	FourPlayCard(UINT slot) :
-		Card(CT_FourPlay),
-		m_slot(slot)
+		Card(CT_FourPlay, slot)
 	{
 	}
 	virtual ~FourPlayCard(void) {}
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void Destroy(void) {}
+	virtual void Reset(const bool powerCycle) {}
+	virtual void Update(const ULONG nExecutedCycles) {}
 
-	void InitializeIO(LPBYTE pCxRomPeripheral, UINT slot);
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
 
 	static BYTE __stdcall IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
-	static std::string GetSnapshotCardName(void);
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+	static const std::string& GetSnapshotCardName(void);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 
 	static const UINT JOYSTICKSTATIONARY = 0x20;
 
 private:
 	static BYTE MyGetAsyncKeyState(int vKey);
-
-	UINT m_slot;
 };

@@ -2,6 +2,8 @@
 
 #include "yaml.h"
 
+#include "StrFormat.h"
+
 #define SS_YAML_KEY_FILEHDR "File_hdr"
 #define SS_YAML_KEY_TAG "Tag"
 #define SS_YAML_KEY_VERSION "Version"
@@ -9,6 +11,7 @@
 #define SS_YAML_KEY_TYPE "Type"
 #define SS_YAML_KEY_CARD "Card"
 #define SS_YAML_KEY_STATE "State"
+#define SS_YAML_KEY_DEVICE "Device"
 
 #define SS_YAML_VALUE_AWSS "AppleWin Save State"
 
@@ -42,6 +45,8 @@ public:
 	int InitParser(const char* pPathname);
 	void FinaliseParser(void);
 
+	UINT ParseFileHdr(const char* tag);
+
 	int GetScalar(std::string& scalar);
 	void GetMapStartEvent(void);
 
@@ -49,8 +54,8 @@ private:
 	void GetNextEvent(void);
 	int ParseMap(MapYaml& mapYaml);
 	std::string GetMapValue(MapYaml& mapYaml, const std::string &key, bool& bFound);
-	UINT LoadMemory(MapYaml& mapYaml, const LPBYTE pMemBase, const size_t kAddrSpaceSize);
-	bool GetSubMap(MapYaml** mapYaml, const std::string &key, const bool canBeNull /*= false*/);
+	UINT LoadMemory(MapYaml& mapYaml, const LPBYTE pMemBase, const size_t kAddrSpaceSize, const UINT offset);
+	bool GetSubMap(MapYaml** mapYaml, const std::string &key, const bool canBeNull=false);
 	void GetMapRemainder(std::string& mapName, MapYaml& mapYaml);
 
 	void MakeAsciiToHexTable(void);
@@ -82,7 +87,7 @@ public:
 		if (!m_yamlHelper.ParseMap(yamlHelper.m_mapYaml))
 		{
 			m_bDoGetMapRemainder = false;
-			throw std::string(m_currentMapName + ": Failed to parse map");
+			throw std::runtime_error(m_currentMapName + ": Failed to parse map");
 		}
 	}
 
@@ -100,8 +105,8 @@ public:
 	std::string LoadString(const std::string& key);
 	float LoadFloat(const std::string & key);
 	double LoadDouble(const std::string & key);
-	void LoadMemory(const LPBYTE pMemBase, const size_t size);
-	void LoadMemory(std::vector<BYTE>& memory, const size_t size);
+	void LoadMemory(const LPBYTE pMemBase, const size_t size, const UINT offset=0);
+	void LoadMemory(std::vector<BYTE>& memory, const size_t size, const UINT offset=0);
 
 	bool GetSubMap(const std::string & key, const bool canBeNull=false)
 	{
@@ -184,7 +189,7 @@ public:
 		// - at this point any old file will have been truncated to zero
 
 		if(m_hFile == NULL)
-			throw std::string("Save error");
+			throw std::runtime_error("Save error");
 
 		_tzset();
 		time_t ltime;
@@ -212,7 +217,7 @@ public:
 		delete[] m_pMbStr;
 	}
 
-	void Save(const char* format, ...);
+	void Save(const char* format, ...) ATTRIBUTE_FORMAT_PRINTF(2, 3); // 1 is "this"
 
 	void SaveInt(const char* key, int value);
 	void SaveUint(const char* key, UINT value);
@@ -228,12 +233,12 @@ public:
 	void SaveString(const char* key, const std::string & value);
 	void SaveFloat(const char* key, float value);
 	void SaveDouble(const char* key, double value);
-	void SaveMemory(const LPBYTE pMemBase, const UINT uMemSize);
+	void SaveMemory(const LPBYTE pMemBase, const UINT uMemSize, const UINT offset=0);
 
 	class Label
 	{
 	public:
-		Label(YamlSaveHelper& rYamlSaveHelper, const char* format, ...) :
+		Label(YamlSaveHelper& rYamlSaveHelper, const char* format, ...)  ATTRIBUTE_FORMAT_PRINTF(3, 4) :  // 1 is "this"
 			yamlSaveHelper(rYamlSaveHelper)
 		{
 			fwrite(yamlSaveHelper.m_szIndent, 1, yamlSaveHelper.m_indent, yamlSaveHelper.m_hFile);

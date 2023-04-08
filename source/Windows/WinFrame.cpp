@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 #include "StdAfx.h"
+#include <sstream>
 
 #include "Windows/Win32Frame.h"
 #include "Windows/AppleWin.h"
@@ -44,8 +45,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "SaveState.h"
 #include "SerialComms.h"
 #include "SoundCore.h"
+#include "Uthernet1.h"
+#include "Uthernet2.h"
 #include "Speaker.h"
 #include "Utilities.h"
+#include "CardManager.h"
 #include "../resource/resource.h"
 #include "Configuration/PropertySheet.h"
 #include "Debugger/Debug.h"
@@ -232,7 +236,7 @@ void Win32Frame::CreateGdiObjects(void)
 	btnfacepen      = CreatePen(PS_SOLID,1,GetSysColor(COLOR_BTNFACE));
 	btnhighlightpen = CreatePen(PS_SOLID,1,GetSysColor(COLOR_BTNHIGHLIGHT));
 	btnshadowpen    = CreatePen(PS_SOLID,1,GetSysColor(COLOR_BTNSHADOW));
-	smallfont = CreateFont(11,6,0,0,FW_NORMAL,0,0,0,ANSI_CHARSET,
+	smallfont = CreateFont(smallfontHeight,6,0,0,FW_NORMAL,0,0,0,ANSI_CHARSET,
 							OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,
 							DEFAULT_QUALITY,VARIABLE_PITCH | FF_SWISS,
 							TEXT("Small Fonts"));
@@ -467,11 +471,20 @@ void Win32Frame::DrawFrameWindow (bool bPaintingWindow/*=false*/)
 			DrawButton(dc,iButton);
 		}
 
-		if (g_nViewportScale == 2)
+		if (g_nViewportScale == 2 || GetVideo().HasVidHD())
 		{
-			int x  = buttonx + 1;
-			int y  = buttony + BUTTONS*BUTTONCY + 36;	// 36 = height of StatusArea
-			RECT rect = {x, y, x+45, y+BUTTONS*BUTTONCY+22};
+			const int x = buttonx + 1;
+			const int y = buttony + BUTTONS * BUTTONCY + 36;	// 36 = height of StatusArea
+			RECT rect = { x, y, x + BUTTONCX, y + BUTTONS * BUTTONCY + 22 };
+
+			if (GetVideo().HasVidHD())
+			{
+				if (g_nViewportScale == 1)
+					rect.bottom += 14;
+				else
+					rect.bottom += 32;
+			}
+
 			int res = FillRect(dc, &rect, btnfacebrush);
 		}
 	}
@@ -511,6 +524,34 @@ void Win32Frame::SetFullScreenShowSubunitStatus(bool bShow)
 	g_bFullScreen_ShowSubunitStatus = bShow;
 }
 
+bool Win32Frame::GetWindowedModeShowDiskiiStatus(void)
+{
+	return m_showDiskiiStatus;
+}
+
+void Win32Frame::SetWindowedModeShowDiskiiStatus(bool bShow)
+{
+	m_showDiskiiStatus = bShow;
+	m_redrawDiskiiStatus = true;
+	SetSlotUIOffsets();
+}
+
+void Win32Frame::SetSlotUIOffsets(void)
+{
+	if (m_showDiskiiStatus)
+	{
+		yOffsetSlot5Label = D2FullUI::yOffsetSlot5Label;
+		yOffsetSlot5LEDNumbers = D2FullUI::yOffsetSlot5LEDNumbers;
+		yOffsetSlot5LEDs = D2FullUI::yOffsetSlot5LEDs;
+	}
+	else
+	{
+		yOffsetSlot5Label = D2CompactUI::yOffsetSlot5Label;
+		yOffsetSlot5LEDNumbers = D2CompactUI::yOffsetSlot5LEDNumbers;
+		yOffsetSlot5LEDs = D2CompactUI::yOffsetSlot5LEDs;
+	}
+}
+
 void Win32Frame::FrameDrawDiskLEDS()
 {
 	FrameDrawDiskLEDS((HDC)0);
@@ -522,27 +563,14 @@ void Win32Frame::FrameDrawDiskLEDS( HDC passdc )
 	g_eStatusDrive1 = DISK_STATUS_OFF;
 	g_eStatusDrive2 = DISK_STATUS_OFF;
 
-	// Slot6 drive takes priority unless it's off:
 	if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
 		dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6)).GetLightStatus(&g_eStatusDrive1, &g_eStatusDrive2);
-
-	// Slot5:
-	{
-		Disk_Status_e eDrive1StatusSlot5 = DISK_STATUS_OFF;
-		Disk_Status_e eDrive2StatusSlot5 = DISK_STATUS_OFF;
-		if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
-			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT5)).GetLightStatus(&eDrive1StatusSlot5, &eDrive2StatusSlot5);
-
-		if (g_eStatusDrive1 == DISK_STATUS_OFF) g_eStatusDrive1 = eDrive1StatusSlot5;
-		if (g_eStatusDrive2 == DISK_STATUS_OFF) g_eStatusDrive2 = eDrive2StatusSlot5;
-	}
 
 	// Draw Track/Sector
 	FrameReleaseDC();
 	HDC  dc     = (passdc ? passdc : GetDC(g_hFrameWindow));
-
-	int  x      = buttonx;
-	int  y      = buttony+BUTTONS*BUTTONCY+1;
+	const int x = buttonx;
+	const int y = buttony + BUTTONS * BUTTONCY + 1;
 
 	if (g_bIsFullScreen)
 	{
@@ -554,23 +582,150 @@ void Win32Frame::FrameDrawDiskLEDS( HDC passdc )
 		SetBkColor(dc,RGB(0,0,0));
 		SetTextAlign(dc,TA_LEFT | TA_TOP);
 
-		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive1] );
+		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive1]);
 		TextOut(dc,x+ 3,y+2,TEXT("1"),1);
 
-		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive2] );
+		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive2]);
 		TextOut(dc,x+13,y+2,TEXT("2"),1);
 	}
 	else
 	{
-		RECT rDiskLed = {0,0,8,8};
-		DrawBitmapRect(dc,x+12,y+6,&rDiskLed,g_hDiskWindowedLED[g_eStatusDrive1]);
-		DrawBitmapRect(dc,x+31,y+6,&rDiskLed,g_hDiskWindowedLED[g_eStatusDrive2]);
+		RECT rDiskLed = { 0,0,8,8 };
+		DrawBitmapRect(dc, x + 12, y + yOffsetSlot6LEDs, &rDiskLed, g_hDiskWindowedLED[g_eStatusDrive1]);
+		DrawBitmapRect(dc, x + 31, y + yOffsetSlot6LEDs, &rDiskLed, g_hDiskWindowedLED[g_eStatusDrive2]);
+
+		if (g_nViewportScale > 1 && GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+		{
+			Disk_Status_e eDrive1StatusSlot5 = DISK_STATUS_OFF;
+			Disk_Status_e eDrive2StatusSlot5 = DISK_STATUS_OFF;
+			dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT5)).GetLightStatus(&eDrive1StatusSlot5, &eDrive2StatusSlot5);
+
+			DrawBitmapRect(dc, x + 12, y + yOffsetSlot5LEDs, &rDiskLed, g_hDiskWindowedLED[eDrive1StatusSlot5]);
+			DrawBitmapRect(dc, x + 31, y + yOffsetSlot5LEDs, &rDiskLed, g_hDiskWindowedLED[eDrive2StatusSlot5]);
+		}
 	}
 }
 
 void Win32Frame::FrameDrawDiskStatus()
 {
 	FrameDrawDiskStatus((HDC)0);
+}
+
+void Win32Frame::GetTrackSector(UINT slot, int& drive1Track, int& drive2Track, int& activeFloppy)
+{
+	//        DOS3.3   ProDOS
+	// Slot   $B7E9    $BE3C(DEFSLT=Default Slot)      ; ref: Beneath Apple ProDOS 8-3
+	// Drive  $B7EA    $BE3D(DEFDRV=Default Drive)     ; ref: Beneath Apple ProDOS 8-3
+	// Track  $B7EC    LC1 $D356
+	// Sector $B7ED    LC1 $D357
+	// RWTS            LC1 $D300
+
+	drive1Track = drive2Track = activeFloppy = 0;
+	if (GetCardMgr().QuerySlot(slot) != CT_Disk2)
+		return;
+
+	Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(slot));
+	activeFloppy = disk2Card.GetCurrentDrive();
+	drive1Track = disk2Card.GetTrack(DRIVE_1);
+	drive2Track = disk2Card.GetTrack(DRIVE_2);
+
+	// Probe known OS's for default Slot/Track/Sector
+	const bool isProDOS = mem[0xBF00] == 0x4C;
+	bool isSectorValid = false;
+	int drive1Sector = -1, drive2Sector = -1;
+
+	// Try DOS3.3 Sector
+	if (!isProDOS)
+	{
+		const int nDOS33slot = mem[0xB7E9] / 16;
+		const int nDOS33track = mem[0xB7EC];
+		const int nDOS33sector = mem[0xB7ED];
+
+		if ((nDOS33slot == slot)
+			&& (nDOS33track >= 0 && nDOS33track < 40)
+			&& (nDOS33sector >= 0 && nDOS33sector < 16))
+		{
+#if _DEBUG && 0
+			if (nDOS33track != nDisk1Track)
+			{
+				LogOutput("\n\n\nWARNING: DOS33Track: %d (%02X) != nDisk1Track: %d (%02X)\n\n\n", nDOS33track, nDOS33track, nDisk1Track, nDisk1Track);
+			}
+#endif // _DEBUG
+
+			/**/ if (activeFloppy == 0) drive1Sector = nDOS33sector;
+			else if (activeFloppy == 1) drive2Sector = nDOS33sector;
+
+			isSectorValid = true;
+		}
+	}
+	else // isProDOS
+	{
+		// we can't just read from mem[ 0xD357 ] since it might be bank-switched from ROM
+		// and we need the Language Card RAM
+		const int nProDOSslot = mem[0xBE3C];
+		const int nProDOStrack = *MemGetMainPtr(0xC356); // LC1 $D356
+		const int nProDOSsector = *MemGetMainPtr(0xC357); // LC1 $D357
+
+		if ((nProDOSslot == slot)
+			&& (nProDOStrack >= 0 && nProDOStrack < 40)
+			&& (nProDOSsector >= 0 && nProDOSsector < 16))
+		{
+			/**/ if (activeFloppy == 0) drive1Sector = nProDOSsector;
+			else if (activeFloppy == 1) drive2Sector = nProDOSsector;
+
+			isSectorValid = true;
+		}
+	}
+
+	// Preserve sector so don't get "??" when switching drives, eg. if using COPYA to copy from drive-1 to drive-2
+	if (isSectorValid)
+	{
+		if (activeFloppy == 0) g_nSector[slot][0] = drive1Sector;
+		else                   g_nSector[slot][1] = drive2Sector;
+	}
+	else
+	{
+		if (activeFloppy == 0) g_nSector[slot][0] = -1;
+		else                   g_nSector[slot][1] = -1;
+	}
+}
+
+void Win32Frame::CreateTrackSectorStrings(int track, int sector, std::string& strTrack, std::string& strSector)
+{
+	strTrack = StrFormat("%2d", track);
+	strSector = (sector < 0) ? "??" : StrFormat("%2d", sector);
+}
+
+void Win32Frame::DrawTrackSector(HDC dc, UINT slot, int drive1Track, int drive1Sector, int drive2Track, int drive2Sector)
+{
+	const int x = buttonx;
+	const int y = buttony + BUTTONS * BUTTONCY + 1;
+
+	const UINT yOffsetSlotNTrackInfo = (slot == SLOT6) ? yOffsetSlot6TrackInfo : yOffsetSlot5TrackInfo;
+	const UINT yOffsetSlotNSectorInfo = yOffsetSlotNTrackInfo + smallfontHeight;
+
+	// Erase background (TrackInfo + SectorInfo)
+	SelectObject(dc, GetStockObject(NULL_PEN));
+	SelectObject(dc, btnfacebrush);
+	Rectangle(dc, x + 4, y + yOffsetSlotNTrackInfo, x + BUTTONCX + 1, y + yOffsetSlotNSectorInfo + smallfontHeight);
+
+	SetTextColor(dc, RGB(0, 0, 0));
+	SetBkMode(dc, TRANSPARENT);
+
+	std::string strTrackDrive1, strSectorDrive1, strTrackDrive2, strSectorDrive2;
+	CreateTrackSectorStrings(drive1Track, drive1Sector, strTrackDrive1, strSectorDrive1);
+	CreateTrackSectorStrings(drive2Track, drive2Sector, strTrackDrive2, strSectorDrive2);
+
+	std::string text;
+	text = "T" + strTrackDrive1;
+	TextOut(dc, x + 6, y + yOffsetSlotNTrackInfo, text.c_str(), text.length());
+	text = "S" + strSectorDrive1;
+	TextOut(dc, x + 6, y + yOffsetSlotNSectorInfo, text.c_str(), text.length());
+
+	text = "T" + strTrackDrive2;
+	TextOut(dc, x + 26, y + yOffsetSlotNTrackInfo, text.c_str(), text.length());
+	text = "S" + strSectorDrive2;
+	TextOut(dc, x + 26, y + yOffsetSlotNSectorInfo, text.c_str(), text.length());
 }
 
 // Feature Request #201 Show track status
@@ -587,149 +742,63 @@ void Win32Frame::FrameDrawDiskStatus( HDC passdc )
 	if (g_windowMinimized)	// Prevent DC leaks when app window is minimised (GH#820)
 		return;
 
-	// We use the actual drive since probing from memory doesn't tell us anything we don't already know.
-	//        DOS3.3   ProDOS
-	// Drive  $B7EA    $BE3D
-	// Track  $B7EC    LC1 $D356
-	// Sector $B7ED    LC1 $D357
-	// RWTS            LC1 $D300
-
-	if (GetCardMgr().QuerySlot(SLOT6) != CT_Disk2)
-		return;
-
-	Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
-	int nActiveFloppy = disk2Card.GetCurrentDrive();
-	int nDisk1Track = disk2Card.GetTrack(DRIVE_1);
-	int nDisk2Track = disk2Card.GetTrack(DRIVE_2);
-
-	// Probe known OS's for Track/Sector
-	int  isProDOS = mem[ 0xBF00 ] == 0x4C;
-	bool isValid  = true;
-
-	// Try DOS3.3 Sector
-	if ( !isProDOS )
-	{
-		int nDOS33track  = mem[ 0xB7EC ];
-		int nDOS33sector = mem[ 0xB7ED ];
-
-		if ((nDOS33track  >= 0 && nDOS33track  < 40)
-		&&  (nDOS33sector >= 0 && nDOS33sector < 16))
-		{
-#if _DEBUG && 0
-			if (nDOS33track != nDisk1Track)
-			{
-				char text[128];
-				sprintf( text, "\n\n\nWARNING: DOS33Track: %d (%02X) != nDisk1Track: %d (%02X)\n\n\n", nDOS33track, nDOS33track, nDisk1Track, nDisk1Track );
-				OutputDebugString( text );
-			}
-#endif // _DEBUG
-
-			/**/ if (nActiveFloppy == 0) g_nSectorDrive1 = nDOS33sector;
-			else if (nActiveFloppy == 1) g_nSectorDrive2 = nDOS33sector;
-		}
-		else
-			isValid = false;
-	}
-	else // isProDOS
-	{
-		// we can't just read from mem[ 0xD357 ] since it might be bank-switched from ROM
-		// and we need the Language Card RAM
-		// memrom[ 0xD350 ] = " ERROR\x07\x00"  Applesoft error message
-		//                             T   S
-		int nProDOStrack  = *MemGetMainPtr( 0xC356 ); // LC1 $D356
-		int nProDOSsector = *MemGetMainPtr( 0xC357 ); // LC1 $D357
-
-		if ((nProDOStrack  >= 0 && nProDOStrack  < 40)
-		&&  (nProDOSsector >= 0 && nProDOSsector < 16))
-		{
-			/**/ if (nActiveFloppy == 0) g_nSectorDrive1 = nProDOSsector;
-			else if (nActiveFloppy == 1) g_nSectorDrive2 = nProDOSsector;
-		}
-		else
-			isValid = false;
-	}
-
-	g_nTrackDrive1  = nDisk1Track;
-	g_nTrackDrive2  = nDisk2Track;
-
-	if( !isValid )
-	{
-		if (nActiveFloppy == 0) g_nSectorDrive1 = -1;
-		else                    g_nSectorDrive2 = -1;
-	}
-
-	sprintf_s( g_sTrackDrive1 , sizeof(g_sTrackDrive1 ), "%2d", g_nTrackDrive1 );
-	if (g_nSectorDrive1 < 0) sprintf_s( g_sSectorDrive1, sizeof(g_sSectorDrive1), "??" );
-	else                     sprintf_s( g_sSectorDrive1, sizeof(g_sSectorDrive1), "%2d", g_nSectorDrive1 ); 
-
-	sprintf_s( g_sTrackDrive2 , sizeof(g_sTrackDrive2),  "%2d", g_nTrackDrive2 );
-	if (g_nSectorDrive2 < 0) sprintf_s( g_sSectorDrive2, sizeof(g_sSectorDrive2), "??" );
-	else                     sprintf_s( g_sSectorDrive2, sizeof(g_sSectorDrive2), "%2d", g_nSectorDrive2 );
+	int nDrive1Track, nDrive2Track, nActiveFloppy;
+	GetTrackSector(SLOT6, nDrive1Track, nDrive2Track, nActiveFloppy);
 
 	// Draw Track/Sector
 	FrameReleaseDC();
 	HDC  dc     = (passdc ? passdc : GetDC(g_hFrameWindow));
-
-	int  x      = buttonx;
-	int  y      = buttony+BUTTONS*BUTTONCY+4;
+	const int x = buttonx;
+	const int y = buttony + BUTTONS * BUTTONCY + 1;
 
 	SelectObject(dc,smallfont);
 	SetBkMode(dc,OPAQUE);
 	SetBkColor(dc,RGB(0,0,0));
 	SetTextAlign(dc,TA_LEFT | TA_TOP);
 
-	char text[ 16 ];
-
 	if (g_bIsFullScreen)
 	{
-		// GH#57 - drive lights in full screen mode
+		// GH#57 - drive lights in full screen mode (Slot 6 only)
 
 		if (!g_bFullScreen_ShowSubunitStatus)
 			return;
 
-		SetTextColor(dc, g_aDiskFullScreenColorsLED[ g_eStatusDrive1 ] );
-		TextOut(dc,x+ 3,y+2,TEXT("1"),1);
+		std::string strTrackDrive1, strSectorDrive1, strTrackDrive2, strSectorDrive2;
+		CreateTrackSectorStrings(nDrive1Track, g_nSector[SLOT6][0], strTrackDrive1, strSectorDrive1);
+		CreateTrackSectorStrings(nDrive2Track, g_nSector[SLOT6][1], strTrackDrive2, strSectorDrive2);
 
-		SetTextColor(dc, g_aDiskFullScreenColorsLED[ g_eStatusDrive2 ] );
-		TextOut(dc,x+13,y+2,TEXT("2"),1);
-
-		int dx = 0;
-		if( nActiveFloppy == 0 )
-			sprintf( text, "%s/%s    ", g_sTrackDrive1, g_sSectorDrive1 );
-		else
-			sprintf( text, "%s/%s    ", g_sTrackDrive2, g_sSectorDrive2 );
+		std::string text = ( nActiveFloppy == 0 )
+			? StrFormat( "%s/%s    ", strTrackDrive1.c_str(), strSectorDrive1.c_str() )
+			: StrFormat( "%s/%s    ", strTrackDrive2.c_str(), strSectorDrive2.c_str() );
 
 		SetTextColor(dc, g_aDiskFullScreenColorsLED[ DISK_STATUS_READ ] );
-		TextOut(dc,x+dx,y-12,text, strlen(text) ); // original: y+2; y-12 puts status in the Configuration Button Icon
+		TextOut(dc, x, y, text.c_str(), text.length());
+
+		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive1]);
+		TextOut(dc, x + 3, y + smallfontHeight, TEXT("1"), 1);
+
+		SetTextColor(dc, g_aDiskFullScreenColorsLED[g_eStatusDrive2]);
+		TextOut(dc, x + 13, y + smallfontHeight, TEXT("2"), 1);
 	}
 	else
 	{
 		// NB. Only draw Track/Sector if 2x windowed
-		if (g_nViewportScale == 1)
+		if (g_nViewportScale == 1 || !GetWindowedModeShowDiskiiStatus())
 			return;
 
-		// Erase background
-		SelectObject(dc,GetStockObject(NULL_PEN));
-		SelectObject(dc,btnfacebrush);
-		Rectangle(dc,x+4,y+32,x+BUTTONCX+1,y+56); // y+35 -> 44 -> 56
+		DrawTrackSector(dc, SLOT6, nDrive1Track, g_nSector[SLOT6][0], nDrive2Track, g_nSector[SLOT6][1]);
 
-		SetTextColor(dc,RGB(0,0,0));
-		SetBkMode(dc,TRANSPARENT);
-
-		sprintf( text, "T%s", g_sTrackDrive1 );
-		TextOut(dc,x+6, y+32, text, strlen(text) );
-		sprintf( text, "S%s", g_sSectorDrive1 );
-		TextOut(dc,x+6, y+42, text, strlen(text) );
-
-		sprintf( text, "T%s", g_sTrackDrive2 );
-		TextOut(dc,x+26,y+32, text, strlen(text) );
-		sprintf( text, "S%s", g_sSectorDrive2 );
-		TextOut(dc,x+26,y+42, text, strlen(text) );
+		// Slot 5's Disk II
+		if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+		{
+			GetTrackSector(SLOT5, nDrive1Track, nDrive2Track, nActiveFloppy);
+			DrawTrackSector(dc, SLOT5, nDrive1Track, g_nSector[SLOT5][0], nDrive2Track, g_nSector[SLOT5][1]);
+		}
 	}
 }
 
 //===========================================================================
-void Win32Frame::DrawStatusArea (HDC passdc, int drawflags)
+void Win32Frame::DrawStatusArea(HDC passdc, int drawflags)
 {
 	if (g_hFrameWindow == NULL)
 	{
@@ -745,15 +814,13 @@ void Win32Frame::DrawStatusArea (HDC passdc, int drawflags)
 
 	FrameReleaseDC();
 	HDC  dc     = (passdc ? passdc : GetDC(g_hFrameWindow));
-	int  x      = buttonx;
-	int  y      = buttony+BUTTONS*BUTTONCY+1;
+	const int x = buttonx;
+	const int y = buttony + BUTTONS * BUTTONCY + 1;
 	const bool bCaps = KeybGetCapsStatus();
 
-#if HD_LED
-	// 1.19.0.0 Hard Disk Status/Indicator Light
 	Disk_Status_e eHardDriveStatus = DISK_STATUS_OFF;
-	HD_GetLightStatus(&eHardDriveStatus);
-#endif
+	if (GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
+		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(SLOT7)).GetLightStatus(&eHardDriveStatus);
 
 	if (g_bIsFullScreen)
 	{
@@ -772,11 +839,12 @@ void Win32Frame::DrawStatusArea (HDC passdc, int drawflags)
 				FrameDrawDiskStatus(dc);
 			}
 
-#if HD_LED
-			SetTextAlign(dc, TA_RIGHT | TA_TOP);
-			SetTextColor(dc, g_aDiskFullScreenColorsLED[ eHardDriveStatus ] );
-			TextOut(dc,x+23,y+2,TEXT("H"),1);
-#endif
+			if (GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
+			{
+				SetTextAlign(dc, TA_RIGHT | TA_TOP);
+				SetTextColor(dc, g_aDiskFullScreenColorsLED[eHardDriveStatus]);
+				TextOut(dc, x + 23, y + 2, TEXT("H"), 1);
+			}
 
 			if (!IS_APPLE2)
 			{
@@ -819,20 +887,43 @@ void Win32Frame::DrawStatusArea (HDC passdc, int drawflags)
 	{
 		if (drawflags & DRAW_BACKGROUND)
 		{
+			// Erase background (Slot6 drive LEDs, HDD LED & Caps)
 			SelectObject(dc,GetStockObject(NULL_PEN));
 			SelectObject(dc,btnfacebrush);
 			Rectangle(dc,x,y,x+BUTTONCX+2,y+34);
 			Draw3dRect(dc,x+1,y+3,x+BUTTONCX,y+30,0);
 
+			// Add text for Slot6 drives: "1" & "2"
 			SelectObject(dc,smallfont);
 			SetTextAlign(dc,TA_CENTER | TA_TOP);
 			SetTextColor(dc,RGB(0,0,0));
 			SetBkMode(dc,TRANSPARENT);
-			TextOut(dc,x+ 7,y+5,TEXT("1"),1);
-			TextOut(dc,x+27,y+5,TEXT("2"),1);
+			TextOut(dc, x + 7, y + yOffsetSlot6LEDNumbers, "1", 1);
+			TextOut(dc, x + 27, y + yOffsetSlot6LEDNumbers, "2", 1);
 
-			// 1.19.0.0 Hard Disk Status/Indicator Light
-			TextOut(dc,x+ 7,y+17,TEXT("H"),1);
+			// Add text for Slot7 harddrive: "H"
+			TextOut(dc, x + 7, y + yOffsetCapsLock, TEXT("H"), 1);
+
+			if (g_nViewportScale > 1)
+			{
+				if (m_redrawDiskiiStatus)
+				{
+					m_redrawDiskiiStatus = false;
+
+					// Erase background (Slot6's TrackInfo + SectorInfo + "Slot 5" + LEDs + TrackInfo + SectorInfo)
+					SelectObject(dc, GetStockObject(NULL_PEN));
+					SelectObject(dc, btnfacebrush);
+					Rectangle(dc, x + 1, y + yOffsetSlot6TrackInfo, x + BUTTONCX + 1, y + yOffsetSlot5SectorInfo + smallfontHeight);
+				}
+
+				if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+				{
+					std::string slot5 = "Slot 5:";
+					TextOut(dc, x + 15, y + yOffsetSlot5Label, slot5.c_str(), slot5.length());
+					TextOut(dc, x + 7, y + yOffsetSlot5LEDNumbers, "1", 1);
+					TextOut(dc, x + 27, y + yOffsetSlot5LEDNumbers, "2", 1);
+				}
+			}
 		}
 
 		if (drawflags & DRAW_LEDS)
@@ -847,21 +938,18 @@ void Win32Frame::DrawStatusArea (HDC passdc, int drawflags)
 				RECT rCapsLed = {0,0,10,12}; // HACK: HARD-CODED bitmaps size
 				switch (g_Apple2Type)
 				{
-					case A2TYPE_APPLE2        :			
-					case A2TYPE_APPLE2PLUS    :		
-					case A2TYPE_APPLE2E       :		
-					case A2TYPE_APPLE2EENHANCED:	
-					default                   : DrawBitmapRect(dc,x+31,y+17,&rCapsLed,g_hCapsLockBitmap[bCaps != 0]); break;
-					case A2TYPE_PRAVETS82     :		
-					case A2TYPE_PRAVETS8M     : DrawBitmapRect(dc,x+31,y+17,&rCapsLed,g_hCapsBitmapP8  [bCaps != 0]); break; // TODO: FIXME: Shouldn't one of these use g_hCapsBitmapLat ??
-					case A2TYPE_PRAVETS8A     : DrawBitmapRect(dc,x+31,y+17,&rCapsLed,g_hCapsBitmapP8  [bCaps != 0]); break;
+					case A2TYPE_APPLE2:
+					case A2TYPE_APPLE2PLUS:
+					case A2TYPE_APPLE2E:
+					case A2TYPE_APPLE2EENHANCED:
+					default: DrawBitmapRect(dc, x + 31, y + yOffsetCapsLock, &rCapsLed, g_hCapsLockBitmap[bCaps != 0]); break;
+					case A2TYPE_PRAVETS82:
+					case A2TYPE_PRAVETS8M: DrawBitmapRect(dc, x + 31, y + yOffsetCapsLock, &rCapsLed, g_hCapsBitmapP8[bCaps != 0]); break; // TODO: FIXME: Shouldn't one of these use g_hCapsBitmapLat ??
+					case A2TYPE_PRAVETS8A: DrawBitmapRect(dc, x + 31, y + yOffsetCapsLock, &rCapsLed, g_hCapsBitmapP8[bCaps != 0]); break;
 				}
 
-#if HD_LED
-				// 1.19.0.0 Hard Disk Status/Indicator Light
 				RECT rDiskLed = {0,0,8,8};
-				DrawBitmapRect(dc,x+12,y+18,&rDiskLed,g_hDiskWindowedLED[eHardDriveStatus]);
-#endif
+				DrawBitmapRect(dc, x + 12, y + yOffsetHardDiskLED, &rDiskLed, g_hDiskWindowedLED[eHardDriveStatus]);
 			}
 		}
 
@@ -979,18 +1067,11 @@ LRESULT Win32Frame::WndProc(
 	  if (!g_bRestart)	// GH#564: Only save-state on shutdown (not on a restart)
 		Snapshot_Shutdown();
       DebugDestroy();
-      if (!g_bRestart) {
-		GetCardMgr().GetDisk2CardMgr().Destroy();
-        HD_Destroy();
-      }
-      PrintDestroy();
-      if (GetCardMgr().IsSSCInstalled())
-		GetCardMgr().GetSSC()->CommDestroy();
+	  GetCardMgr().Destroy();
       CpuDestroy();
       MemDestroy();
       SpkrDestroy();
       Destroy();
-      MB_Destroy();
       DeleteGdiObjects();
       DIMouse::DirectInputUninit(window);	// NB. do before window is destroyed
       PostQuitMessage(0);	// Post WM_QUIT message to the thread's message queue
@@ -1005,14 +1086,11 @@ LRESULT Win32Frame::WndProc(
       CreateGdiObjects();
       LogFileOutput("WM_CREATE: CreateGdiObjects()\n");
 
-	  DSInit();
+	  DSInit();					// NB. Need g_hFrameWindow for IDirectSound::SetCooperativeLevel()
       LogFileOutput("WM_CREATE: DSInit()\n");
 
 	  DIMouse::DirectInputInit(window);
       LogFileOutput("WM_CREATE: DIMouse::DirectInputInit()\n");
-
-	  MB_Initialize();
-      LogFileOutput("WM_CREATE: MB_Initialize()\n");
 
 	  SpkrInitialize();
       LogFileOutput("WM_CREATE: SpkrInitialize()\n");
@@ -1573,29 +1651,87 @@ LRESULT Win32Frame::WndProc(
 		if (((LPNMTTDISPINFO)lparam)->hdr.hwndFrom == tooltipwindow && ((LPNMTTDISPINFO)lparam)->hdr.code == TTN_GETDISPINFO)
 		{
 			LPNMTTDISPINFO pInfo = (LPNMTTDISPINFO)lparam;
-			SendMessage(pInfo->hdr.hwndFrom, TTM_SETMAXTIPWIDTH, 0, 150);
-
-			Disk2InterfaceCard *pDisk2Slot5 = NULL, *pDisk2Slot6 = NULL;
-
-			if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
-				pDisk2Slot5 = dynamic_cast<Disk2InterfaceCard*>(GetCardMgr().GetObj(SLOT5));
-			if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
-				pDisk2Slot6 = dynamic_cast<Disk2InterfaceCard*>(GetCardMgr().GetObj(SLOT6));
-
-			std::string slot5 = pDisk2Slot5 ? pDisk2Slot5->GetFullDiskFilename(((LPNMTTDISPINFO)lparam)->hdr.idFrom) : "";
-			std::string slot6 = pDisk2Slot6 ? pDisk2Slot6->GetFullDiskFilename(((LPNMTTDISPINFO)lparam)->hdr.idFrom) : "";
-
-			if (pDisk2Slot5)
+			if (pInfo->hdr.idFrom == TTID_DRIVE1_BUTTON || pInfo->hdr.idFrom == TTID_DRIVE2_BUTTON)
 			{
-				if (slot6.empty()) slot6 = "<empty>";
-				if (slot5.empty()) slot5 = "<empty>";
-				slot6 = std::string("Slot6: ") + slot6;
-				slot5 = std::string("Slot5: ") + slot5;
-			}
+				SendMessage(pInfo->hdr.hwndFrom, TTM_SETMAXTIPWIDTH, 0, 150);
 
-			std::string join = (!slot6.empty() && !slot5.empty()) ? "\r\n" : "";
-			driveTooltip = slot6 + join + slot5;
-			((LPNMTTDISPINFO)lparam)->lpszText = (LPTSTR)driveTooltip.c_str();
+				Disk2InterfaceCard* pDisk2Slot5 = NULL, * pDisk2Slot6 = NULL;
+
+				if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+					pDisk2Slot5 = dynamic_cast<Disk2InterfaceCard*>(GetCardMgr().GetObj(SLOT5));
+				if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
+					pDisk2Slot6 = dynamic_cast<Disk2InterfaceCard*>(GetCardMgr().GetObj(SLOT6));
+
+				std::string slot5 = pDisk2Slot5 ? pDisk2Slot5->GetFullDiskFilename(pInfo->hdr.idFrom) : "";
+				std::string slot6 = pDisk2Slot6 ? pDisk2Slot6->GetFullDiskFilename(pInfo->hdr.idFrom) : "";
+
+				if (pDisk2Slot5)
+				{
+					if (slot6.empty()) slot6 = "<empty>";
+					if (slot5.empty()) slot5 = "<empty>";
+					slot6 = std::string("Slot6: ") + slot6;
+					slot5 = std::string("Slot5: ") + slot5;
+				}
+
+				std::string join = (!slot6.empty() && !slot5.empty()) ? "\n" : "";
+				driveTooltip = slot6 + join + slot5;
+				pInfo->lpszText = (LPTSTR)driveTooltip.c_str();
+			}
+			else if (pInfo->hdr.idFrom == TTID_SLOT6_TRK_SEC_INFO || pInfo->hdr.idFrom == TTID_SLOT5_TRK_SEC_INFO)
+			{
+				if (!GetWindowedModeShowDiskiiStatus())
+					break;
+
+				SendMessage(pInfo->hdr.hwndFrom, TTM_SETMAXTIPWIDTH, 0, 200);
+
+				const UINT slot = (pInfo->hdr.idFrom == TTID_SLOT6_TRK_SEC_INFO) ? SLOT6 : SLOT5;
+				Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(slot));
+				float drive1Track = disk2Card.GetPhase(DRIVE_1) / 2;
+				float drive2Track = disk2Card.GetPhase(DRIVE_2) / 2;
+
+				// Example tooltip:
+				//
+				//   Drive 1:          Drive 2:
+				//   T$10.00 (T16.00)  T$0C.00 (T12.00)
+				//   S$06 (S06)        S$0F (S15)
+				//
+				driveTooltip = "Drive 1:\t\tDrive 2:\n";
+				driveTooltip += "T$";
+				driveTooltip += disk2Card.FormatIntFracString(drive1Track, true);
+				driveTooltip += " (T";
+				driveTooltip += disk2Card.FormatIntFracString(drive1Track, false);
+				driveTooltip += ")";
+				driveTooltip += "\tT$";
+				driveTooltip += disk2Card.FormatIntFracString(drive2Track, true);
+				driveTooltip += " (T";
+				driveTooltip += disk2Card.FormatIntFracString(drive2Track, false);
+				driveTooltip += ")";
+				driveTooltip += "\n";
+				// hex sector
+				driveTooltip += "S$";
+				char sector[3] = "??";
+				if (g_nSector[slot][0] >= 0) sprintf_s(sector, "%02X", g_nSector[slot][0]);
+				driveTooltip += sector;
+				// dec sector
+				driveTooltip += " (S";
+				strcpy(sector, "??");
+				if (g_nSector[slot][0] >= 0) sprintf_s(sector, "%02d", g_nSector[slot][0]);
+				driveTooltip += sector;
+				driveTooltip += ")";
+				// hex sector
+				driveTooltip += "\tS$";
+				strcpy(sector, "??");
+				if (g_nSector[slot][1] >= 0) sprintf_s(sector, "%02X", g_nSector[slot][1]);
+				driveTooltip += sector;
+				// dec sector
+				driveTooltip += " (S";
+				strcpy(sector, "??");
+				if (g_nSector[slot][1] >= 0) sprintf_s(sector, "%02d", g_nSector[slot][1]);
+				driveTooltip += sector;
+				driveTooltip += ")";
+
+				pInfo->lpszText = (LPTSTR)driveTooltip.c_str();
+			}
 		}
 		break;
 
@@ -1868,9 +2004,7 @@ void Win32Frame::ProcessButtonClick(int button, bool bFromButtonUI /*=false*/)
 	bool bAllowFadeIn = true;
 
 #if DEBUG_DD_PALETTE
-	char _text[ 80 ];
-	sprintf( _text, "Button: F%d  Full Screen: %d\n", button+1, g_bIsFullScreen );
-	OutputDebugString( _text );
+	LogOutput( "Button: F%d  Full Screen: %d\n", button+1, g_bIsFullScreen );
 #endif
 
   switch (button) {
@@ -1977,6 +2111,7 @@ void Win32Frame::ProcessButtonClick(int button, bool bFromButtonUI /*=false*/)
 		}
 		else	// MODE_RUNNING, MODE_LOGO, MODE_PAUSED
 		{
+			GetVideo().ClearSHRResidue();	// Clear the framebuffer to remove any SHR residue in the borders
 			DebugBegin();
 		}
       break;
@@ -2043,7 +2178,7 @@ void Win32Frame::ProcessDiskPopupMenu(HWND hwnd, POINT pt, const int iDrive)
 	// Check menu depending on current floppy protection
 	{
 		int iMenuItem = ID_DISKMENU_WRITEPROTECTION_OFF;
-		if (disk2Card.GetProtect( iDrive ))
+		if (disk2Card.GetProtect(iDrive))
 			iMenuItem = ID_DISKMENU_WRITEPROTECTION_ON;
 
 		CheckMenuItem(hmenu, iMenuItem, MF_CHECKED);
@@ -2052,7 +2187,7 @@ void Win32Frame::ProcessDiskPopupMenu(HWND hwnd, POINT pt, const int iDrive)
 	if (disk2Card.IsDriveEmpty(iDrive))
 		EnableMenuItem(hmenu, ID_DISKMENU_EJECT, MF_GRAYED);
 
-	if (disk2Card.IsDiskImageWriteProtected(iDrive))
+	if (disk2Card.GetProtect(iDrive))
 	{
 		// If image-file is read-only (or a gzip) then disable these menu items
 		EnableMenuItem(hmenu, ID_DISKMENU_WRITEPROTECTION_ON, MF_GRAYED);
@@ -2192,13 +2327,21 @@ void Win32Frame::SetFullScreenMode(void)
 	scalex = width  / GetVideo().GetFrameBufferBorderlessWidth();
 	scaley = height / GetVideo().GetFrameBufferBorderlessHeight();
 
-	g_win_fullscreen_scale = (scalex <= scaley) ? scalex : scaley;
-	g_win_fullscreen_offsetx = ((int)width  - (int)(g_win_fullscreen_scale * GetVideo().GetFrameBufferBorderlessWidth())) / 2;
-	g_win_fullscreen_offsety = ((int)height - (int)(g_win_fullscreen_scale * GetVideo().GetFrameBufferBorderlessHeight())) / 2;
+	// Retain aspect ratio if user hasn't changed full-screen resolution (GH#1121)
+	if (!GetFullScreenResolutionChangedByUser())
+	{
+		const int minimumScale = (scalex <= scaley) ? scalex : scaley;
+		scalex = scaley = minimumScale;
+	}
+
+	// NB. Separate x,y scaling is OK in full-screen mode
+	// . eg. SHR 640x400 (scalex=2, scaley=3) => 1280x1200, which roughly gives a 4:3 aspect ratio for a resolution of 1600x1200
+	g_win_fullscreen_offsetx = ((int)width - (int)(scalex * GetVideo().GetFrameBufferBorderlessWidth())) / 2;
+	g_win_fullscreen_offsety = ((int)height - (int)(scaley * GetVideo().GetFrameBufferBorderlessHeight())) / 2;
 	SetWindowPos(g_hFrameWindow, NULL, left, top, (int)width, (int)height, SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 	g_bIsFullScreen = true;
 
-	SetViewportScale(g_win_fullscreen_scale, true);
+	SetFullScreenViewportScale(scalex, scaley);
 
 	buttonx    = GetFullScreenOffsetX() + g_nViewportCX + VIEWPORTX*2;
 	buttony    = GetFullScreenOffsetY();
@@ -2230,7 +2373,6 @@ void Win32Frame::SetNormalMode(void)
 
 	g_win_fullscreen_offsetx = 0;
 	g_win_fullscreen_offsety = 0;
-	g_win_fullscreen_scale = 1;
 	SetWindowLong(g_hFrameWindow, GWL_STYLE, g_main_window_saved_style);
 	SetWindowLong(g_hFrameWindow, GWL_EXSTYLE, g_main_window_saved_exstyle);
 	SetWindowPos(g_hFrameWindow, NULL,
@@ -2292,7 +2434,20 @@ int Win32Frame::SetViewportScale(int nNewScale, bool bForce /*=false*/)
 	g_nViewportCX = g_nViewportScale * GetVideo().GetFrameBufferBorderlessWidth();
 	g_nViewportCY = g_nViewportScale * GetVideo().GetFrameBufferBorderlessHeight();
 
+	buttonx = BUTTONX;	// NB. macro uses g_nViewportCX
+	buttony = BUTTONY;
+
 	return nNewScale;
+}
+
+void Win32Frame::SetFullScreenViewportScale(int nNewXScale, int nNewYScale)
+{
+	g_nViewportScale = MIN(nNewXScale, nNewYScale);	// Not needed in FS mode
+	g_nViewportCX = nNewXScale * GetVideo().GetFrameBufferBorderlessWidth();
+	g_nViewportCY = nNewYScale * GetVideo().GetFrameBufferBorderlessHeight();
+
+	buttonx = BUTTONX;	// NB. macro uses g_nViewportCX
+	buttony = BUTTONY;
 }
 
 void Win32Frame::SetupTooltipControls(void)
@@ -2305,14 +2460,35 @@ void Win32Frame::SetupTooltipControls(void)
 	toolinfo.lpszText = LPSTR_TEXTCALLBACK;
 	toolinfo.rect.left  = BUTTONX;
 	toolinfo.rect.right = toolinfo.rect.left+BUTTONCX+1;
-	toolinfo.uId = 0;
+
+	toolinfo.uId = TTID_DRIVE1_BUTTON;
 	toolinfo.rect.top    = BUTTONY+BTN_DRIVE1*BUTTONCY+1;
 	toolinfo.rect.bottom = toolinfo.rect.top+BUTTONCY;
 	SendMessage(tooltipwindow, TTM_ADDTOOL, 0, (LPARAM)&toolinfo);
-	toolinfo.uId = 1;
+
+	toolinfo.uId = TTID_DRIVE2_BUTTON;
 	toolinfo.rect.top    = BUTTONY+BTN_DRIVE2*BUTTONCY+1;
 	toolinfo.rect.bottom = toolinfo.rect.top+BUTTONCY;
 	SendMessage(tooltipwindow, TTM_ADDTOOL, 0, (LPARAM)&toolinfo);
+
+	if (g_nViewportScale > 1)
+	{
+		if (GetCardMgr().QuerySlot(SLOT6) == CT_Disk2)
+		{
+			toolinfo.uId = TTID_SLOT6_TRK_SEC_INFO;
+			toolinfo.rect.top = BUTTONY + BUTTONS * BUTTONCY + 1 + yOffsetSlot6TrackInfo;
+			toolinfo.rect.bottom = toolinfo.rect.top + smallfontHeight * 2;
+			SendMessage(tooltipwindow, TTM_ADDTOOL, 0, (LPARAM)&toolinfo);
+		}
+
+		if (GetCardMgr().QuerySlot(SLOT5) == CT_Disk2)
+		{
+			toolinfo.uId = TTID_SLOT5_TRK_SEC_INFO;
+			toolinfo.rect.top = BUTTONY + BUTTONS * BUTTONCY + 1 + yOffsetSlot5TrackInfo;
+			toolinfo.rect.bottom = toolinfo.rect.top + smallfontHeight * 2;
+			SendMessage(tooltipwindow, TTM_ADDTOOL, 0, (LPARAM)&toolinfo);
+		}
+	}
 }
 
 // SM_CXPADDEDBORDER is not supported on 2000 & XP, but GetSystemMetrics() returns 0 for unknown values, so this use of SM_CXPADDEDBORDER works on 2000 & XP too:
@@ -2350,6 +2526,12 @@ void Win32Frame::GetWidthHeight(int& nWidth, int& nHeight)
 #endif
 }
 
+// Window frame's border size has changed (eg. VidHD added/removed)
+void Win32Frame::ResizeWindow(void)
+{
+	FrameResizeWindow(GetViewportScale());
+}
+
 void Win32Frame::FrameResizeWindow(int nNewScale)
 {
 	int nOldWidth, nOldHeight;
@@ -2360,11 +2542,6 @@ void Win32Frame::FrameResizeWindow(int nNewScale)
 	GetWindowRect(g_hFrameWindow, &framerect);
 	int nXPos = framerect.left;
 	int nYPos = framerect.top;
-
-	//
-
-	buttonx = g_nViewportCX + VIEWPORTX*2;
-	buttony = 0;
 
 	// Invalidate old rect region
 	{
@@ -2386,10 +2563,12 @@ void Win32Frame::FrameResizeWindow(int nNewScale)
 	TOOLINFO toolinfo = {0};
 	toolinfo.cbSize = sizeof(toolinfo);
 	toolinfo.hwnd = g_hFrameWindow;
-	toolinfo.uId = 0;
-	SendMessage(tooltipwindow, TTM_DELTOOL, 0, (LPARAM)&toolinfo);
-	toolinfo.uId = 1;
-	SendMessage(tooltipwindow, TTM_DELTOOL, 0, (LPARAM)&toolinfo);
+
+	for (UINT id = 0; id < TTID_MAX; id++)
+	{
+		toolinfo.uId = id;
+		SendMessage(tooltipwindow, TTM_DELTOOL, 0, (LPARAM)&toolinfo);
+	}
 
 	// Setup the tooltips for the new window size
 	SetupTooltipControls();
@@ -2487,7 +2666,7 @@ void Win32Frame::FrameCreateWindow(void)
 
 	InitCommonControls();
 	tooltipwindow = CreateWindow(
-		TOOLTIPS_CLASS,NULL,TTS_ALWAYSTIP, 
+		TOOLTIPS_CLASS,NULL,TTS_ALWAYSTIP|TTS_NOPREFIX /*Allow tabs in tooltips*/ ,
 		CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT, 
 		g_hFrameWindow,
 		(HMENU)0,
@@ -2581,14 +2760,13 @@ void Win32Frame::FrameSetCursorPosByMousePos()
 	SetCursorPos(Point.x+iWindowX-VIEWPORTX, Point.y+iWindowY-VIEWPORTY);
 
 #if defined(_DEBUG) && 0	// OutputDebugString() when cursor position changes since last time
-	static int OldX=0, OldY=0;
-	char szDbg[200];
-	int X=Point.x+iWindowX-VIEWPORTX;
-	int Y=Point.y+iWindowY-VIEWPORTY;
+	static int OldX = 0, OldY = 0;
+	int X = Point.x + iWindowX - VIEWPORTX;
+	int Y = Point.y + iWindowY - VIEWPORTY;
 	if (X != OldX || Y != OldY)
 	{
-		sprintf(szDbg, "[FrameSetCursorPosByMousePos] x,y=%d,%d (MaxX,Y=%d,%d)\n", X,Y, iMaxX,iMaxY); OutputDebugString(szDbg);
-		OldX=X; OldY=Y;
+		LogOutput("[FrameSetCursorPosByMousePos] x,y=%d,%d (MaxX,Y=%d,%d)\n", X, Y, iMaxX, iMaxY);
+		OldX = X; OldY = Y;
 	}
 #endif
 }
@@ -2602,7 +2780,6 @@ void Win32Frame::FrameSetCursorPosByMousePos(int x, int y, int dx, int dy, bool 
 	if (!GetCardMgr().IsMouseCardInstalled())
 		return;
 
-//	char szDbg[200];
 	if (!g_hFrameWindow || (g_bShowingCursor && bLeavingAppleScreen) || (!g_bShowingCursor && !bLeavingAppleScreen))
 		return;
 
@@ -2627,11 +2804,11 @@ void Win32Frame::FrameSetCursorPosByMousePos(int x, int y, int dx, int dy, bool 
 		POINT Point = {viewportx+2, viewporty+2};	// top-left
 		ClientToScreen(g_hFrameWindow, &Point);
 		SetCursorPos(Point.x+iWindowX-VIEWPORTX, Point.y+iWindowY-VIEWPORTY);
-//		sprintf(szDbg, "[MOUSE_LEAVING ] x=%d, y=%d (Scale: x,y=%f,%f; iX,iY=%d,%d)\n", iWindowX, iWindowY, fScaleX, fScaleY, iX, iY); OutputDebugString(szDbg);
+		//LogOutput("[MOUSE_LEAVING ] x=%d, y=%d (Scale: x,y=%f,%f; iX,iY=%d,%d)\n", iWindowX, iWindowY, fScaleX, fScaleY, iX, iY);
 	}
 	else	// Mouse entering Apple screen area
 	{
-//		sprintf(szDbg, "[MOUSE_ENTERING] x=%d, y=%d\n", x, y); OutputDebugString(szDbg);
+		//LogOutput("[MOUSE_ENTERING] x=%d, y=%d\n", x, y);
 		if (!g_bIsFullScreen)	// GH#464
 		{
 			x -= (viewportx+2-VIEWPORTX); if (x < 0) x = 0;
@@ -2750,7 +2927,7 @@ void Win32Frame::FrameUpdateApple2Type(void)
 	DrawFrameWindow();
 }
 
-bool Win32Frame::GetBestDisplayResolutionForFullScreen(UINT& bestWidth, UINT& bestHeight, UINT userSpecifiedHeight /*= 0*/)
+bool Win32Frame::GetBestDisplayResolutionForFullScreen(UINT& bestWidth, UINT& bestHeight, UINT userSpecifiedWidth/*=0*/, UINT userSpecifiedHeight/*=0*/)
 {
 	m_bestWidthForFullScreen = 0;
 	m_bestHeightForFullScreen = 0;
@@ -2787,10 +2964,17 @@ bool Win32Frame::GetBestDisplayResolutionForFullScreen(UINT& bestWidth, UINT& be
 		if (vecDisplayResolutions.size() == 0)
 			return false;
 
-		// Pick least width (such that it's wide enough to scale)
+		// Pick user-specific width if it exists
+		// Else pick least width (such that it's wide enough to scale)
 		UINT width = (UINT)-1;
 		for (VEC_PAIR::iterator it = vecDisplayResolutions.begin(); it!= vecDisplayResolutions.end(); ++it)
 		{
+			if (it->first == userSpecifiedWidth)
+			{
+				width = userSpecifiedWidth;
+				break;
+			}
+
 			if (width > it->first)
 			{
 				UINT scaleFactor = it->second / GetVideo().GetFrameBufferBorderlessHeight();

@@ -26,7 +26,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "PageInput.h"
 #include "PropertySheet.h"
 
-#include "../SaveState_Structs_common.h"
 #include "../Common.h"
 #include "../Keyboard.h"
 #include "../Registry.h"
@@ -292,7 +291,7 @@ void CPageInput::DlgOK(HWND hWnd)
 	UINT uNewJoyType1 = SendDlgItemMessage(hWnd, IDC_JOYSTICK1, CB_GETCURSEL, 0, 0);
 	if (uNewJoyType1 >= J1C_MAX) uNewJoyType1 = 0;	// GH#434
 
-	const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[4] == CT_MouseInterface;
+	const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] == CT_MouseInterface;
 
 	if (JoySetEmulationType(hWnd, m_nJoy0ChoiceTranlationTbl[uNewJoyType0], JN_JOYSTICK0, bIsSlot4Mouse))
 	{
@@ -381,7 +380,7 @@ void CPageInput::InitJoystickChoices(HWND hWnd, int nJoyNum, int nIdcValue)
 	pszMem += strlen(ppszJoyChoices[nJC_JOYSTICK])+1;
 	pnJoyTranslationTbl[nIdx++] = nJC_JOYSTICK;
 
-	const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[4] == CT_MouseInterface;
+	const bool bIsSlot4Mouse = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT4] == CT_MouseInterface;
 
 	// Now exclude:
 	// . the other Joystick type (if it exists) from this new list

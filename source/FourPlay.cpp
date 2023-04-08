@@ -123,16 +123,16 @@ BYTE FourPlayCard::MyGetAsyncKeyState(int vKey)
 	return GetAsyncKeyState(vKey) < 0 ? 1 : 0;
 }
 
-void FourPlayCard::InitializeIO(LPBYTE pCxRomPeripheral, UINT slot)
+void FourPlayCard::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(slot, &FourPlayCard::IORead, IO_Null, IO_Null, IO_Null, this, NULL);
+	RegisterIoHandler(m_slot, &FourPlayCard::IORead, IO_Null, IO_Null, IO_Null, this, NULL);
 }
 
 //===========================================================================
 
 static const UINT kUNIT_VERSION = 1;
 
-std::string FourPlayCard::GetSnapshotCardName(void)
+const std::string& FourPlayCard::GetSnapshotCardName(void)
 {
 	static const std::string name("4Play");
 	return name;
@@ -146,10 +146,10 @@ void FourPlayCard::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	// NB. No state for this card
 }
 
-bool FourPlayCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool FourPlayCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
 	if (version < 1 || version > kUNIT_VERSION)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	return true;
 }

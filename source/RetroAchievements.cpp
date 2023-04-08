@@ -140,7 +140,7 @@ static void RebuildMenu()
 
 static void GetEstimatedGameTitle(char* sNameOut)
 {
-    const int ra_buffer_size = 64;
+    const int ra_buffer_size = 256;
 
     if (loading_file.data_len > 0)
     {
@@ -186,7 +186,7 @@ void RA_InitSystem()
     {
         RA_Init(GetFrame().g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION);
         RA_InitShared();
-        RA_AttemptLogin(true);
+        RA_AttemptLogin(false);
         is_initialized = true;
     }
 
@@ -197,6 +197,7 @@ void RA_InitUI()
 {
     RebuildMenu();
     RA_InitMemory();
+    RA_UpdateAppTitle("");
 }
 
 void RA_InitMemory()
@@ -358,7 +359,7 @@ void RA_ProcessReset()
         Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
         if (disk2Card.IsDriveEmpty(DRIVE_1))
             RA_OnGameClose(FileType::FLOPPY_DISK);
-        if (HD_IsDriveUnplugged(HARDDISK_1))
+        if (!disk2Card.IsDriveConnected(HARDDISK_1))
             RA_OnGameClose(FileType::HARD_DISK);
     }
 
@@ -369,17 +370,18 @@ void RA_ProcessReset()
         {
             if (loaded_title != NULL)
             {
+                Disk2InterfaceCard& disk2Card = dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(SLOT6));
                 switch (loaded_title->file_type)
                 {
                 case FileType::FLOPPY_DISK:
-                    HD_Unplug(HARDDISK_1);
+                    disk2Card.UnplugDrive(HARDDISK_1);
                     break;
                 case FileType::HARD_DISK:
                     GetCardMgr().Remove(SLOT6);
                     break;
                 default:
                     // Prioritize floppy disks
-                    HD_Unplug(HARDDISK_1);
+                    disk2Card.UnplugDrive(HARDDISK_1);
                     break;
                 }
             }

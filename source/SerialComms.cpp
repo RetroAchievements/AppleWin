@@ -65,13 +65,15 @@ SSC_DIPSW CSuperSerialCard::m_DIPSWDefault =
 //===========================================================================
 
 CSuperSerialCard::CSuperSerialCard(UINT slot) :
-	Card(CT_SSC),
-	m_uSlot(slot),
-	m_aySerialPortChoices(NULL),
+	Card(CT_SSC, slot),
+	m_strSerialPortChoices(1, '\0'), // Combo box friendly, just in case.
 	m_uTCPChoiceItemIdx(0),
 	m_bCfgSupportDCD(false),
 	m_pExpansionRom(NULL)
 {
+	if (m_slot != 2)	// fixme
+		ThrowErrorInvalidSlot();
+
 	m_dwSerialPortItem = 0;
 
 	m_hCommHandle = INVALID_HANDLE_VALUE;
@@ -89,8 +91,9 @@ CSuperSerialCard::CSuperSerialCard(UINT slot) :
 
 	//
 
-	char serialPortName[CSuperSerialCard::SIZEOF_SERIALCHOICE_ITEM];
-	std::string& regSection = RegGetConfigSlotSection(m_uSlot);
+	const size_t SERIALCHOICE_ITEM_LENGTH = 12;
+	char serialPortName[SERIALCHOICE_ITEM_LENGTH];
+	std::string regSection = RegGetConfigSlotSection(m_slot);
 	RegLoadString(regSection.c_str(), REGVALUE_SERIAL_PORT_NAME, TRUE, serialPortName, sizeof(serialPortName), TEXT(""));
 
 	SetSerialPortName(serialPortName);
@@ -123,7 +126,10 @@ void CSuperSerialCard::InternalReset()
 
 CSuperSerialCard::~CSuperSerialCard()
 {
-	delete [] m_aySerialPortChoices;
+	CloseComm();
+
+	delete [] m_pExpansionRom;
+	m_pExpansionRom = NULL;
 }
 
 //===========================================================================
@@ -264,16 +270,15 @@ bool CSuperSerialCard::CheckComm()
 	else if (m_dwSerialPortItem)
 	{
 		_ASSERT(m_dwSerialPortItem < m_vecSerialPortsItems.size()-1);	// size()-1 is TCP item
-		TCHAR portname[SIZEOF_SERIALCHOICE_ITEM];
-		wsprintf(portname, TEXT("\\\\.\\COM%u"), m_vecSerialPortsItems[m_dwSerialPortItem]);
+		std::string portname = StrFormat("\\\\.\\COM%u", m_vecSerialPortsItems[m_dwSerialPortItem]);
 
-		m_hCommHandle = CreateFile(portname,
-								GENERIC_READ | GENERIC_WRITE,
-								0,								// exclusive access
-								(LPSECURITY_ATTRIBUTES)NULL,	// default security attributes
-								OPEN_EXISTING,
-								FILE_FLAG_OVERLAPPED,			// required for WaitCommEvent()
-								NULL);
+		m_hCommHandle = CreateFile(portname.c_str(),
+								   GENERIC_READ | GENERIC_WRITE,
+								   0,								// exclusive access
+								   (LPSECURITY_ATTRIBUTES)NULL,		// default security attributes
+								   OPEN_EXISTING,
+								   FILE_FLAG_OVERLAPPED,			// required for WaitCommEvent()
+								   NULL);
 
 		if (m_hCommHandle != INVALID_HANDLE_VALUE)
 		{
@@ -942,7 +947,7 @@ BYTE __stdcall CSuperSerialCard::CommDipSw(WORD, WORD addr, BYTE, BYTE, ULONG)
 
 //===========================================================================
 
-void CSuperSerialCard::CommInitialize(LPBYTE pCxRomPeripheral, UINT uSlot)
+void CSuperSerialCard::InitializeIO(LPBYTE pCxRomPeripheral)
 {
 	const UINT SSC_FW_SIZE = 2*1024;
 	const UINT SSC_SLOT_FW_SIZE = 256;
@@ -952,40 +957,25 @@ void CSuperSerialCard::CommInitialize(LPBYTE pCxRomPeripheral, UINT uSlot)
 	if(pData == NULL)
 		return;
 
-	_ASSERT(m_uSlot == uSlot);
-	memcpy(pCxRomPeripheral + uSlot*256, pData+SSC_SLOT_FW_OFFSET, SSC_SLOT_FW_SIZE);
+	memcpy(pCxRomPeripheral + m_slot*SSC_SLOT_FW_SIZE, pData+SSC_SLOT_FW_OFFSET, SSC_SLOT_FW_SIZE);
 
 	// Expansion ROM
 	if (m_pExpansionRom == NULL)
 	{
 		m_pExpansionRom = new BYTE [SSC_FW_SIZE];
-
-		if (m_pExpansionRom)
-			memcpy(m_pExpansionRom, pData, SSC_FW_SIZE);
+		memcpy(m_pExpansionRom, pData, SSC_FW_SIZE);
 	}
 
-	//
-
-	RegisterIoHandler(uSlot, &CSuperSerialCard::SSC_IORead, &CSuperSerialCard::SSC_IOWrite, NULL, NULL, this, m_pExpansionRom);
+	RegisterIoHandler(m_slot, &CSuperSerialCard::SSC_IORead, &CSuperSerialCard::SSC_IOWrite, NULL, NULL, this, m_pExpansionRom);
 }
 
 //===========================================================================
 
-void CSuperSerialCard::CommReset()
+void CSuperSerialCard::Reset(const bool /* powerCycle */)
 {
 	CloseComm();
 
 	InternalReset();
-}
-
-//===========================================================================
-
-void CSuperSerialCard::CommDestroy()
-{
-	CommReset();
-
-	delete [] m_pExpansionRom;
-	m_pExpansionRom = NULL;
 }
 
 //===========================================================================
@@ -1008,9 +998,7 @@ void CSuperSerialCard::CommSetSerialPort(DWORD dwNewSerialPortItem)
 	}
 	else if (m_dwSerialPortItem != 0)
 	{
-		TCHAR temp[SIZEOF_SERIALCHOICE_ITEM];
-		sprintf(temp, TEXT_SERIAL_COM"%d", m_vecSerialPortsItems[m_dwSerialPortItem]);
-		m_currentSerialPortName = temp;
+		m_currentSerialPortName = StrFormat(TEXT_SERIAL_COM "%d", m_vecSerialPortsItems[m_dwSerialPortItem]);
 	}
 	else
 	{
@@ -1111,14 +1099,12 @@ void CSuperSerialCard::CheckCommEvent(DWORD dwEvtMask)
 DWORD WINAPI CSuperSerialCard::CommThread(LPVOID lpParameter)
 {
 	CSuperSerialCard* pSSC = (CSuperSerialCard*) lpParameter;
-	char szDbg[100];
 
 	BOOL bRes = SetCommMask(pSSC->m_hCommHandle, EV_RLSD | EV_DSR | EV_CTS | EV_TXEMPTY | EV_RXCHAR);
 	if (!bRes)
 	{
-		sprintf(szDbg, "SSC: CommThread(): SetCommMask() failed\n");
-		LogOutput("%s", szDbg);
-		LogFileOutput("%s", szDbg);
+		LogOutput("SSC: CommThread(): SetCommMask() failed\n");
+		LogFileOutput("SSC: CommThread(): SetCommMask() failed\n");
 		return -1;
 	}
 
@@ -1144,11 +1130,15 @@ DWORD WINAPI CSuperSerialCard::CommThread(LPVOID lpParameter)
 				COMSTAT Stat;
 				ClearCommError(pSSC->m_hCommHandle, &dwErrors, &Stat);
 				if (dwErrors & CE_RXOVER)
-					sprintf(szDbg, "SSC: CommThread(): LastError=0x%08X, CommError=CE_RXOVER (0x%08X): InQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue);
+				{
+					LogOutput("SSC: CommThread(): LastError=0x%08X, CommError=CE_RXOVER (0x%08X): InQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue);
+					LogFileOutput("SSC: CommThread(): LastError=0x%08X, CommError=CE_RXOVER (0x%08X): InQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue);
+				}
 				else
-					sprintf(szDbg, "SSC: CommThread(): LastError=0x%08X, CommError=Other (0x%08X): InQueue=0x%08X, OutQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue, Stat.cbOutQue);
-				LogOutput("%s", szDbg);
-				LogFileOutput("%s", szDbg);
+				{
+					LogOutput("SSC: CommThread(): LastError=0x%08X, CommError=Other (0x%08X): InQueue=0x%08X, OutQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue, Stat.cbOutQue);
+					LogFileOutput("SSC: CommThread(): LastError=0x%08X, CommError=Other (0x%08X): InQueue=0x%08X, OutQueue=0x%08X\n", dwRet, dwErrors, Stat.cbInQue, Stat.cbOutQue);
+				}
 				return -1;
 			}
 
@@ -1174,7 +1164,7 @@ DWORD WINAPI CSuperSerialCard::CommThread(LPVOID lpParameter)
 			}
 
 			dwWaitResult -= WAIT_OBJECT_0;			// Determine event # that signaled
-			//sprintf(szDbg, "CommThread: GotEvent1: %d\n", dwWaitResult); OutputDebugString(szDbg);
+			//LogOutput("CommThread: GotEvent1: %d\n", dwWaitResult);
 
 			if (dwWaitResult == (nNumEvents-1))
 				break;	// Termination event
@@ -1294,16 +1284,15 @@ void CSuperSerialCard::ScanCOMPorts()
 
 	for (UINT i=1; i<32; i++)	// Arbitrary upper limit
 	{
-		TCHAR portname[SIZEOF_SERIALCHOICE_ITEM];
-		wsprintf(portname, TEXT("\\\\.\\COM%u"), i);
+		std::string portname = StrFormat("\\\\.\\COM%u", i);
 
-		HANDLE hCommHandle = CreateFile(portname,
-								GENERIC_READ | GENERIC_WRITE,
-								0,								// exclusive access
-								(LPSECURITY_ATTRIBUTES)NULL,	// default security attributes
-								OPEN_EXISTING,
-								FILE_FLAG_OVERLAPPED,			// required for WaitCommEvent()
-								NULL);
+		HANDLE hCommHandle = CreateFile(portname.c_str(),
+										GENERIC_READ | GENERIC_WRITE,
+										0,								// exclusive access
+										(LPSECURITY_ATTRIBUTES)NULL,	// default security attributes
+										OPEN_EXISTING,
+										FILE_FLAG_OVERLAPPED,			// required for WaitCommEvent()
+										NULL);
 
 		if (hCommHandle != INVALID_HANDLE_VALUE)
 		{
@@ -1318,38 +1307,28 @@ void CSuperSerialCard::ScanCOMPorts()
 	m_uTCPChoiceItemIdx = m_vecSerialPortsItems.size()-1;
 }
 
-char* CSuperSerialCard::GetSerialPortChoices()
+std::string const& CSuperSerialCard::GetSerialPortChoices()
 {
 	if (IsActive())
-		return m_aySerialPortChoices;
+		return m_strSerialPortChoices;
 
-	//
+	ScanCOMPorts();	// Do this every time in case news ones available (eg. for USB COM ports)
 
-	ScanCOMPorts();				// Do this every time in case news ones available (eg. for USB COM ports)
-	delete [] m_aySerialPortChoices;
-	m_aySerialPortChoices = new TCHAR [ GetNumSerialPortChoices() * SIZEOF_SERIALCHOICE_ITEM + 1 ];	// +1 for final NULL item
+	m_strSerialPortChoices = "None";
+	m_strSerialPortChoices += '\0'; // NULL char for combo box selection.
 
-	TCHAR* pNextSerialChoice = m_aySerialPortChoices;
-
-	//
-
-	pNextSerialChoice += wsprintf(pNextSerialChoice, TEXT("None"));
-	pNextSerialChoice++;		// Skip NULL char
-
-	for (UINT i=1; i<m_uTCPChoiceItemIdx; i++)
+	for (UINT i = 1; i < m_uTCPChoiceItemIdx; i++)
 	{
-		pNextSerialChoice += wsprintf(pNextSerialChoice, TEXT("COM%u"), m_vecSerialPortsItems[i]);
-		pNextSerialChoice++;	// Skip NULL char
+		m_strSerialPortChoices += StrFormat("COM%u", m_vecSerialPortsItems[i]);
+		m_strSerialPortChoices += '\0'; // NULL char for combo box selection.
 	}
 
-	pNextSerialChoice += wsprintf(pNextSerialChoice, TEXT("TCP"));
-	pNextSerialChoice++;		// Skip NULL char
+	m_strSerialPortChoices += "TCP";
+	m_strSerialPortChoices += '\0'; // NULL char for combo box selection.
 
-	*pNextSerialChoice = 0;
+	// std::string()'s implicit nul terminator becomes combo box end of list marker.
 
-	//
-
-	return m_aySerialPortChoices;
+	return m_strSerialPortChoices;
 }
 
 // Called by ctor & LoadSnapshot()
@@ -1394,7 +1373,7 @@ void CSuperSerialCard::SetSerialPortName(const char* pSerialPortName)
 
 void CSuperSerialCard::SetRegistrySerialPortName(void)
 {
-	std::string& regSection = RegGetConfigSlotSection(m_uSlot);
+	std::string regSection = RegGetConfigSlotSection(m_slot);
 	RegSaveString(regSection.c_str(), REGVALUE_SERIAL_PORT_NAME, TRUE, GetSerialPortName());
 }
 
@@ -1428,7 +1407,7 @@ static const UINT kUNIT_VERSION = 2;
 #define SS_YAML_KEY_SERIALPORTNAME "Serial Port Name"
 #define SS_YAML_KEY_SUPPORT_DCD "Support DCD"
 
-std::string CSuperSerialCard::GetSnapshotCardName(void)
+const std::string& CSuperSerialCard::GetSnapshotCardName(void)
 {
 	static const std::string name(SS_YAML_VALUE_CARD_SSC);
 	return name;
@@ -1448,7 +1427,7 @@ void CSuperSerialCard::SaveSnapshotDIPSW(YamlSaveHelper& yamlSaveHelper, std::st
 
 void CSuperSerialCard::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 {
-	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_uSlot, kUNIT_VERSION);
+	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_slot, kUNIT_VERSION);
 
 	YamlSaveHelper::Label unit(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
 	SaveSnapshotDIPSW(yamlSaveHelper, SS_YAML_KEY_DIPSWDEFAULT, m_DIPSWDefault);
@@ -1465,7 +1444,7 @@ void CSuperSerialCard::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 void CSuperSerialCard::LoadSnapshotDIPSW(YamlLoadHelper& yamlLoadHelper, std::string key, SSC_DIPSW& dipsw)
 {
 	if (!yamlLoadHelper.GetSubMap(key))
-		throw std::string("Card: Expected key: " + key);
+		throw std::runtime_error("Card: Expected key: " + key);
 
 	dipsw.uBaudRate		= yamlLoadHelper.LoadUint(SS_YAML_KEY_BAUDRATE);
 	dipsw.eFirmwareMode = (eFWMODE) yamlLoadHelper.LoadUint(SS_YAML_KEY_FWMODE);
@@ -1478,13 +1457,10 @@ void CSuperSerialCard::LoadSnapshotDIPSW(YamlLoadHelper& yamlLoadHelper, std::st
 	yamlLoadHelper.PopMap();
 }
 
-bool CSuperSerialCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool CSuperSerialCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
-	if (slot != 2)	// fixme
-		throw std::string("Card: wrong slot");
-
 	if (version < 1 || version > kUNIT_VERSION)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	LoadSnapshotDIPSW(yamlLoadHelper, SS_YAML_KEY_DIPSWDEFAULT, m_DIPSWDefault);
 	LoadSnapshotDIPSW(yamlLoadHelper, SS_YAML_KEY_DIPSWCURRENT, m_DIPSWCurrent);

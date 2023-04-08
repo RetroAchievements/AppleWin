@@ -43,14 +43,12 @@ Etc.
 #include "StdAfx.h"
 
 #include "MouseInterface.h"
-#include "SaveState_Structs_common.h"
 #include "Common.h"
 
 #include "Core.h"	// g_SynchronousEventMgr
 #include "CardManager.h"
 #include "CPU.h"
 #include "Interface.h"	// FrameSetCursorPosByMousePos()
-#include "Log.h"
 #include "Memory.h"
 #include "NTSC.h"	// NTSC_GetCyclesUntilVBlank()
 #include "YamlHelper.h"
@@ -111,13 +109,16 @@ Etc.
 #define MODE_MOUSE_ON       (1<<0)              //    | | | | | | | \--- Mouse off (0) or on (1) 
 #define MODE_INT_MOVEMENT   (1<<1)              //    | | | | | | \----- Interrupt if mouse is moved 
 #define MODE_INT_BUTTON	    (1<<2)              //    | | | | | \------- Interrupt if button is pressed
-#define MODE_INT_VBL        (1<<3)              //    | | | | \--------- Interrupt on VBL 
+#define MODE_INT_VBL        (1<<3)              //    | | | | \--------- Interrupt on VBL [*1]
 #define MODE_RESERVED4      (1<<4)              //    | | | \----------- Reserved 
 #define MODE_RESERVED5      (1<<5)              //    | | \------------- Reserved 
 #define MODE_RESERVED6      (1<<6)              //    | \--------------- Reserved 
 #define MODE_RESERVED7      (1<<7)              //    \----------------- Reserved 
 
 #define MODE_INT_ALL		STAT_INT_ALL
+
+// [*1] "A mode byte of $08 (mouse off but VBL interrupt on) will generate VBL interrupts."
+// Ref. Apple II Technical Notes - Mouse #3: "Mode Byte of the SetMouse Routine"
 
 //===========================================================================
 
@@ -134,17 +135,19 @@ void M6821_Listener_A( void* objTo, BYTE byData )
 //===========================================================================
 
 CMouseInterface::CMouseInterface(UINT slot) :
-	Card(CT_MouseInterface),
+	Card(CT_MouseInterface, slot),
 	m_pSlotRom(NULL),
-	m_uSlot(slot),
 	m_syncEvent(slot, 0, SyncEventCallback)	// use slot# as "unique" id for MouseInterfaces
 {
+	if (m_slot != 4)	// fixme
+		ThrowErrorInvalidSlot();
+
 	m_6821.SetListenerB( this, M6821_Listener_B );
 	m_6821.SetListenerA( this, M6821_Listener_A );
 
 //	Uninitialize();
 	InitializeROM();
-	Reset();
+	Reset(true);
 }
 
 CMouseInterface::~CMouseInterface()
@@ -172,13 +175,12 @@ void CMouseInterface::InitializeROM(void)
 	memcpy(m_pSlotRom, pData, FW_SIZE);
 }
 
-void CMouseInterface::Initialize(LPBYTE pCxRomPeripheral, UINT uSlot)
+void CMouseInterface::InitializeIO(LPBYTE pCxRomPeripheral)
 {
 //	m_bActive = true;
 	m_bEnabled = true;
-	_ASSERT(m_uSlot == uSlot);
 	SetSlotRom();	// Pre: m_bActive == true
-	RegisterIoHandler(uSlot, &CMouseInterface::IORead, &CMouseInterface::IOWrite, NULL, NULL, this, NULL);
+	RegisterIoHandler(m_slot, &CMouseInterface::IORead, &CMouseInterface::IOWrite, NULL, NULL, this, NULL);
 
 	if (m_syncEvent.m_active) g_SynchronousEventMgr.Remove(m_syncEvent.m_id);
 	m_syncEvent.m_cyclesRemaining = NTSC_GetCyclesUntilVBlank(0);
@@ -192,7 +194,7 @@ void CMouseInterface::Uninitialize()
 }
 #endif
 
-void CMouseInterface::Reset()
+void CMouseInterface::Reset(const bool /* powerCycle */)
 {
 	m_by6821A = 0;
 	m_by6821B = 0x40;		// Set PB6
@@ -234,9 +236,9 @@ void CMouseInterface::SetSlotRom()
 		return;
 
 	UINT uOffset = (m_by6821B << 7) & 0x0700;
-	memcpy(pCxRomPeripheral+m_uSlot*256, m_pSlotRom+uOffset, 256);
+	memcpy(pCxRomPeripheral+m_slot*256, m_pSlotRom+uOffset, 256);
 	if (mem)
-		memcpy(mem+0xC000+m_uSlot*256, m_pSlotRom+uOffset, 256);
+		memcpy(mem+0xC000+m_slot*256, m_pSlotRom+uOffset, 256);
 }
 
 //===========================================================================
@@ -324,7 +326,6 @@ void CMouseInterface::OnCommand()
 {
 #ifdef _DEBUG_SPURIOUS_IRQ
 	static UINT uSpuriousIrqCount = 0;
-	char szDbg[200];
 	BYTE byOldState = m_byState;
 #endif
 
@@ -352,7 +353,7 @@ void CMouseInterface::OnCommand()
 		m_byBuff[5] = m_byState;					// button 0/1 interrupt status
 		m_byState &= ~STAT_MOVEMENT_SINCE_READMOUSE;
 #ifdef _DEBUG_SPURIOUS_IRQ
-		sprintf(szDbg, "[MOUSE_READ] Old=%02X New=%02X\n", byOldState, m_byState); OutputDebugString(szDbg);
+		LogOutput("[MOUSE_READ] Old=%02X New=%02X\n", byOldState, m_byState);
 #endif
 		break;
 	case MOUSE_SERV:
@@ -362,11 +363,11 @@ void CMouseInterface::OnCommand()
 		if ((m_byMode & MODE_INT_ALL) && (m_byBuff[1] & MODE_INT_ALL) == 0)
 		{
 			uSpuriousIrqCount++;
-			sprintf(szDbg, "[MOUSE_SERV] 0x%04X Buff[1]=0x%02X, ***\n", uSpuriousIrqCount, m_byBuff[1]); OutputDebugString(szDbg);
+			LogOutput("[MOUSE_SERV] 0x%04X Buff[1]=0x%02X, ***\n", uSpuriousIrqCount, m_byBuff[1]);
 		}
 		else
 		{
-			sprintf(szDbg, "[MOUSE_SERV] ------ Buff[1]=0x%02X\n", m_byBuff[1]); OutputDebugString(szDbg);
+			LogOutput("[MOUSE_SERV] ------ Buff[1]=0x%02X\n", m_byBuff[1]);
 		}
 #endif
 		CpuIrqDeassert(IS_MOUSE);
@@ -449,29 +450,33 @@ void CMouseInterface::OnMouseEvent(bool bEventVBL)
 {
 	int byState = 0;
 
-	if ( !( m_byMode & MODE_MOUSE_ON ) )		// Mouse Off
-		return;
-
-	if ( m_nX != m_iX || m_nY != m_iY )
-	{
-		byState |= STAT_INT_MOVEMENT|STAT_MOVEMENT_SINCE_READMOUSE;	// X/Y moved since last READMOUSE | Movement interrupt
-		m_byState |= STAT_MOVEMENT_SINCE_READMOUSE;							// [TC] Used by CopyII+9.1 and ProTERM3.1
-	}
-
-	if ( m_bBtn0 != m_bButtons[0] || m_bBtn1 != m_bButtons[1] )
-		byState |= STAT_INT_BUTTON;		// Button 0/1 interrupt
-	if ( bEventVBL )
+	if ((m_byMode & MODE_INT_VBL) && bEventVBL)
 		byState |= STAT_INT_VBL;
 
-	//byState &= m_byMode & 0x2E;
-	byState &= ((m_byMode & MODE_INT_ALL) | STAT_MOVEMENT_SINCE_READMOUSE);	// [TC] Keep "X/Y moved since last READMOUSE" for next MOUSE_READ (Contiki v1.3 uses this)
+	if (m_byMode & MODE_MOUSE_ON)
+	{
+		if (m_nX != m_iX || m_nY != m_iY)
+		{
+			byState |= STAT_INT_MOVEMENT | STAT_MOVEMENT_SINCE_READMOUSE;	// X/Y moved since last READMOUSE | Movement interrupt
+			m_byState |= STAT_MOVEMENT_SINCE_READMOUSE;							// [TC] Used by CopyII+9.1 and ProTERM3.1
+		}
+
+		if (m_bBtn0 != m_bButtons[0] || m_bBtn1 != m_bButtons[1])
+			byState |= STAT_INT_BUTTON;		// Button 0/1 interrupt
+
+		byState &= ((m_byMode & MODE_INT_ALL) | STAT_MOVEMENT_SINCE_READMOUSE);	// [TC] Keep "X/Y moved since last READMOUSE" for next MOUSE_READ (Contiki v1.3 uses this)
+	}
+	else // if MOUSE OFF then only consider VBL (GH#1138)
+	{
+		byState &= STAT_INT_VBL;
+	}
 
 	if ( byState & STAT_INT_ALL )
 	{
 		m_byState |= byState;
 		CpuIrqAssert(IS_MOUSE);
 #ifdef _DEBUG_SPURIOUS_IRQ
-		char szDbg[200]; sprintf(szDbg, "[MOUSE EVNT] 0x%02X Mode=0x%02X\n", m_byState, m_byMode); OutputDebugString(szDbg);
+		LogOutput("[MOUSE EVNT] 0x%02X Mode=0x%02X\n", m_byState, m_byMode);
 #endif
 	}
 }
@@ -628,7 +633,7 @@ void CMouseInterface::SetButton(eBUTTON Button, eBUTTONSTATE State)
 #define SS_YAML_KEY_BUTTON1 "Button1"
 #define SS_YAML_KEY_ENABLED "Enabled"
 
-std::string CMouseInterface::GetSnapshotCardName(void)
+const std::string& CMouseInterface::GetSnapshotCardName(void)
 {
 	static const std::string name(SS_YAML_VALUE_CARD_MOUSE);
 	return name;
@@ -653,12 +658,12 @@ void CMouseInterface::SaveSnapshotMC6821(YamlSaveHelper& yamlSaveHelper, std::st
 	yamlSaveHelper.SaveUint(SS_YAML_KEY_IB, byIB);
 }
 
-void CMouseInterface::SaveSnapshot(class YamlSaveHelper& yamlSaveHelper)
+void CMouseInterface::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 {
 //	if (!m_bActive)
 //		return;
 
-	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_uSlot, 1);
+	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_slot, 1);
 
 	YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
 	SaveSnapshotMC6821(yamlSaveHelper, SS_YAML_KEY_MC6821);
@@ -694,7 +699,7 @@ void CMouseInterface::SaveSnapshot(class YamlSaveHelper& yamlSaveHelper)
 void CMouseInterface::LoadSnapshotMC6821(YamlLoadHelper& yamlLoadHelper, std::string key)
 {
 	if (!yamlLoadHelper.GetSubMap(key))
-		throw std::string("Card: Expected key: ") + key;
+		throw std::runtime_error("Card: Expected key: " + key);
 
 	mc6821_t mc6821;
 	mc6821.pra  = yamlLoadHelper.LoadUint(SS_YAML_KEY_PRA);
@@ -712,13 +717,10 @@ void CMouseInterface::LoadSnapshotMC6821(YamlLoadHelper& yamlLoadHelper, std::st
 	yamlLoadHelper.PopMap();
 }
 
-bool CMouseInterface::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool CMouseInterface::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
-	if (slot != 4)	// fixme
-		throw std::string("Card: wrong slot");
-
 	if (version != 1)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	LoadSnapshotMC6821(yamlLoadHelper, SS_YAML_KEY_MC6821);
 
@@ -728,7 +730,7 @@ bool CMouseInterface::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT sl
 	m_by6821A = yamlLoadHelper.LoadUint(SS_YAML_KEY_6821A);
 
 	if (!yamlLoadHelper.GetSubMap(SS_YAML_KEY_BUFF))
-		throw std::string("Card: Expected key: " SS_YAML_KEY_BUFF);
+		throw std::runtime_error("Card: Expected key: " SS_YAML_KEY_BUFF);
 	yamlLoadHelper.LoadMemory(m_byBuff, sizeof(m_byBuff));
 	yamlLoadHelper.PopMap();
 

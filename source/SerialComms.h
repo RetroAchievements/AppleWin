@@ -27,19 +27,17 @@ class CSuperSerialCard : public Card
 public:
 	CSuperSerialCard(UINT slot);
 	virtual ~CSuperSerialCard();
+	virtual void Update(const ULONG nExecutedCycles) {}
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
+	virtual void Reset(const bool powerCycle);
+	virtual void Destroy() {}
+	static const std::string& GetSnapshotCardName(void);
+	virtual void	SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool	LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
-
-	void	CommInitialize(LPBYTE pCxRomPeripheral, UINT uSlot);
-	void    CommReset();
-	void    CommDestroy();
 	void    CommSetSerialPort(DWORD dwNewSerialPortItem);
-	static std::string GetSnapshotCardName(void);
-	void	SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool	LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
 
-	char*	GetSerialPortChoices();
+	std::string const& GetSerialPortChoices();
 	DWORD	GetSerialPort() { return m_dwSerialPortItem; }	// Drop-down list item
 	const std::string& GetSerialPortName() { return m_currentSerialPortName; }
 	bool	IsActive() { return (m_hCommHandle != INVALID_HANDLE_VALUE) || (m_hCommListenSocket != INVALID_SOCKET); }
@@ -86,16 +84,13 @@ private:
 
 	//
 
-public:
-	static const UINT SIZEOF_SERIALCHOICE_ITEM = 12*sizeof(char);
-
 private:
 	std::string m_currentSerialPortName;
 	DWORD	m_dwSerialPortItem;
 
 	static const UINT SERIALPORTITEM_INVALID_COM_PORT = 0;
 	std::vector<UINT> m_vecSerialPortsItems;	// Includes "None" & "TCP" items
-	char*	m_aySerialPortChoices;
+	std::string m_strSerialPortChoices;
 	UINT	m_uTCPChoiceItemIdx;
 
 	static SSC_DIPSW	m_DIPSWDefault;
@@ -141,7 +136,6 @@ private:
 	OVERLAPPED m_o;
 
 	BYTE* m_pExpansionRom;
-	UINT m_uSlot;
 
 	bool m_bCfgSupportDCD;
 	UINT m_uDTR;

@@ -87,16 +87,16 @@ BYTE __stdcall SAMCard::IOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG n
 	return res;
 }
 
-void SAMCard::InitializeIO(LPBYTE pCxRomPeripheral, UINT slot)
+void SAMCard::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(slot, IO_Null, IOWrite, IO_Null, IO_Null, NULL, NULL);
+	RegisterIoHandler(m_slot, IO_Null, IOWrite, IO_Null, IO_Null, NULL, NULL);
 }
 
 //===========================================================================
 
 static const UINT kUNIT_VERSION = 1;
 
-std::string SAMCard::GetSnapshotCardName(void)
+const std::string& SAMCard::GetSnapshotCardName(void)
 {
 	static const std::string name("SAM");
 	return name;
@@ -110,10 +110,10 @@ void SAMCard::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	// NB. No state for this card
 }
 
-bool SAMCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool SAMCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
 	if (version < 1 || version > kUNIT_VERSION)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	return true;
 }

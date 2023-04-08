@@ -7,8 +7,7 @@ class SNESMAXCard : public Card
 {
 public:
 	SNESMAXCard(UINT slot) :
-		Card(CT_SNESMAX),
-		m_slot(slot)
+		Card(CT_SNESMAX, slot)
 	{
 		m_buttonIndex = 0;
 		m_controller1Buttons = 0;
@@ -19,24 +18,31 @@ public:
 	}
 	virtual ~SNESMAXCard(void) {}
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void Destroy(void) {}
+	virtual void Reset(const bool powerCycle) {}
+	virtual void Update(const ULONG nExecutedCycles) {}
 
-	void InitializeIO(LPBYTE pCxRomPeripheral, UINT slot);
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
 
 	static BYTE __stdcall IORead(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 	static BYTE __stdcall IOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
-	static std::string GetSnapshotCardName(void);
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+	static const std::string& GetSnapshotCardName(void);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
+
+	static bool ParseControllerMappingFile(UINT joyNum, const char* pathname, std::string& errorMsg);
 
 private:
-	UINT m_slot;
+	UINT GetControllerButtons(UINT joyNum, JOYINFOEX& infoEx, bool altControllerType);
+
+	enum Button { B, Y, SELECT, START, U, D, L, R, A, X, LB, RB, UNUSED1, UNUSED2, UNUSED3, UNUSED4, NUM_BUTTONS, UNUSED };
 
 	UINT m_buttonIndex;
 	UINT m_controller1Buttons;
 	UINT m_controller2Buttons;
 
+	static const UINT m_mainControllerButtons[NUM_BUTTONS];
 	bool m_altControllerType[2];
+	static UINT m_altControllerButtons[2][NUM_BUTTONS];
 };

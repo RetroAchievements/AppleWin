@@ -52,6 +52,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("JSR")         , CmdJSR               , CMD_JSR                  , "Call sub-routine"           },
 		{TEXT("NOP")         , CmdNOP               , CMD_NOP                  , "Zap the current instruction with a NOP" },
 		{TEXT("OUT")         , CmdOut               , CMD_OUT                  , "Output byte to IO $C0xx"    },
+		{TEXT("LBR")         , CmdLBR               , CMD_LBR                  , "Show Last Branch Record"    },
 	// CPU - Meta Info
 		{TEXT("PROFILE")     , CmdProfile           , CMD_PROFILE              , "List/Save 6502 profiling" },
 		{TEXT("R")           , CmdRegisterSet       , CMD_REGISTER_SET         , "Set register" },
@@ -79,6 +80,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	// Breakpoints
 		{TEXT("BRK")         , CmdBreakInvalid      , CMD_BREAK_INVALID        , "Enter debugger on BRK or INVALID" },
 		{TEXT("BRKOP")       , CmdBreakOpcode       , CMD_BREAK_OPCODE         , "Enter debugger on opcode"   },
+		{TEXT("BRKINT")      , CmdBreakOnInterrupt  , CMD_BREAK_ON_INTERRUPT   , "Enter debugger on interrupt"   },
 		{TEXT("BP")          , CmdBreakpoint        , CMD_BREAKPOINT           , "Alias for BPR (Breakpoint Register Add)" },
 		{TEXT("BPA")         , CmdBreakpointAddSmart, CMD_BREAKPOINT_ADD_SMART , "Add (smart) breakpoint" },
 //		{TEXT("BPP")         , CmdBreakpointAddFlag , CMD_BREAKPOINT_ADD_FLAG  , "Add breakpoint on flags" },
@@ -88,6 +90,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("BPM")         , CmdBreakpointAddMemA , CMD_BREAKPOINT_ADD_MEM   , "Add breakpoint on memory access"       },  // SoftICE
 		{TEXT("BPMR")        , CmdBreakpointAddMemR , CMD_BREAKPOINT_ADD_MEMR  , "Add breakpoint on memory read access"  },
 		{TEXT("BPMW")        , CmdBreakpointAddMemW , CMD_BREAKPOINT_ADD_MEMW  , "Add breakpoint on memory write access" },
+		{TEXT("BPV")         , CmdBreakpointAddVideo, CMD_BREAKPOINT_ADD_VIDEO , "Add breakpoint on video scanner position" },
 
 		{TEXT("BPC")         , CmdBreakpointClear   , CMD_BREAKPOINT_CLEAR     , "Clear (remove) breakpoint"             }, // SoftICE
 		{TEXT("BPD")         , CmdBreakpointDisable , CMD_BREAKPOINT_DISABLE   , "Disable breakpoint- it is still in the list, just not active" }, // SoftICE
@@ -96,6 +99,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("BPL")         , CmdBreakpointList    , CMD_BREAKPOINT_LIST      , "List all breakpoints"                  }, // SoftICE
 //		{TEXT("BPLOAD")      , CmdBreakpointLoad    , CMD_BREAKPOINT_LOAD      , "Loads breakpoints" },
 		{TEXT("BPSAVE")      , CmdBreakpointSave    , CMD_BREAKPOINT_SAVE      , "Saves breakpoints" },
+		{TEXT("BPCHANGE")    , CmdBreakpointChange  , CMD_BREAKPOINT_CHANGE    , "Change breakpoint" },
 	// Config
 		{TEXT("BENCHMARK")   , CmdBenchmark         , CMD_BENCHMARK            , "Benchmark the emulator" },
 		{TEXT("BW")          , CmdConfigColorMono   , CMD_CONFIG_BW            , "Sets/Shows RGB for Black & White scheme" },
@@ -138,7 +142,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("DW2")         , CmdDisasmDataDefWord2       , CMD_DEFINE_DATA_WORD2, "Define address array, display 2 words/line" },
 		{TEXT("DW4")         , CmdDisasmDataDefWord4       , CMD_DEFINE_DATA_WORD4, "Define address array, display 4 words/line" },
 		{TEXT("ASC")         , CmdDisasmDataDefString      , CMD_DEFINE_DATA_STR  , "Define text string"                         }, // 2.7.0.26 Changed: DS to ASC because DS is used as "Define Space" assembler directive
-//		{TEXT("DF")          , CmdDisasmDataDefFloat       , CMD_DEFINE_DATA_FLOAT, "Define AppleSoft (packed) Float"            },
+		{TEXT("DF")          , CmdDisasmDataDefFloat       , CMD_DEFINE_DATA_FLOAT, "Define AppleSoft (packed) Float"            },
 //		{TEXT("DFX")         , CmdDisasmDataDefFloatUnpack , CMD_DEFINE_DATA_FLOAT2,"Define AppleSoft (unpacked) Float"          },
 		// with symbol lookup
 //		{TEXT("DA<>")        , CmdDisasmDataDefAddress8HL  , CMD_DEFINE_ADDR_8_HL , "Define split array of addresses, high byte section followed by low byte section" },
@@ -146,7 +150,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //		{TEXT("DA<")         , CmdDisasmDataDefAddress8H   , CMD_DEFINE_ADDR_BYTE_H   , "Define array of high byte addresses"   },
 //		{TEXT("DB>")         , CmdDisasmDataDefAddress8L   , CMD_DEFINE_ADDR_BYTE_L   , "Define array of low byte addresses"    } 
 		{TEXT("DA")          , CmdDisasmDataDefAddress16   , CMD_DEFINE_ADDR_WORD , "Define array of word addresses"            },
-// TODO: Rename config cmd: DISASM
+// TODO: Rename config cmd: DISASM or ID (Interactive Disassembly)
 //		{TEXT("UA")          , CmdDisasmDataSmart          , CMD_SMART_DISASSEMBLE, "Analyze opcodes to determine if code or data" },		
 	// Disk
 		{TEXT("DISK")        , CmdDisk              , CMD_DISK                 , "Access Disk Drive Functions" },
@@ -260,13 +264,18 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("DGR1")        , CmdViewOutput_DGR1   , CMD_VIEW_DGR1  , "View Double lo-res Page 1"              },
 		{TEXT("DGR2")        , CmdViewOutput_DGR2   , CMD_VIEW_DGR2  , "View Double lo-res Page 2"              },
 		{TEXT("HGR")         , CmdViewOutput_HGRX   , CMD_VIEW_HGRX  , "View Hi-res (current page)"             },
-		{TEXT("HGR1")        , CmdViewOutput_HGR1   , CMD_VIEW_HGR1  , "View Hi-res Page 1"                     },
-		{TEXT("HGR2")        , CmdViewOutput_HGR2   , CMD_VIEW_HGR2  , "View Hi-res Page 2"                     },
+		{TEXT("HGR0")        , CmdViewOutput_HGR0   , CMD_VIEW_HGR0  , "View pseudo Hi-res Page 0 ($0000)"      },
+		{TEXT("HGR1")        , CmdViewOutput_HGR1   , CMD_VIEW_HGR1  , "View Hi-res Page 1 ($2000)"             },
+		{TEXT("HGR2")        , CmdViewOutput_HGR2   , CMD_VIEW_HGR2  , "View Hi-res Page 2 ($4000)"             },
+		{TEXT("HGR3")        , CmdViewOutput_HGR3   , CMD_VIEW_HGR3  , "View pseudo Hi-res Page 3 ($6000)"      },
+		{TEXT("HGR4")        , CmdViewOutput_HGR4   , CMD_VIEW_HGR4  , "View pseudo Hi-res Page 4 ($8000)"      },
+		{TEXT("HGR5")        , CmdViewOutput_HGR5   , CMD_VIEW_HGR5  , "View pseudo Hi-res Page 5 ($A000)"      },
 		{TEXT("DHGR")        , CmdViewOutput_DHGRX  , CMD_VIEW_DHGRX , "View Double Hi-res (current page)"      },
 		{TEXT("DHGR1")       , CmdViewOutput_DHGR1  , CMD_VIEW_DHGR1 , "View Double Hi-res Page 1"              },
 		{TEXT("DHGR2")       , CmdViewOutput_DHGR2  , CMD_VIEW_DHGR2 , "View Double Hi-res Page 2"              },
+		{TEXT("SHR")         , CmdViewOutput_SHR    , CMD_VIEW_SHR   , "View Super Hi-res"                      },
 	// Watch
-		{TEXT("W")           , CmdWatch             , CMD_WATCH         , "Alias for WA (Watch Add)"                      },
+		{TEXT("W")           , CmdWatchAdd          , CMD_WATCH         , "Alias for WA (Watch Add)"                      },
 		{TEXT("WA")          , CmdWatchAdd          , CMD_WATCH_ADD     , "Add/Update address or symbol to watch"         },
 		{TEXT("WC")          , CmdWatchClear        , CMD_WATCH_CLEAR   , "Clear (remove) watch"                          },
 		{TEXT("WD")          , CmdWatchDisable      , CMD_WATCH_DISABLE , "Disable specific watch - it is still in the list, just not active" },
@@ -292,7 +301,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //		{TEXT("WINSOURCE")   , CmdWindowShowSource  , CMD_WINDOW_SOURCE },
 //		{TEXT("ZEROPAGE")    , CmdWindowShowZeropage, CMD_WINDOW_ZEROPAGE },
 	// Zero Page
-		{TEXT("ZP")          , CmdZeroPage          , CMD_ZEROPAGE_POINTER       , "Alias for ZPA (Zero Page Add)"          },
+		{TEXT("ZP")          , CmdZeroPageAdd       , CMD_ZEROPAGE_POINTER       , "Alias for ZPA (Zero Page Add)"          },
 		{TEXT("ZP0")         , CmdZeroPagePointer   , CMD_ZEROPAGE_POINTER_0     , "Set/Update/Remove ZP watch 0 "          },
 		{TEXT("ZP1")         , CmdZeroPagePointer   , CMD_ZEROPAGE_POINTER_1     , "Set/Update/Remove ZP watch 1"           },
 		{TEXT("ZP2")         , CmdZeroPagePointer   , CMD_ZEROPAGE_POINTER_2     , "Set/Update/Remove ZP watch 2"           },
@@ -409,6 +418,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("W")          , NULL, PARAM_BP_WRITE          },
 		{TEXT("@")          , NULL, PARAM_BP_WRITE          },
 		{TEXT("*")          , NULL, PARAM_BP_READ_WRITE     },
+// Breakpoint Change, See: CmdBreakpointChange ()
+		{TEXT("E")          , NULL, PARAM_BP_CHANGE_ENABLE   },
+		{TEXT("e")          , NULL, PARAM_BP_CHANGE_DISABLE  },
+		{TEXT("T")          , NULL, PARAM_BP_CHANGE_TEMP_ON  },
+		{TEXT("t")          , NULL, PARAM_BP_CHANGE_TEMP_OFF },
+		{TEXT("S")          , NULL, PARAM_BP_CHANGE_STOP_ON  },
+		{TEXT("s")          , NULL, PARAM_BP_CHANGE_STOP_OFF },
 // Regs (for PUSH / POP)
 		{TEXT("A")          , NULL, PARAM_REG_A          },
 		{TEXT("X")          , NULL, PARAM_REG_X          },
@@ -434,8 +450,9 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("SPACES")		, NULL, PARAM_CONFIG_SPACES  },
 		{TEXT("TARGET")     , NULL, PARAM_CONFIG_TARGET  },
 // Disk
-		{TEXT("EJECT")      , NULL, PARAM_DISK_EJECT     },
 		{TEXT("INFO")       , NULL, PARAM_DISK_INFO      },
+		{TEXT("SLOT")       , NULL, PARAM_DISK_SET_SLOT  },
+		{TEXT("EJECT")      , NULL, PARAM_DISK_EJECT     },
 		{TEXT("PROTECT")    , NULL, PARAM_DISK_PROTECT   },
 		{TEXT("READ")       , NULL, PARAM_DISK_READ      },
 // Font (Config)
@@ -453,6 +470,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		{TEXT("SAVE")       , NULL, PARAM_SAVE           },
 		{TEXT("START")      , NULL, PARAM_START          }, // benchmark
 		{TEXT("STOP")       , NULL, PARAM_STOP           }, // benchmark
+		{TEXT("ALL")        , NULL, PARAM_ALL            },
 // Help Categories
 		{"*"           , NULL, PARAM_WILDSTAR        },
 		{"BOOKMARKS"   , NULL, PARAM_CAT_BOOKMARKS   },
@@ -511,30 +529,25 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 void VerifyDebuggerCommandTable()
 {
-	char sText[ CONSOLE_WIDTH * 2 ];
-
 	for (int iCmd = 0; iCmd < NUM_COMMANDS; iCmd++ )
 	{
 		if ( g_aCommands[ iCmd ].iCommand != iCmd)
 		{
-			sprintf( sText, "*** ERROR *** Enumerated Commands mis-matched at #%d!", iCmd );
-			GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
+			std::string sText = StrFormat( "*** ERROR *** Enumerated Commands mis-matched at #%d!", iCmd );
+			GetFrame().FrameMessageBox(sText.c_str(), "ERROR", MB_OK);
 			PostQuitMessage( 1 );
 		}
 	}
 
-	// _tcscmp
 	if (strcmp( g_aCommands[ NUM_COMMANDS ].m_sName, DEBUGGER__COMMANDS_VERIFY_TXT__))
 	{
-		sprintf( sText, "*** ERROR *** Total Commands mis-matched!" );
-		GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
+		GetFrame().FrameMessageBox("*** ERROR *** Total Commands mis-matched!", "ERROR", MB_OK);
 		PostQuitMessage( 1 );
 	}
 
 	if (strcmp( g_aParameters[ NUM_PARAMS ].m_sName, DEBUGGER__PARAMS_VERIFY_TXT__))
 	{
-		sprintf( sText, "*** ERROR *** Total Parameters mis-matched!" );
-		GetFrame().FrameMessageBox(sText, TEXT("ERROR"), MB_OK );
+		GetFrame().FrameMessageBox("*** ERROR *** Total Parameters mis-matched!", "ERROR", MB_OK);
 		PostQuitMessage( 2 );
 	}
 }
