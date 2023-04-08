@@ -283,6 +283,12 @@ static void ContinueExecution(void)
 		if (g_nAppMode == MODE_RUNNING || g_nAppMode == MODE_STEPPING)
 			RA_DoAchievementsFrame();
 #endif
+
+		if (g_bFrameAdvance)
+		{
+			g_nAppMode = MODE_PAUSED;
+			g_bFrameAdvance = false;
+		}
 	}
 
 #ifdef LOG_PERF_TIMINGS

@@ -1287,16 +1287,37 @@ LRESULT Win32Frame::WndProc(
 		}
 		else if (wparam == VK_PAUSE)
 		{
+			if (KeybGetShiftStatus() &&
+				(g_nAppMode == MODE_PAUSED || g_nAppMode == MODE_STEPPING))
+			{
+				g_nAppMode = MODE_RUNNING;
+#if USE_RETROACHIEVEMENTS
+				RA_SetPaused(false);
+#endif
+			}
+
 			SetUsingCursor(FALSE);
 			switch (g_nAppMode)
 			{
 				case MODE_RUNNING:
-					g_nAppMode = MODE_PAUSED;
 					SoundCore_SetFade(FADE_OUT);
 					RevealCursor();
-#if USE_RETROACHIEVEMENTS
-                    RA_SetPaused(true);
+
+					if (KeybGetShiftStatus()
+#ifdef USE_RETROACHIEVEMENTS
+						&& !RA_HardcoreModeIsActive()
 #endif
+						)
+					{
+						g_bFrameAdvance = true;
+					}
+					else
+					{
+						g_nAppMode = MODE_PAUSED;
+#if USE_RETROACHIEVEMENTS
+						RA_SetPaused(true);
+#endif
+					}
 					break;
 				case MODE_PAUSED:
 					g_nAppMode = MODE_RUNNING;
