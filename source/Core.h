@@ -32,6 +32,7 @@ extern bool       g_bFullSpeed;
 //===========================================
 
 extern AppMode_e g_nAppMode;
+extern bool      g_bFrameAdvance;
 
 extern std::string g_sStartDir;
 extern std::string g_sProgramDir;
