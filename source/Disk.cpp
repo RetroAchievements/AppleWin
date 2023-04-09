@@ -379,14 +379,19 @@ bool Disk2InterfaceCard::EjectDiskInternal(const int drive)
 	if (pFloppy->m_imagehandle)
 	{
 #if USE_RETROACHIEVEMENTS
-        if (drive == DRIVE_1 && loaded_title != NULL &&
-            loaded_title->file_type == FileType::FLOPPY_DISK)
-        {
-            if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
-            {
-                return false;
-            }
-        }
+		if (drive == DRIVE_1 && loaded_title != NULL &&
+			loaded_title->file_type == FileType::FLOPPY_DISK &&
+			loaded_title->title_id != loading_file.title_id)
+		{
+			if (!confirmed_quitting)
+			{
+				if (!RA_ConfirmLoadNewRom(false))
+					return false;
+
+				if (RA_HardcoreModeIsActive() && !RA_WarnDisableHardcore("eject the primary disk"))
+					return false;
+			}
+		}
 #endif
 		FlushCurrentTrack(drive);
 
@@ -413,7 +418,9 @@ bool Disk2InterfaceCard::EjectDisk(const int drive)
 	if (!IsDriveValid(drive))
 		return false;
 
-	EjectDiskInternal(drive);
+	if (!EjectDiskInternal(drive))
+		return false;
+
 	Snapshot_UpdatePath();
 
 	SaveLastDiskImage(drive);
@@ -2529,12 +2536,6 @@ bool Disk2InterfaceCard::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT versi
 		m_deferredStepperAddress = yamlLoadHelper.LoadUint(SS_YAML_KEY_DEFERRED_STEPPER_ADDRESS);
 		m_deferredStepperCumulativeCycles = yamlLoadHelper.LoadUint64(SS_YAML_KEY_DEFERRED_STEPPER_CYCLE);
 	}
-
-#ifdef USE_RETROACHIEVEMENTS
-	// prevent deactivating the game while loading the state.
-	// the active game will be validated when the disk snapshot is restored.
-	loading_file.title_id = loaded_title->title_id;
-#endif
 
 	// Eject all disks first in case Drive-2 contains disk to be inserted into Drive-1
 	for (UINT i=0; i<NUM_DRIVES; i++)

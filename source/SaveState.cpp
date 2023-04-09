@@ -377,6 +377,10 @@ static void Snapshot_LoadState_v2(void)
 		{
 			return;
 		}
+
+		// prevent deactivating the game while loading the state.
+		// the active game will be validated when the disk snapshot is restored.
+		loading_file.title_id = loaded_title->title_id;
 #endif
 
 		//
@@ -430,7 +434,7 @@ static void Snapshot_LoadState_v2(void)
 			DebugDisplay(TRUE);
 
 #if USE_RETROACHIEVEMENTS
-    RA_OnLoadState(g_strSaveStatePathname.c_str());
+		RA_OnLoadState(g_strSaveStatePathname.c_str());
 #endif
 
 		frame.Initialize(false);	// don't reset the video state

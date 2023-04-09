@@ -179,7 +179,8 @@ void HarddiskInterfaceCard::CleanupDriveInternal(const int iDrive)
 {
 #if USE_RETROACHIEVEMENTS
   if (iDrive == HARDDISK_1 && loaded_title != NULL &&
-      loaded_title->file_type == FileType::HARD_DISK)
+      loaded_title->file_type == FileType::HARD_DISK &&
+	  loaded_title->title_id != loading_file.title_id)
   {
     if (!confirmed_quitting && !RA_ConfirmLoadNewRom(false))
       return;
@@ -201,7 +202,7 @@ void HarddiskInterfaceCard::CleanupDriveInternal(const int iDrive)
 #if USE_RETROACHIEVEMENTS
 	if (iDrive == HARDDISK_1)
 	{
-		if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id)
+		if (loaded_title != NULL && loaded_title->title_id != loading_file.title_id && loading_file.title_id != 0)
 			RA_ClearTitle();
 	}
 #endif
