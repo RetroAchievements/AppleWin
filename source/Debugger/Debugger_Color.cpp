@@ -95,6 +95,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 		G8,                  //                     FG_DISASM_SYMBOL
 		C8,                  //                     FG_DISASM_CHAR
 		G8,                  //                     FG_DISASM_BRANCH
+		COLOR_CUSTOM_01,     //                     FG_DISASM_SINT8
 
 		C3,                  // BG_INFO (C4, C2 too dark)
 		C3,                  // BG_INFO_WATCH
@@ -137,6 +138,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 		C3,   // BG_IRQ_TITLE
 		R8,   // FG_IRQ_TITLE
+
+		COLOR_CUSTOM_04,   // FG_SY6522_EVEN
+		Y8,                // FG_SY6522_ODD
+		COLOR_CUSTOM_01,   // FG_AY8913_EVEN
+		Y8,                // FG_AY8913_ODD
+		R8,                // FG_AY8913_FUNCTION
 	};
 
 
@@ -182,10 +189,7 @@ bool DebuggerSetColor( const int iScheme, const int iColor, const COLORREF nColo
 //===========================================================================
 static void _SetupColorRamp(const int iPrimary, int & iColor_)
 {
-	TCHAR sRamp[CONSOLE_WIDTH * 2] = TEXT("");
-#if DEBUG_COLOR_RAMP
-	TCHAR sText[CONSOLE_WIDTH];
-#endif
+	std::string strRamp;
 
 	bool bR = (iPrimary & 1) ? true : false;
 	bool bG = (iPrimary & 2) ? true : false;
@@ -201,16 +205,13 @@ static void _SetupColorRamp(const int iPrimary, int & iColor_)
 		DWORD nColor = RGB(nR, nG, nB);
 		g_aColorPalette[iColor_] = nColor;
 #if DEBUG_COLOR_RAMP
-		wsprintf(sText, TEXT("RGB(%3d,%3d,%3d), "), nR, nG, nB);
-		strcat(sRamp, sText);
+		strRamp += StrFormat("RGB(%3d,%3d,%3d), ", nR, nG, nB);
 #endif
 		iColor_++;
 	}
 #if DEBUG_COLOR_RAMP
-	wsprintf(sText, TEXT(" // %d%d%d\n"), bB, bG, bR);
-	strcat(sRamp, sText);
-	OutputDebugString(sRamp);
-	sRamp[0] = 0;
+	strRamp += StrFormat(" // %d%d%d\n", bB, bG, bR);
+	OutputDebugString(strRamp.c_str());
 #endif
 }
 #endif // _DEBUG

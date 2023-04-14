@@ -247,9 +247,7 @@ Update_t CmdConfigGetFont(int nArgs)
 	{
 		for (int iFont = 0; iFont < NUM_FONTS; iFont++)
 		{
-			TCHAR sText[CONSOLE_WIDTH] = TEXT("");
-			ConsoleBufferPushFormat(sText, "  Font: %-20s  A:%2d  M:%2d",
-				//				g_sFontNameCustom, g_nFontWidthAvg, g_nFontWidthMax );
+			ConsoleBufferPushFormat("  Font: %-20s  A:%2d  M:%2d",
 				g_aFontConfig[iFont]._sFontName,
 				g_aFontConfig[iFont]._nFontWidthAvg,
 				g_aFontConfig[iFont]._nFontWidthMax);
@@ -276,8 +274,7 @@ Update_t CmdConfigFont(int nArgs)
 			if ((!_tcscmp(g_aArgs[iArg].sArg, g_aParameters[PARAM_WILDSTAR].m_sName)) ||
 				(!_tcscmp(g_aArgs[iArg].sArg, g_aParameters[PARAM_MEM_SEARCH_WILD].m_sName)))
 			{
-				TCHAR sText[CONSOLE_WIDTH];
-				ConsoleBufferPushFormat(sText, "Lines: %d  Font Px: %d  Line Px: %d"
+				ConsoleBufferPushFormat("Lines: %d  Font Px: %d  Line Px: %d"
 					, g_nDisasmDisplayLines
 					, g_aFontConfig[FONT_DISASM_DEFAULT]._nFontHeight
 					, g_aFontConfig[FONT_DISASM_DEFAULT]._nLineHeight);
@@ -342,7 +339,8 @@ void DebuggerMouseClick(int x, int y)
 
 	// do picking
 
-	const int nOffsetX = win32Frame.IsFullScreen() ? win32Frame.GetFullScreenOffsetX() : win32Frame.Get3DBorderWidth();
+	// NB. Full-screen + VidHD isn't centred yet
+	const int nOffsetX = win32Frame.IsFullScreen() ? win32Frame.GetFullScreenOffsetX() : win32Frame.Get3DBorderWidth() + GetVideo().GetFrameBufferCentringOffsetX() * win32Frame.GetViewportScale();
 	const int nOffsetY = win32Frame.IsFullScreen() ? win32Frame.GetFullScreenOffsetY() : win32Frame.Get3DBorderHeight();
 
 	const int nOffsetInScreenX = x - nOffsetX;
@@ -355,9 +353,7 @@ void DebuggerMouseClick(int x, int y)
 	int cy = nOffsetInScreenY / nFontHeight;
 
 #if _DEBUG
-	char sText[CONSOLE_WIDTH];
-	sprintf(sText, "x:%d y:%d  cx:%d cy:%d", x, y, cx, cy);
-	ConsoleDisplayPush(sText);
+	ConsoleDisplayPushFormat("x:%d y:%d  cx:%d cy:%d", x, y, cx, cy);
 	DebugDisplay();
 #endif
 

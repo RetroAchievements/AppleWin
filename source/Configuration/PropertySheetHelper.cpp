@@ -28,10 +28,14 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "../Windows/AppleWin.h"	// g_nAppMode, g_uScrollLockToggle, sg_PropertySheet
 #include "../CardManager.h"
+#include "../Memory.h"
 #include "../Disk.h"
 #include "../Log.h"
 #include "../Registry.h"
 #include "../SaveState.h"
+#include "../Interface.h"
+#include "../Uthernet2.h"
+#include "../Tfe/PCapBackend.h"
 
 /*
 Config causing AfterClose msgs:
@@ -129,6 +133,7 @@ void CPropertySheetHelper::SetSlot(UINT slot, SS_CARDTYPE newCardType)
 		return;
 
 	GetCardMgr().Insert(slot, newCardType);
+	GetCardMgr().GetRef(slot).InitializeIO(GetCxRomPeripheral());
 }
 
 // Used by:
@@ -330,12 +335,11 @@ void CPropertySheetHelper::ApplyNewConfig(const CConfigNeedingRestart& ConfigNew
 
 	UINT slot = SLOT3;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
-	{
 		SetSlot(slot, ConfigNew.m_Slot[slot]);
 
-		if (ConfigNew.m_Slot[slot] == CT_Uthernet)	// TODO: move this to UthernetCard object
-			tfe_SetRegistryInterface(slot, ConfigNew.m_tfeInterface);
-	}
+	// unconditionally save it, as the previous SetSlot might have removed the setting
+	PCapBackend::SetRegistryInterface(slot, ConfigNew.m_tfeInterface);
+	Uthernet2::SetRegistryVirtualDNS(slot, ConfigNew.m_tfeVirtualDNS);
 
 	slot = SLOT4;
 	if (CONFIG_CHANGED_LOCAL(m_Slot[slot]))
@@ -376,19 +380,9 @@ void CPropertySheetHelper::ApplyNewConfig(void)
 void CPropertySheetHelper::SaveCurrentConfig(void)
 {
 	// NB. clone-type is encoded in g_Apple2Type
-	m_ConfigOld.m_Apple2Type = GetApple2Type();
-	m_ConfigOld.m_CpuType = GetMainCpu();
-	m_ConfigOld.m_Slot[SLOT3] = GetCardMgr().QuerySlot(SLOT3);
-	m_ConfigOld.m_Slot[SLOT4] = GetCardMgr().QuerySlot(SLOT4);
-	m_ConfigOld.m_Slot[SLOT5] = GetCardMgr().QuerySlot(SLOT5);
-	m_ConfigOld.m_Slot[SLOT6] = GetCardMgr().QuerySlot(SLOT6);	// CPageDisk::HandleFloppyDriveCombo() needs this to be CT_Disk2 (temp, as will replace with PR #955)
-	m_ConfigOld.m_Slot[SLOT7] = GetCardMgr().QuerySlot(SLOT7);
-	m_ConfigOld.m_bEnableTheFreezesF8Rom = GetPropertySheet().GetTheFreezesF8Rom();
-	m_ConfigOld.m_videoRefreshRate = GetVideo().GetVideoRefreshRate();
-	m_ConfigOld.m_tfeInterface = get_tfe_interface();
+	m_ConfigOld.Reload();
 
 	// Reset flags each time:
-	m_ConfigOld.m_uSaveLoadStateMsg = 0;
 	m_bDoBenchmark = false;
 
 	// Setup ConfigNew
@@ -403,9 +397,8 @@ void CPropertySheetHelper::RestoreCurrentConfig(void)
 	SetSlot(SLOT3, m_ConfigOld.m_Slot[SLOT3]);
 	SetSlot(SLOT4, m_ConfigOld.m_Slot[SLOT4]);
 	SetSlot(SLOT5, m_ConfigOld.m_Slot[SLOT5]);
-	HD_SetEnabled(m_ConfigOld.m_Slot[SLOT7] == CT_GenericHDD);
+	SetSlot(SLOT7, m_ConfigOld.m_Slot[SLOT7]);
 	GetPropertySheet().SetTheFreezesF8Rom(m_ConfigOld.m_bEnableTheFreezesF8Rom);
-	m_ConfigNew.m_videoRefreshRate = m_ConfigOld.m_videoRefreshRate;	// Not SetVideoRefreshRate(), as this re-inits much Video/NTSC state!
 }
 
 bool CPropertySheetHelper::IsOkToSaveLoadState(HWND hWnd, const bool bConfigChanged)
@@ -462,6 +455,12 @@ bool CPropertySheetHelper::HardwareConfigChanged(HWND hWnd)
 		if (CONFIG_CHANGED(m_Slot[SLOT3]))
 			strMsgMain += GetSlot(SLOT3);
 
+		if (CONFIG_CHANGED(m_tfeInterface))
+			strMsgMain += ". Uthernet interface has changed\n";
+
+		if (CONFIG_CHANGED(m_tfeVirtualDNS))
+			strMsgMain += ". Uthernet Virtual DNS has changed\n";
+
 		if (CONFIG_CHANGED(m_Slot[SLOT4]))
 			strMsgMain += GetSlot(SLOT4);
 
@@ -505,61 +504,22 @@ std::string CPropertySheetHelper::GetSlot(const UINT uSlot)
 	{
 		if (NewCardType == CT_Empty)
 		{
-			strMsg += GetCardName(OldCardType);
+			strMsg += Card::GetCardName(OldCardType);
 			strMsg += " card removed\n";
 		}
 		else
 		{
-			strMsg += GetCardName(NewCardType);
+			strMsg += Card::GetCardName(NewCardType);
 			strMsg += " card added\n";
 		}
 	}
 	else
 	{
-			strMsg += GetCardName(OldCardType);
+			strMsg += Card::GetCardName(OldCardType);
 			strMsg += " card removed & ";
-			strMsg += GetCardName(NewCardType);
+			strMsg += Card::GetCardName(NewCardType);
 			strMsg += " card added\n";
 	}
 
 	return strMsg;
-}
-
-std::string CPropertySheetHelper::GetCardName(const SS_CARDTYPE CardType)
-{
-	switch (CardType)
-	{
-	case CT_Empty:
-		return "Empty";
-	case CT_Disk2:			// Apple Disk][
-		return "Disk][";
-	case CT_SSC:			// Apple Super Serial Card
-		return "Super Serial";
-	case CT_MockingboardC:	// Soundcard
-		return "Mockingboard";
-	case CT_GenericPrinter:
-		return "Printer";
-	case CT_GenericHDD:		// Hard disk
-		return "Hard Disk";
-	case CT_GenericClock:
-		return "Clock";
-	case CT_MouseInterface:
-		return "Mouse";
-	case CT_Z80:
-		return "CP/M";
-	case CT_Phasor:			// Soundcard
-		return "Phasor";
-	case CT_Echo:			// Soundcard
-		return "Echo";
-	case CT_SAM:			// Soundcard: Software Automated Mouth
-		return "SAM";
-	case CT_Uthernet:
-		return "Uthernet";
-	case CT_FourPlay:
-		return "4Play";
-	case CT_SNESMAX:
-		return "SNES MAX";
-	default:
-		return "Unknown";
-	}
 }

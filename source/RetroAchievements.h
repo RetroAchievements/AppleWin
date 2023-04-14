@@ -49,7 +49,6 @@ void RA_OnGameClose(int file_type);
 void RA_ClearTitle();
 void RA_ProcessReset();
 int RA_HandleMenuEvent(int id);
-void RA_RenderOverlayFrame(HDC hdc);
 int RA_ConfirmQuit();
 
 #endif /* RETROACHIEVEMENTS_H */

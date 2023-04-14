@@ -14,6 +14,7 @@ SynchronousEventManager g_SynchronousEventMgr;
 LPBYTE         memwrite[0x100];		// TODO: Init
 LPBYTE         mem          = NULL;	// TODO: Init
 LPBYTE         memdirty     = NULL;	// TODO: Init
+LPBYTE         memVidHD     = NULL;	// TODO: Init
 iofunction		IORead[256] = {0};	// TODO: Init
 iofunction		IOWrite[256] = {0};	// TODO: Init
 
@@ -21,16 +22,6 @@ BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value
 {
 	return 0;
 }
-
-// From CPU.cpp
-#define	 AF_SIGN       0x80
-#define	 AF_OVERFLOW   0x40
-#define	 AF_RESERVED   0x20
-#define	 AF_BREAK      0x10
-#define	 AF_DECIMAL    0x08
-#define	 AF_INTERRUPT  0x04
-#define	 AF_ZERO       0x02
-#define	 AF_CARRY      0x01
 
 regsrec regs;
 
@@ -41,6 +32,10 @@ static eCpuType g_ActiveCPU = CPU_65C02;
 eCpuType GetActiveCpu(void)
 {
 	return g_ActiveCPU;
+}
+
+void SetIrqOnLastOpcodeCycle(void)
+{
 }
 
 bool g_bStopOnBRK = false;
@@ -64,12 +59,14 @@ static __forceinline void CheckSynchronousInterruptSources(UINT cycles, ULONG uE
 {
 }
 
-static __forceinline void NMI(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
+static __forceinline bool NMI(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
 {
+	return false;
 }
 
-static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
+static __forceinline bool IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, BOOL& flagv, BOOL& flagz)
 {
+	return false;
 }
 
 // From z80.cpp

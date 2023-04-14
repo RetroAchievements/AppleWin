@@ -183,6 +183,7 @@
 		BP_SRC_MEM_RW,
 		BP_SRC_MEM_READ_ONLY,
 		BP_SRC_MEM_WRITE_ONLY,
+		BP_SRC_VIDEO_SCANNER,
 
 		NUM_BREAKPOINT_SOURCES
 	};
@@ -207,13 +208,16 @@
 
 	struct Breakpoint_t
 	{
-		WORD                 nAddress; // for registers, functions as nValue
-		UINT                 nLength ;
+		WORD                 nAddress ; // for registers, functions as nValue
+		UINT                 nLength  ;
 		BreakpointSource_t   eSource;
 		BreakpointOperator_t eOperator;
-		bool                 bSet    ; // used to be called enabled pre 2.0
+		bool                 bSet     ; // used to be called enabled pre 2.0
 		bool                 bEnabled;
-		bool                 bTemp;    // If true then remove BP when hit or stepping cancelled (eg. G xxxx)
+		bool                 bTemp    ; // If true then remove BP when hit or stepping cancelled (eg. G xxxx)
+		bool                 bHit     ; // true when the breakpoint has just been hit
+		bool                 bStop    ; // true if the debugger stops when it is hit
+		DWORD                nHitCount; // number of times the breakpoint was hit
 	};
 
 	typedef Breakpoint_t Bookmark_t;
@@ -295,6 +299,7 @@
 		, CMD_JSR
 		, CMD_NOP
 		, CMD_OUT
+		, CMD_LBR
 // CPU - Meta Info
 		, CMD_PROFILE
 		, CMD_REGISTER_SET
@@ -322,6 +327,7 @@
 // Breakpoints
 		, CMD_BREAK_INVALID
 		, CMD_BREAK_OPCODE
+		, CMD_BREAK_ON_INTERRUPT
 		, CMD_BREAKPOINT
 		, CMD_BREAKPOINT_ADD_SMART // smart breakpoint
 		, CMD_BREAKPOINT_ADD_REG   // break on: PC == Address (fetch/execute)
@@ -332,6 +338,7 @@
 		, CMD_BREAKPOINT_ADD_MEM // break on: [$0000-$FFFF], excluding IO
 		, CMD_BREAKPOINT_ADD_MEMR // break on read on: [$0000-$FFFF], excluding IO
 		, CMD_BREAKPOINT_ADD_MEMW // break on write on: [$0000-$FFFF], excluding IO
+		, CMD_BREAKPOINT_ADD_VIDEO // break on video scanner position
 
 		, CMD_BREAKPOINT_CLEAR
 //		,	CMD_BREAKPOINT_REMOVE = CMD_BREAKPOINT_CLEAR // alias
@@ -341,6 +348,7 @@
 		, CMD_BREAKPOINT_LIST
 //		, CMD_BREAKPOINT_LOAD
 		, CMD_BREAKPOINT_SAVE
+		, CMD_BREAKPOINT_CHANGE
 // Benchmark / Timing
 //		, CMD_BENCHMARK_START
 //		, CMD_BENCHMARK_STOP
@@ -396,6 +404,7 @@
 		, CMD_DEFINE_DATA_WORD2
 		, CMD_DEFINE_DATA_WORD4
 		, CMD_DEFINE_DATA_STR
+		, CMD_DEFINE_DATA_FLOAT// FAC Packed
 //		, CMD_DEFINE_DATA_FACP // FAC Packed
 //		, CMD_DEFINE_DATA_FACU // FAC Unpacked
 //		, CMD_DATA_DEFINE_ADDR_BYTE_L  // DB< address symbol
@@ -502,13 +511,18 @@
 		, CMD_VIEW_DGR1
 		, CMD_VIEW_DGR2
 		, CMD_VIEW_HGRX
+		, CMD_VIEW_HGR0
 		, CMD_VIEW_HGR1
 		, CMD_VIEW_HGR2
+		, CMD_VIEW_HGR3
+		, CMD_VIEW_HGR4
+		, CMD_VIEW_HGR5
 		, CMD_VIEW_DHGRX
 		, CMD_VIEW_DHGR1
 		, CMD_VIEW_DHGR2
+		, CMD_VIEW_SHR
 // Watch
-		, CMD_WATCH // TODO: Deprecated ?
+		, CMD_WATCH
 		, CMD_WATCH_ADD
 		, CMD_WATCH_CLEAR
 		, CMD_WATCH_DISABLE
@@ -583,6 +597,8 @@
 	Update_t CmdDisasmDataDefByte4    (int nArgs);
 	Update_t CmdDisasmDataDefByte8    (int nArgs);
 
+	Update_t CmdDisasmDataDefFloat    (int nArgs);
+
 	Update_t CmdDisasmDataDefWord1    (int nArgs);
 	Update_t CmdDisasmDataDefWord2    (int nArgs);
 	Update_t CmdDisasmDataDefWord4    (int nArgs);
@@ -598,6 +614,7 @@
 	Update_t CmdCursorSetPC        (int nArgs);
 	Update_t CmdBreakInvalid       (int nArgs); // Breakpoint IFF Full-speed!
 	Update_t CmdBreakOpcode        (int nArgs); // Breakpoint IFF Full-speed!
+	Update_t CmdBreakOnInterrupt   (int nArgs);
 	Update_t CmdGoNormalSpeed      (int nArgs);
 	Update_t CmdGoFullSpeed        (int nArgs);
 	Update_t CmdIn                 (int nArgs);
@@ -605,6 +622,7 @@
 	Update_t CmdJSR                (int nArgs);
 	Update_t CmdNOP                (int nArgs);
 	Update_t CmdOut                (int nArgs);
+	Update_t CmdLBR                (int nArgs);
 	Update_t CmdStepOver           (int nArgs);
 	Update_t CmdStepOut            (int nArgs);
 	Update_t CmdTrace              (int nArgs);  // alias for CmdStepIn
@@ -629,10 +647,12 @@
 	Update_t CmdBreakpointAddMemA  (int nArgs);
 	Update_t CmdBreakpointAddMemR  (int nArgs);
 	Update_t CmdBreakpointAddMemW  (int nArgs);
+	Update_t CmdBreakpointAddVideo (int nArgs);
 	Update_t CmdBreakpointClear    (int nArgs);
 	Update_t CmdBreakpointDisable  (int nArgs);
 	Update_t CmdBreakpointEdit     (int nArgs);
 	Update_t CmdBreakpointEnable   (int nArgs);
+	Update_t CmdBreakpointChange   (int nArgs);
 	Update_t CmdBreakpointList     (int nArgs);
 //	Update_t CmdBreakpointLoad     (int nArgs);
 	Update_t CmdBreakpointSave     (int nArgs);
@@ -761,11 +781,16 @@
 	Update_t CmdViewOutput_DGR2    (int nArgs);
 
 	Update_t CmdViewOutput_HGRX    (int nArgs);
+	Update_t CmdViewOutput_HGR0    (int nArgs);
 	Update_t CmdViewOutput_HGR1    (int nArgs);
 	Update_t CmdViewOutput_HGR2    (int nArgs);
+	Update_t CmdViewOutput_HGR3    (int nArgs);
+	Update_t CmdViewOutput_HGR4    (int nArgs);
+	Update_t CmdViewOutput_HGR5    (int nArgs);
 	Update_t CmdViewOutput_DHGRX   (int nArgs);
 	Update_t CmdViewOutput_DHGR1   (int nArgs);
 	Update_t CmdViewOutput_DHGR2   (int nArgs);
+	Update_t CmdViewOutput_SHR     (int nArgs);
 // Watch
 	Update_t CmdWatch              (int nArgs);
 	Update_t CmdWatchAdd           (int nArgs);
@@ -838,20 +863,20 @@
 	enum Nopcode_e
 	{
 		_NOP_REMOVED
-		,NOP_BYTE_1 // 1 bytes/line
-		,NOP_BYTE_2 // 2 bytes/line
-		,NOP_BYTE_4 // 4 bytes/line
-		,NOP_BYTE_8 // 8 bytes/line
-		,NOP_WORD_1 // 1 words/line = 2 bytes (no symbol lookup)
-		,NOP_WORD_2 // 2 words/line = 4 bytes
-		,NOP_WORD_4 // 4 words/line = 8 bytes
-		,NOP_ADDRESS// 1 word/line  = 2 bytes (with symbol lookup)
-		,NOP_HEX    // hex string   =16 bytes
-		,NOP_CHAR   // char string // TODO: FIXME: needed??
-		,NOP_STRING_ASCII // Low Ascii
-		,NOP_STRING_APPLE // High Ascii
+		,NOP_BYTE_1           // 1 bytes/line
+		,NOP_BYTE_2           // 2 bytes/line
+		,NOP_BYTE_4           // 4 bytes/line
+		,NOP_BYTE_8           // 8 bytes/line
+		,NOP_WORD_1           // 1 words/line = 2 bytes (no symbol lookup)
+		,NOP_WORD_2           // 2 words/line = 4 bytes
+		,NOP_WORD_4           // 4 words/line = 8 bytes
+		,NOP_ADDRESS          // 1 word/line  = 2 bytes (with symbol lookup)
+		,NOP_HEX              // hex string   =16 bytes
+		,NOP_CHAR             // char string // TODO: FIXME: needed??
+		,NOP_STRING_ASCII     // Low Ascii
+		,NOP_STRING_APPLE     // High Ascii
 		,NOP_STRING_APPLESOFT // Mixed Low/High
-		,NOP_FAC
+		,NOP_FAC              // Applesoft Floating-Point Format (5 bytes), i.e. $F069 = 0x81490FDAA2 = pi/2
 		,NOP_SPRITE
 		,NUM_NOPCODE_TYPES
 	};
@@ -863,7 +888,7 @@
 		char sSymbol[ MAX_SYMBOLS_LEN+1 ];
 
 		Nopcode_e eElementType ; // eElementType -> iNoptype
-		int       iDirective   ; // iDirective   -> iNopcode
+		int       iDirective   ; // iDirective   -> iNopcode  ASC DA DB DF DW etc.
 
 		WORD nStartAddress; // link to block [start,end)
 		WORD nEndAddress  ; 
@@ -915,13 +940,13 @@
 		, NUM_DISASM_TARGET_TYPES
 	};
 
-	enum DisasmDisplay_e // TODO: Prefix enums with DISASM_DISPLAY_
+	enum DisasmDisplay_e
 	{
-		MAX_ADDRESS_LEN   = 40,
-		MAX_OPCODES       =  3, // only display 3 opcode bytes -- See FormatOpcodeBytes() // TODO: FIX when showing data hex
-		CHARS_FOR_ADDRESS =  8, // 4 digits + end-of-string + padding
-		MAX_IMMEDIATE_LEN = 20, // Data Disassembly
-		MAX_TARGET_LEN    = MAX_IMMEDIATE_LEN, // Debugger Display: pTarget = line.sTarget
+		DISASM_DISPLAY_MAX_ADDRESS_LEN   = 40,
+		DISASM_DISPLAY_MAX_OPCODES       =  3, // only display 3 opcode bytes -- See FormatOpcodeBytes() // TODO: FIX when showing data hex
+		DISASM_DISPLAY_CHARS_FOR_ADDRESS =  8, // 4 digits + end-of-string + padding
+		DISASM_DISPLAY_MAX_IMMEDIATE_LEN = 20, // Data Disassembly
+		DISASM_DISPLAY_MAX_TARGET_LEN    = DISASM_DISPLAY_MAX_IMMEDIATE_LEN, // Debugger Display: pTarget = line.sTarget
 	};
 
 	struct DisasmLine_t
@@ -930,8 +955,8 @@
 		short iOpmode;
 		int   nOpbyte;
 
-		char sAddress  [ CHARS_FOR_ADDRESS ];
-		char sOpCodes  [(MAX_OPCODES*3)+1];
+		char sAddress  [ DISASM_DISPLAY_CHARS_FOR_ADDRESS ];
+		char sOpCodes  [(DISASM_DISPLAY_MAX_OPCODES*3)+1];
 
 		// Added for Data Disassembler
 		char sLabel    [ MAX_SYMBOLS_LEN+1 ]; // label is a symbol
@@ -945,15 +970,17 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 		//
 
 		int  nTarget; // address -> string
-		char sTarget   [ MAX_ADDRESS_LEN ];
+		char sTarget   [ DISASM_DISPLAY_MAX_ADDRESS_LEN ];
 
-		char sTargetOffset[ CHARS_FOR_ADDRESS ]; // +/- 255, realistically +/-1
+		char sTargetOffset[ DISASM_DISPLAY_CHARS_FOR_ADDRESS ]; // +/- 255, realistically +/-1
 		int  nTargetOffset;
 
-		char sTargetPointer[ CHARS_FOR_ADDRESS ];
-		char sTargetValue  [ CHARS_FOR_ADDRESS ];
-//		char sTargetAddress[ CHARS_FOR_ADDRESS ];
+		char sTargetPointer[ DISASM_DISPLAY_CHARS_FOR_ADDRESS ];
+		char sTargetValue  [ DISASM_DISPLAY_CHARS_FOR_ADDRESS ];
 
+		int iTargetTable; // Which symbol table this appears in if any.  See: SYMBOLS_USER_2, DrawDisassemblyLine(), GetDisassemblyLine(), FindSymbolFromAddress()
+
+		char sImmediateSignedDec[ 6 ]; // "-128" .. "+127"
 		char sImmediate[ 4 ]; // 'c'
 		char nImmediate;
 		char sBranch   [ 4 ]; // ^
@@ -1073,7 +1100,15 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 
 	enum Opcode_e
 	{
-		OPCODE_BRA     = 0x80,
+		OPCODE_BPL     = 0x10,
+		OPCODE_BMI     = 0x30,
+		OPCODE_BVC     = 0x50,
+		OPCODE_BVS     = 0x70,
+		OPCODE_BCC     = 0x90,
+		OPCODE_BCS     = 0xB0,
+		OPCODE_BNE     = 0xD0,
+		OPCODE_BEQ     = 0xF0,
+		OPCODE_BRA     = 0x80,	// 65C02
 
 		OPCODE_BRK     = 0x00,
 		OPCODE_JSR     = 0x20,
@@ -1081,7 +1116,7 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 		OPCODE_JMP_A   = 0x4C, // Absolute
 		OPCODE_RTS     = 0x60,
 		OPCODE_JMP_NA  = 0x6C, // Indirect Absolute
-		OPCODE_JMP_IAX = 0x7C, // Indexed (Absolute Indirect, X)
+		OPCODE_JMP_IAX = 0x7C, // Indexed (Absolute Indirect, X); 65C02
 		OPCODE_LDA_A   = 0xAD, // Absolute
 
 		OPCODE_NOP     = 0xEA, // No operation
@@ -1144,8 +1179,8 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 	{
 		DEV_MEMORY,
 		DEV_DISK2 ,
-		DEV_SY6522,
-		DEV_AY8910,
+		DEV_MB_SUBUNIT,		// MB's 6522 & AY8913
+		DEV_AY8913_PAIR,	// Phasor's pair of AYs (connected to one of the 6522s)
 		NUM_DEVICES
 	};
 
@@ -1244,7 +1279,7 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 		, TOKEN_PLUS         // + Delta  Argument1 += Argument2
 		, TOKEN_QUOTE_SINGLE // '
 		, TOKEN_QUOTE_DOUBLE // "
-		, TOKEN_SEMI         // ; Command Seperator
+		, TOKEN_SEMI         // ; Command Separator
 		, TOKEN_SPACE        //   Token Delimiter
 		, TOKEN_STAR         // *
 //		, TOKEN_TAB          // '\t'
@@ -1331,8 +1366,18 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 
 //		, PARAM_SIZE  // TODO: used by FONT SIZE
 
+	, _PARAM_BP_CHANGE_BEGIN = _PARAM_BREAKPOINT_END // Daisy Chain
+		, PARAM_BP_CHANGE_ENABLE = _PARAM_BP_CHANGE_BEGIN // E
+		, PARAM_BP_CHANGE_DISABLE  // e
+		, PARAM_BP_CHANGE_TEMP_ON  // T
+		, PARAM_BP_CHANGE_TEMP_OFF // t
+		, PARAM_BP_CHANGE_STOP_ON  // S
+		, PARAM_BP_CHANGE_STOP_OFF // s
+	, _PARAM_BP_CHANGE_END
+	,  PARAM_BP_CHANGE_NUM = _PARAM_BP_CHANGE_END - _PARAM_BP_CHANGE_BEGIN
+
 	// Note: Order must match BreakpointSource_t
-	, _PARAM_REGS_BEGIN = _PARAM_BREAKPOINT_END // Daisy Chain
+	, _PARAM_REGS_BEGIN = _PARAM_BP_CHANGE_END // Daisy Chain
 // Regs
 		, PARAM_REG_A = _PARAM_REGS_BEGIN
 		, PARAM_REG_X
@@ -1366,8 +1411,9 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 
 // Disk
 	, _PARAM_DISK_BEGIN = _PARAM_CONFIG_END // Daisy Chain
-		, PARAM_DISK_EJECT = _PARAM_DISK_BEGIN // DISK 1 EJECT
-		, PARAM_DISK_INFO                      // DISK 1 INFO
+		, PARAM_DISK_INFO = _PARAM_DISK_BEGIN  // DISK INFO
+		, PARAM_DISK_SET_SLOT                  // DISK SLOT 6
+		, PARAM_DISK_EJECT                     // DISK 1 EJECT
 		, PARAM_DISK_PROTECT                   // DISK 1 PROTECT
 		, PARAM_DISK_READ                      // DISK 1 READ Track Sector NumSectors MemAddress
 	, _PARAM_DISK_END
@@ -1391,6 +1437,7 @@ const	DisasmData_t* pDisasmData; // If != NULL then bytes are marked up as data 
 		, PARAM_SAVE
 		, PARAM_START
 		, PARAM_STOP
+		, PARAM_ALL
 	, _PARAM_GENERAL_END
 	,  PARAM_GENERAL_NUM = _PARAM_GENERAL_END - _PARAM_GENERAL_BEGIN
 

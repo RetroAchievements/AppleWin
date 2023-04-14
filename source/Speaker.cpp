@@ -92,21 +92,27 @@ static ULONG   Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples);
 static void    Spkr_SetActive(bool bActive);
 static void    Spkr_DSUninit();
 
+//-----------------------------------------------------------------------------
+
+static bool g_bSpkrOutputToRiff = false;
+
+void Spkr_OutputToRiff(void)
+{
+	g_bSpkrOutputToRiff = true;
+}
+
 //=============================================================================
 
 static void DisplayBenchmarkResults ()
 {
   DWORD totaltime = GetTickCount()-extbench;
   GetFrame().VideoRedrawScreen();
-  TCHAR buffer[64];
-  wsprintf(buffer,
-           TEXT("This benchmark took %u.%02u seconds."),
-           (unsigned)(totaltime / 1000),
-           (unsigned)((totaltime / 10) % 100));
-  GetFrame().FrameMessageBox(
-             buffer,
-             TEXT("Benchmark Results"),
-             MB_ICONINFORMATION | MB_SETFOREGROUND);
+  std::string strText = StrFormat("This benchmark took %u.%02u seconds.",
+								  (unsigned)(totaltime / 1000),
+								  (unsigned)((totaltime / 10) % 100));
+  GetFrame().FrameMessageBox(strText.c_str(),
+							 "Benchmark Results",
+							 MB_ICONINFORMATION | MB_SETFOREGROUND);
 }
 
 //=============================================================================
@@ -488,7 +494,6 @@ static int nDbgSpkrCnt = 0;
 
 static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSamples)
 {
-	//char szDbg[200];
 	nDbgSpkrCnt++;
 
 	if(!SpeakerVoice.bActive)
@@ -514,7 +519,7 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 
 		dwByteOffset = dwCurrentPlayCursor + (g_dwDSSpkrBufferSize/8)*3;	// Ideal: 0.375 is between 0.25 & 0.50 full
 		dwByteOffset %= g_dwDSSpkrBufferSize;
-		//sprintf(szDbg, "[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X [REINIT]\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples); OutputDebugString(szDbg);
+		//LogOutput("[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X [REINIT]\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 	}
 	else
 	{
@@ -525,7 +530,7 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 			// |-----PxxxxxW-----|
 			if((dwByteOffset > dwCurrentPlayCursor) && (dwByteOffset < dwCurrentWriteCursor))
 			{
-				//sprintf(szDbg, "[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X xxx\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples); OutputDebugString(szDbg);
+				//LogOutput("[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X xxx\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 				dwByteOffset = dwCurrentWriteCursor;
 			}
 		}
@@ -534,7 +539,7 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 			// |xxW----------Pxxx|
 			if((dwByteOffset > dwCurrentPlayCursor) || (dwByteOffset < dwCurrentWriteCursor))
 			{
-				//sprintf(szDbg, "[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X XXX\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples); OutputDebugString(szDbg);
+				//LogOutput("[Submit_FS] PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X XXX\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 				dwByteOffset = dwCurrentWriteCursor;
 			}
 		}
@@ -590,7 +595,7 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 
 		if(nNumSamples)
 		{
-			//sprintf(szDbg, "[Submit_FS] C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X ***\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples); OutputDebugString(szDbg);
+			//LogOutput("[Submit_FS] C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X ***\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 
 			if(nNumSamples*sizeof(short) <= dwDSLockedBufferSize0)
 			{
@@ -607,24 +612,22 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 			}
 			
 			memcpy(pDSLockedBuffer0, &pSpeakerBuffer[0], dwBufferSize0);
-#ifdef RIFF_SPKR
-			RiffPutSamples(pDSLockedBuffer0, dwBufferSize0/sizeof(short));
-#endif
+			if (g_bSpkrOutputToRiff)
+				RiffPutSamples(pDSLockedBuffer0, dwBufferSize0/sizeof(short));
 			nNumSamples = dwBufferSize0/sizeof(short);
 
 			if(pDSLockedBuffer1 && dwBufferSize1)
 			{
 				memcpy(pDSLockedBuffer1, &pSpeakerBuffer[dwDSLockedBufferSize0/sizeof(short)], dwBufferSize1);
-#ifdef RIFF_SPKR
-				RiffPutSamples(pDSLockedBuffer1, dwBufferSize1/sizeof(short));
-#endif
+				if (g_bSpkrOutputToRiff)
+					RiffPutSamples(pDSLockedBuffer1, dwBufferSize1/sizeof(short));
 				nNumSamples += dwBufferSize1/sizeof(short);
 			}
 		}
 
 		if(nNumPadSamples)
 		{
-			//sprintf(szDbg, "[Submit_FS] C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, PS=%08X, Data=%04X\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumPadSamples, g_nSpeakerData); OutputDebugString(szDbg);
+			//LogOutput("[Submit_FS] C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, PS=%08X, Data=%04X\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumPadSamples, g_nSpeakerData);
 
 			dwBufferSize0 = dwDSLockedBufferSize0 - dwBufferSize0;
 			dwBufferSize1 = dwDSLockedBufferSize1 - dwBufferSize1;
@@ -632,17 +635,15 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 			if(dwBufferSize0)
 			{
 				wmemset((wchar_t*)pDSLockedBuffer0, (wchar_t)DCFilter(g_nSpeakerData), dwBufferSize0/sizeof(wchar_t));
-#ifdef RIFF_SPKR
-				RiffPutSamples(pDSLockedBuffer0, dwBufferSize0/sizeof(short));
-#endif
+				if (g_bSpkrOutputToRiff)
+					RiffPutSamples(pDSLockedBuffer0, dwBufferSize0/sizeof(short));
 			}
 
 			if(pDSLockedBuffer1)
 			{
 				wmemset((wchar_t*)pDSLockedBuffer1, (wchar_t)DCFilter(g_nSpeakerData), dwBufferSize1/sizeof(wchar_t));
-#ifdef RIFF_SPKR
-				RiffPutSamples(pDSLockedBuffer1, dwBufferSize1/sizeof(short));
-#endif
+				if (g_bSpkrOutputToRiff)
+					RiffPutSamples(pDSLockedBuffer1, dwBufferSize1/sizeof(short));
 			}
 		}
 
@@ -662,7 +663,6 @@ static ULONG Spkr_SubmitWaveBuffer_FullSpeed(short* pSpeakerBuffer, ULONG nNumSa
 
 static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 {
-	//char szDbg[200];
 	nDbgSpkrCnt++;
 
 	if(!SpeakerVoice.bActive)
@@ -702,7 +702,7 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 
 		dwByteOffset = dwCurrentPlayCursor + (g_dwDSSpkrBufferSize/8)*3;	// Ideal: 0.375 is between 0.25 & 0.50 full
 		dwByteOffset %= g_dwDSSpkrBufferSize;
-		//sprintf(szDbg, "[Submit]   PC=%08X, WC=%08X, Diff=%08X, Off=%08X [REINIT]\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset); OutputDebugString(szDbg);
+		//LogOutput("[Submit]   PC=%08X, WC=%08X, Diff=%08X, Off=%08X [REINIT]\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset);
 	}
 	else
 	{
@@ -714,9 +714,8 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 			if((dwByteOffset > dwCurrentPlayCursor) && (dwByteOffset < dwCurrentWriteCursor))
 			{
 				double fTicksSecs = (double)GetTickCount() / 1000.0;
-				//sprintf(szDbg, "%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X xxx\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
-				//OutputDebugString(szDbg);
-				//if (g_fh) fprintf(g_fh, szDbg);
+				//LogOutput("%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X xxx\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
+				//LogFileOutput("%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X xxx\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 
 				dwByteOffset = dwCurrentWriteCursor;
 				nNumSamplesError = 0;
@@ -729,9 +728,8 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 			if((dwByteOffset > dwCurrentPlayCursor) || (dwByteOffset < dwCurrentWriteCursor))
 			{
 				double fTicksSecs = (double)GetTickCount() / 1000.0;
-				//sprintf(szDbg, "%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X XXX\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
-				//OutputDebugString(szDbg);
-				//if (g_fh) fprintf(g_fh, "%s", szDbg);
+				//LogOutput("%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X XXX\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
+				//LogFileOutput("%010.3f: [Submit]    PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X XXX\n", fTicksSecs, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamples);
 
 				dwByteOffset = dwCurrentWriteCursor;
 				nNumSamplesError = 0;
@@ -776,7 +774,7 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 
 	if(nNumSamplesToUse)
 	{
-		//sprintf(szDbg, "[Submit]    C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X +++\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamplesToUse); OutputDebugString(szDbg);
+		//LogOutput("[Submit]    C=%08X, PC=%08X, WC=%08X, Diff=%08X, Off=%08X, NS=%08X +++\n", nDbgSpkrCnt, dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor, dwByteOffset, nNumSamplesToUse);
 
 		hr = DSGetLock(SpeakerVoice.lpDSBvoice,
 			dwByteOffset, (DWORD)nNumSamplesToUse * sizeof(short),
@@ -789,16 +787,14 @@ static ULONG Spkr_SubmitWaveBuffer(short* pSpeakerBuffer, ULONG nNumSamples)
 		}
 
 		memcpy(pDSLockedBuffer0, &pSpeakerBuffer[0], dwDSLockedBufferSize0);
-#ifdef RIFF_SPKR
-		RiffPutSamples(pDSLockedBuffer0, dwDSLockedBufferSize0/sizeof(short));
-#endif
+		if (g_bSpkrOutputToRiff)
+			RiffPutSamples(pDSLockedBuffer0, dwDSLockedBufferSize0/sizeof(short));
 
 		if(pDSLockedBuffer1)
 		{
 			memcpy(pDSLockedBuffer1, &pSpeakerBuffer[dwDSLockedBufferSize0/sizeof(short)], dwDSLockedBufferSize1);
-#ifdef RIFF_SPKR
-			RiffPutSamples(pDSLockedBuffer1, dwDSLockedBufferSize1/sizeof(short));
-#endif
+			if (g_bSpkrOutputToRiff)
+				RiffPutSamples(pDSLockedBuffer1, dwDSLockedBufferSize1/sizeof(short));
 		}
 
 		// Commit sound buffer
@@ -941,8 +937,7 @@ bool Spkr_DSInit()
 
 		hr = SpeakerVoice.lpDSBvoice->GetCurrentPosition(&dwCurrentPlayCursor, &dwCurrentWriteCursor);
 		LogFileOutput("Spkr_DSInit: GetCurrentPosition kludge (%08X)\n", hr);
-		char szDbg[100];
-		sprintf(szDbg, "[DSInit] PC=%08X, WC=%08X, Diff=%08X\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor); OutputDebugString(szDbg);
+		LogOutput("[DSInit] PC=%08X, WC=%08X, Diff=%08X\n", dwCurrentPlayCursor, dwCurrentWriteCursor, dwCurrentWriteCursor-dwCurrentPlayCursor);
 	}
 
 	return true;
@@ -960,7 +955,7 @@ static void Spkr_DSUninit()
 
 #define SS_YAML_KEY_LASTCYCLE "Last Cycle"
 
-static std::string SpkrGetSnapshotStructName(void)
+static const std::string& SpkrGetSnapshotStructName(void)
 {
 	static const std::string name("Speaker");
 	return name;

@@ -43,23 +43,23 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 	AddressingMode_t g_aOpmodes[ NUM_ADDRESSING_MODES ] =
 	{ // Output, but eventually used for Input when Assembler is working.
-		{TEXT("")        , 1 , "(implied)"              }, // (implied)
-        {TEXT("")        , 1 , "n/a 1"         }, // INVALID1
-        {TEXT("")        , 2 , "n/a 2"         }, // INVALID2
-        {TEXT("")        , 3 , "n/a 3"         }, // INVALID3
+		{TEXT("")        , 1 , "(implied)"     }, // (implied)
+		{TEXT("")        , 1 , "n/a 1"         }, // INVALID1
+		{TEXT("")        , 2 , "n/a 2"         }, // INVALID2
+		{TEXT("")        , 3 , "n/a 3"         }, // INVALID3
 		{TEXT("%02X")    , 2 , "Immediate"     }, // AM_M // #$%02X -> %02X
-        {TEXT("%04X")    , 3 , "Absolute"      }, // AM_A
-        {TEXT("%02X")    , 2 , "Zero Page"     }, // AM_Z
-        {TEXT("%04X,X")  , 3 , "Absolute,X"    }, // AM_AX     // %s,X
-        {TEXT("%04X,Y")  , 3 , "Absolute,Y"    }, // AM_AY     // %s,Y
-        {TEXT("%02X,X")  , 2 , "Zero Page,X"   }, // AM_ZX     // %s,X
-        {TEXT("%02X,Y")  , 2 , "Zero Page,Y"   }, // AM_ZY     // %s,Y
-        {TEXT("%s")      , 2 , "Relative"      }, // AM_R
-        {TEXT("(%02X,X)"), 2 , "(Zero Page),X" }, // AM_IZX // ($%02X,X) -> %s,X 
-        {TEXT("(%04X,X)"), 3 , "(Absolute),X"  }, // AM_IAX // ($%04X,X) -> %s,X
-        {TEXT("(%02X),Y"), 2 , "(Zero Page),Y" }, // AM_NZY // ($%02X),Y
-        {TEXT("(%02X)")  , 2 , "(Zero Page)"   }, // AM_NZ  // ($%02X) -> $%02X
-        {TEXT("(%04X)")  , 3 , "(Absolute)"    }  // AM_NA  // (%04X) -> %s
+		{TEXT("%04X")    , 3 , "Absolute"      }, // AM_A
+		{TEXT("%02X")    , 2 , "Zero Page"     }, // AM_Z
+		{TEXT("%04X,X")  , 3 , "Absolute,X"    }, // AM_AX     // %s,X
+		{TEXT("%04X,Y")  , 3 , "Absolute,Y"    }, // AM_AY     // %s,Y
+		{TEXT("%02X,X")  , 2 , "Zero Page,X"   }, // AM_ZX     // %s,X
+		{TEXT("%02X,Y")  , 2 , "Zero Page,Y"   }, // AM_ZY     // %s,Y
+		{TEXT("%s")      , 2 , "Relative"      }, // AM_R
+		{TEXT("(%02X,X)"), 2 , "(Zero Page),X" }, // AM_IZX // ($%02X,X) -> %s,X
+		{TEXT("(%04X,X)"), 3 , "(Absolute),X"  }, // AM_IAX // ($%04X,X) -> %s,X
+		{TEXT("(%02X),Y"), 2 , "(Zero Page),Y" }, // AM_NZY // ($%02X),Y
+		{TEXT("(%02X)")  , 2 , "(Zero Page)"   }, // AM_NZ  // ($%02X) -> $%02X
+		{TEXT("(%04X)")  , 3 , "(Absolute)"    }  // AM_NA  // (%04X) -> %s
 	};
 
 
@@ -414,8 +414,8 @@ Fx	BEQ r  SBC (d),Y  sbc (z)  ---  ---      SBC d,X  INC z,X  ---  SED  SBC a,Y 
 		int  m_iOpmode ; // AddressingMode_e
 	};
 	
-	std::vector <DelayedTarget_t> m_vDelayedTargets;
-	bool                     m_bDelayedTargetsDirty = false;
+	std::vector<DelayedTarget_t> m_vDelayedTargets;
+	bool                         m_bDelayedTargetsDirty = false;
 
 	int  m_nAsmBytes         = 0;
 	WORD m_nAsmBaseAddress   = 0;
@@ -426,13 +426,69 @@ Fx	BEQ r  SBC (d),Y  sbc (z)  ---  ---      SBC d,X  INC z,X  ---  SED  SBC a,Y 
 	void AssemblerHashOpcodes ();
 	void AssemblerHashDirectives ();
 
-// Implementation ___________________________________________________________
+// Utility __________________________________________________________________
 
+// === Stack ===
+
+// Return stack offset if the address is on the stack, else -1 if not found
+//===========================================================================
+int _6502_FindStackReturnAddress (const WORD nAddress)
+{
+	WORD nReturnAddress;
+	WORD nStack = regs.sp + 1;
+	int  nDepth = -1; // not found
+
+	// Normally would <= _6502_STACK_END-1 since JSR always pushes 2 bytes
+	// but the SP could be $00 before JSR forcing RTS address to be split $100/$1FF
+	// or  the SP could be $01 before JSR forcing RTS address to be at    $100/$101
+	//    R PC 300
+	//    R S 0
+	//    300:20 04 03 60 60
+	//    <Ctrl-Space>
+	while (nStack <= (_6502_STACK_END + 1))
+	{
+		nReturnAddress = _6502_PeekStackReturnAddress(nStack);
+
+		if (nReturnAddress == nAddress)
+		{
+			nDepth = (nStack - 2 - regs.sp);
+			return nDepth;
+		}
+	}
+
+	return nDepth;
+}
+
+// NOTE: If the stack pointer is <= 01 before a JSR the stack will wrap around.
+//===========================================================================
+WORD _6502_GetStackReturnAddress ()
+{
+	WORD nStack = regs.sp + 1;
+	WORD nAddress = _6502_PeekStackReturnAddress(nStack);
+	return nAddress;
+}
+
+// NOTES: nStack is both an input and output;
+//        If nStack is 0x1FF it WILL return overflow 0x200.  Current callers are:
+//          _6502_FindStackReturnAddress(), and
+//          _6502_GetStackReturnAddress()
+//       which DON'T return this overflow stack value to previous callers.
+//===========================================================================
+WORD _6502_PeekStackReturnAddress (WORD & nStack)
+{
+	WORD   nAddress;
+	       nAddress  = ((unsigned) *(LPBYTE)(mem + 0x100 + (nStack & 0xFF))     ); nStack++;
+	       nAddress += ((unsigned) *(LPBYTE)(mem + 0x100 + (nStack & 0xFF)) << 8);
+	       nAddress++;
+	return nAddress;
+}
+
+// == Opcodes ===
 
 //===========================================================================
-bool _6502_CalcRelativeOffset( int nOpcode, int nBaseAddress, int nTargetAddress, WORD * pTargetOffset_ )
+bool _6502_CalcRelativeOffset ( int nOpcode, int nBaseAddress, int nTargetAddress, WORD * pTargetOffset_ )
 {
-	if (_6502_IsOpcodeBranch( nOpcode))
+	if (_6502_IsOpcodeBranch(nOpcode))
 	{
 		// Branch is
 		//   a) relative to address+2
@@ -450,7 +506,7 @@ bool _6502_CalcRelativeOffset( int nOpcode, int nBaseAddress, int nTargetAddress
 		// BaseAddress
 		int nDistance = nTargetAddress - nBaseAddress;
 		if (pTargetOffset_)
-			*pTargetOffset_ = (BYTE)(nDistance - 2); 
+			*pTargetOffset_ = (BYTE)(nDistance - 2);
 
 		if ((nDistance - 2) > _6502_BRANCH_POS)
 			m_iAsmAddressMode = NUM_OPMODES; // signal bad
@@ -464,7 +520,6 @@ bool _6502_CalcRelativeOffset( int nOpcode, int nBaseAddress, int nTargetAddress
 	return false;
 }
 
-
 //===========================================================================
 int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpbyte_, const DisasmData_t** pData_ )
 {
@@ -473,7 +528,7 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 	{
 		GetFrame().FrameMessageBox("Debugger not properly initialized", "ERROR", MB_OK );
 
-		g_aOpcodes = & g_aOpcodes65C02[ 0 ];	// Enhanced Apple //e
+		g_aOpcodes                  = &g_aOpcodes65C02[ 0 ]; // Enhanced Apple //e
 		g_aOpmodes[ AM_2 ].m_nBytes = 2;
 		g_aOpmodes[ AM_3 ].m_nBytes = 3;
 	}
@@ -493,22 +548,25 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 
 	// 2.7.0.0 TODO: FIXME: Opcode length that over-lap data, should be shortened ... if (nOpbyte_ > 1) if Disassembly_IsDataAddress( nBaseAddress + 1 ) nOpbyte_ = 1;
 	DisasmData_t* pData = Disassembly_IsDataAddress( nBaseAddress );
-	if( pData )
+	if ( pData )
 	{
-		if( pData_ )
+		if ( pData_ )
 			*pData_ = pData;
 
-		nSlack = pData->nEndAddress - pData->nStartAddress + 1; // *inclusive* KEEP IN SYNC: _CmdDefineByteRange() CmdDisasmDataList() _6502_GetOpmodeOpbyte() FormatNopcodeBytes()
+		const DWORD nEndAddress = pData->nEndAddress;
+		const int   nDisplayLen = nEndAddress - nBaseAddress + 1; // *inclusive* KEEP IN SYNC: _CmdDefineByteRange() CmdDisasmDataList() _6502_GetOpmodeOpbyte() FormatNopcodeBytes()
+		nSlack = nDisplayLen;
 
 		// Data Disassembler
 		// Smart Disassembly - Data Section
 		// Assemblyer Directives - Psuedo Mnemonics
-		switch( pData->eElementType )
+		switch ( pData->eElementType )
 		{
 			case NOP_BYTE_1: nOpbyte_ = 1; iOpmode_ = AM_M; break;
 			case NOP_BYTE_2: nOpbyte_ = 2; iOpmode_ = AM_M; break;
 			case NOP_BYTE_4: nOpbyte_ = 4; iOpmode_ = AM_M; break;
 			case NOP_BYTE_8: nOpbyte_ = 8; iOpmode_ = AM_M; break;
+			case NOP_FAC   : nOpbyte_ = 5; iOpmode_ = AM_M; break;
 			case NOP_WORD_1: nOpbyte_ = 2; iOpmode_ = AM_M; break;
 			case NOP_WORD_2: nOpbyte_ = 4; iOpmode_ = AM_M; break;
 			case NOP_WORD_4: nOpbyte_ = 8; iOpmode_ = AM_M; break;
@@ -527,7 +585,7 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 			default:
 #if _DEBUG // not implemented!
 				int *fatal = 0;
-				*fatal = 0xDEADC0DE;
+				    *fatal = 0xDEADC0DE;
 #endif
 				break;
 		}
@@ -558,32 +616,13 @@ int  _6502_GetOpmodeOpbyte ( const int nBaseAddress, int & iOpmode_, int & nOpby
 
 
 //===========================================================================
-void _6502_GetOpcodeOpmodeOpbyte ( int & iOpcode_, int & iOpmode_, int & nOpbyte_ )
+void _6502_GetOpcodeOpmodeOpbyte (int & iOpcode_, int & iOpmode_, int & nOpbyte_)
 {
 	iOpcode_ = _6502_GetOpmodeOpbyte( regs.pc, iOpmode_, nOpbyte_ );
 }
 
 //===========================================================================
-bool _6502_GetStackReturnAddress ( WORD & nAddress_ )
-{
-	unsigned nStack = regs.sp;
-	nStack++;
-
-	if (nStack <= (_6502_STACK_END - 1))
-	{
-		nAddress_ = (unsigned)*(LPBYTE)(mem + nStack);
-		nStack++;
-		
-		nAddress_ += ((unsigned)*(LPBYTE)(mem + nStack)) << 8;
-		nAddress_++;
-		return true;
-	}
-	return false;
-}
-
-
-//===========================================================================
-bool _6502_GetTargets ( WORD nAddress, int *pTargetPartial_, int *pTargetPartial2_, int *pTargetPointer_, int * pTargetBytes_,
+bool _6502_GetTargets (WORD nAddress, int *pTargetPartial_, int *pTargetPartial2_, int *pTargetPointer_, int * pTargetBytes_,
 						bool bIgnoreBranch /*= true*/, bool bIncludeNextOpcodeAddress /*= true*/ )
 {
 	if (! pTargetPartial_)
@@ -703,9 +742,11 @@ bool _6502_GetTargets ( WORD nAddress, int *pTargetPartial_, int *pTargetPartial
 		case AM_NA: // Indirect (Absolute) - ie. JMP (abs)
 			_ASSERT(nOpcode == OPCODE_JMP_NA);
 			*pTargetPartial_    = nTarget16;
-			*pTargetPartial2_   = nTarget16+1;
+			*pTargetPartial2_   = (nTarget16+1) & _6502_MEM_END;
+			if (GetMainCpu() == CPU_6502 && (nTarget16 & 0xff) == 0xff)
+				*pTargetPartial2_ = nTarget16 & 0xff00;
 			if (bIncludeNextOpcodeAddress)
-				*pTargetPointer_ = mem[nTarget16] | (mem[(nTarget16+1)&0xFFFF]<<8);
+				*pTargetPointer_ = mem[*pTargetPartial_] | (mem[*pTargetPartial2_] << 8);
 			if (pTargetBytes_)
 				*pTargetBytes_ = 2;
 			break;
@@ -873,13 +914,12 @@ Hash_t AssemblerHashMnemonic ( const TCHAR * pMnemonic )
 	static int nMaxLen = 0;
 	if (nMaxLen < nLen) {
 		nMaxLen = nLen;
-		char sText[CONSOLE_WIDTH * 3];
-		ConsolePrintFormat( sText, "New Max Len: %d  %s", nMaxLen, pMnemonic );
+		ConsolePrintFormat( "New Max Len: %d  %s", nMaxLen, pMnemonic );
 	}
 #endif
 
-	while( *pText )
-//	for( int iChar = 0; iChar < 4; iChar++ )
+	while ( *pText )
+//	for ( int iChar = 0; iChar < 4; iChar++ )
 	{	
 		char c = tolower( *pText ); // TODO: based on ALLOW_INPUT_LOWERCASE ??
 
@@ -902,16 +942,15 @@ void AssemblerHashOpcodes ()
 	Hash_t nMnemonicHash;
 	int    iOpcode;
 
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		const TCHAR *pMnemonic = g_aOpcodes65C02[ iOpcode ].sMnemonic;
 		nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
 		g_aOpcodesHash[ iOpcode ] = nMnemonicHash;
 #if DEBUG_ASSEMBLER
-	   //OutputDebugString( "" );
-      char sText[ 128 ];
-      ConsolePrintFormat( sText, "%s : %08X  ", pMnemonic, nMnemonicHash );
-	   // CLC: 002B864
+		//OutputDebugString( "" );
+		ConsolePrintFormat( "%s : %08X  ", pMnemonic, nMnemonicHash );
+		// CLC: 002B864
 #endif
 	}
 	ConsoleUpdate();
@@ -923,7 +962,7 @@ void AssemblerHashDirectives ()
 	Hash_t nMnemonicHash;
 	int    iOpcode;
 
-	for( iOpcode = 0; iOpcode < NUM_ASM_M_DIRECTIVES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_ASM_M_DIRECTIVES; iOpcode++ )
 	{
 		int iNopcode = FIRST_M_DIRECTIVE + iOpcode;
 //.		const TCHAR *pMnemonic = g_aAssemblerDirectivesMerlin[ iOpcode ].m_pMnemonic;
@@ -946,10 +985,9 @@ void _CmdAssembleHashDump ()
 // #if DEBUG_ASM_HASH
 	std::vector<HashOpcode_t> vHashes;
 	HashOpcode_t         tHash;
-	TCHAR                sText[ CONSOLE_WIDTH ];
 
 	int iOpcode;
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		tHash.m_iOpcode = iOpcode;
 		tHash.m_nValue  = g_aOpcodesHash[ iOpcode ]; 
@@ -961,7 +999,7 @@ void _CmdAssembleHashDump ()
 //	Hash_t nPrevHash = vHashes.at( 0 ).m_nValue;
 	Hash_t nThisHash = 0;
 
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		tHash = vHashes.at( iOpcode );
 
@@ -969,7 +1007,7 @@ void _CmdAssembleHashDump ()
 		int    nOpcode   = tHash.m_iOpcode;
 		int    nOpmode   = g_aOpcodes[ nOpcode ].nAddressMode;
 
-		ConsoleBufferPushFormat( sText, "%08X %02X %s %s"
+		ConsoleBufferPushFormat( "%08X %02X %s %s"
 			, iThisHash
 			, nOpcode
 			, g_aOpcodes65C02[ nOpcode ].sMnemonic
@@ -979,7 +1017,7 @@ void _CmdAssembleHashDump ()
 		
 //		if (nPrevHash != iThisHash)
 //		{
-//			ConsoleBufferPushFormat( sText, "Total: %d", nThisHash );
+//			ConsoleBufferPushFormat( "Total: %d", nThisHash );
 //			nThisHash = 0;
 //		}
 	}
@@ -997,7 +1035,7 @@ int AssemblerPokeAddress( const int Opcode, const int nOpmode, const WORD nBaseA
 	int nOpbytes = g_aOpmodes[ nOpmode ].m_nBytes;
 
 	// if (nOpbytes != nBytes)
-	//	ConsoleDisplayError( TEXT(" ERROR: Input Opcode bytes differs from actual!" ) );
+	//	ConsoleDisplayError( " ERROR: Input Opcode bytes differs from actual!" );
 
 	*(memdirty + (nBaseAddress >> 8)) |= 1;
 //	*(mem + nBaseAddress) = (BYTE) nOpcode;
@@ -1020,7 +1058,7 @@ bool AssemblerPokeOpcodeAddress( const WORD nBaseAddress )
 	int iOpcode;
 	int nOpcodes = m_vAsmOpcodes.size();
 
-	for( iOpcode = 0; iOpcode < nOpcodes; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < nOpcodes; iOpcode++ )
 	{
 		int nOpcode = m_vAsmOpcodes.at( iOpcode ); // m_iOpcode;
 		int nOpmode = g_aOpcodes[ nOpcode ].nAddressMode;
@@ -1216,9 +1254,8 @@ bool AssemblerGetArgs( int iArg, int nArgs, WORD nBaseAddress )
 				else
 				{
 					// if valid hex address, don't have delayed target
-					TCHAR sAddress[ 32 ];
-					wsprintf( sAddress, "%X", m_nAsmTargetAddress);
-					if (_tcscmp( sAddress, pArg->sArg))
+					std::string strAddress = StrFormat( "%X", m_nAsmTargetAddress);
+					if (strAddress != pArg->sArg)
 					{
 						DelayedTarget_t tDelayedTarget;
 
@@ -1406,7 +1443,7 @@ void AssemblerProcessDelayedSymols()
 		bModified = false;
 		
 		std::vector<DelayedTarget_t>::iterator iSymbol;
-		for( iSymbol = m_vDelayedTargets.begin(); iSymbol != m_vDelayedTargets.end(); ++iSymbol )
+		for ( iSymbol = m_vDelayedTargets.begin(); iSymbol != m_vDelayedTargets.end(); ++iSymbol )
 		{
 			DelayedTarget_t *pTarget = & (*iSymbol); // m_vDelayedTargets.at( iSymbol );
 
@@ -1474,8 +1511,7 @@ bool Assemble( int iArg, int nArgs, WORD nAddress )
 	Hash_t nMnemonicHash = AssemblerHashMnemonic( pMnemonic );
 
 #if DEBUG_ASSEMBLER
-	char sText[ CONSOLE_WIDTH * 2 ];
-	ConsolePrintFormat( sText, "%s%04X%s: %s%s%s -> %s%08X", 
+	ConsolePrintFormat( "%s%04X%s: %s%s%s -> %s%08X", 
 		CHC_ADDRESS, nAddress,
 		CHC_DEFAULT,
 		CHC_STRING, pMnemonic,
@@ -1487,7 +1523,7 @@ bool Assemble( int iArg, int nArgs, WORD nAddress )
 	int iOpcode;
 	
 	// Ugh! Linear search.
-	for( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
+	for ( iOpcode = 0; iOpcode < NUM_OPCODES; iOpcode++ )
 	{
 		if (nMnemonicHash == g_aOpcodesHash[ iOpcode ])
 		{

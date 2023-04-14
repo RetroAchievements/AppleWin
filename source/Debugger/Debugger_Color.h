@@ -89,6 +89,7 @@
 /*ZZZ*/	, FG_DISASM_SYMBOL   // Green                        HOME
 		, FG_DISASM_CHAR     // Cyan                               'c'
 		, FG_DISASM_BRANCH   // Green                                   ^ = v
+		, FG_DISASM_SINT8    // Lite Blue
 
 		, BG_INFO            // Cyan    Regs/Stack/BP/Watch/ZP
 		, BG_INFO_WATCH      // Cyan
@@ -131,6 +132,12 @@
 
 		, BG_IRQ_TITLE
 		, FG_IRQ_TITLE		// red
+
+		, FG_SY6522_EVEN
+		, FG_SY6522_ODD
+		, FG_AY8913_EVEN
+		, FG_AY8913_ODD
+		, FG_AY8913_FUNCTION
 
 		, NUM_DEBUG_COLORS
 	};

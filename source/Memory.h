@@ -15,7 +15,7 @@
 #define  MF_SLOTC3ROM  0x00000100
 #define  MF_INTCXROM   0x00000200
 #define  MF_WRITERAM   0x00000400   // Language Card RAM is Write Enabled
-#define  MF_IOUDIS     0x00000800	// Disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch (0=on) (Enhanced //e only)
+#define  MF_IOUDIS     0x00000800   // Disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch (0=on) (//c only)
 #define  MF_ALTROM0    0x00001000   // Use alternate ROM for $D000 to $FFFF. Two bits for up to 4 pages
 #define  MF_ALTROM1    0x00002000   // Use alternate ROM, second bit to have four pages
 #define  MF_IMAGEMASK  0x000003F7
@@ -25,13 +25,18 @@
 enum
 {
 	// Note: All are in bytes!
+	TEXT_PAGE1_BEGIN         = 0x0400,
+
 	APPLE_SLOT_SIZE          = 0x0100, // 1 page  = $Cx00 .. $CxFF (slot 1 .. 7)
+	APPLE_IO_BEGIN           = 0xC000,
 	APPLE_SLOT_BEGIN         = 0xC100, // each slot has 1 page reserved for it
 	APPLE_SLOT_END           = 0xC7FF, //
 
 	FIRMWARE_EXPANSION_SIZE  = 0x0800, // 8 pages = $C800 .. $CFFF
 	FIRMWARE_EXPANSION_BEGIN = 0xC800, // [C800,CFFF)
-	FIRMWARE_EXPANSION_END   = 0xCFFF //
+	FIRMWARE_EXPANSION_END   = 0xCFFF, //
+
+	MEMORY_LENGTH            = 0x10000
 };
 
 enum MemoryInitPattern_e
@@ -54,12 +59,14 @@ extern iofunction IOWrite[256];
 extern LPBYTE     memwrite[0x100];
 extern LPBYTE     mem;
 extern LPBYTE     memdirty;
+extern LPBYTE     memVidHD;
 
 #ifdef RAMWORKS
 const UINT kMaxExMemoryBanks = 127;	// 127 * aux mem(64K) + main mem(64K) = 8MB
 #endif
 
 void	RegisterIoHandler(UINT uSlot, iofunction IOReadC0, iofunction IOWriteC0, iofunction IOReadCx, iofunction IOWriteCx, LPVOID lpSlotParameter, BYTE* pExpansionRom);
+void	UnregisterIoHandler(UINT uSlot);
 
 void    MemDestroy ();
 bool	MemCheckSLOTC3ROM();
@@ -77,7 +84,7 @@ void    MemInitializeROM(void);
 void    MemInitializeCustomROM(void);
 void    MemInitializeCustomF8ROM(void);
 void    MemInitializeIO(void);
-void    MemInitializeCardSlotAndExpansionRomFromSnapshot(void);
+void    MemInitializeFromSnapshot(void);
 BYTE    MemReadFloatingBus(const ULONG uExecutedCycles);
 BYTE    MemReadFloatingBus(const BYTE highbit, const ULONG uExecutedCycles);
 void    MemReset ();
@@ -89,7 +96,7 @@ bool    MemGetAnnunciator(UINT annunciator);
 bool    MemHasNoSlotClock(void);
 void    MemInsertNoSlotClock(void);
 void    MemRemoveNoSlotClock(void);
-std::string MemGetSnapshotUnitAuxSlotName(void);
+const std::string& MemGetSnapshotUnitAuxSlotName(void);
 void    MemSaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
 bool    MemLoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT unitVersion);
 void    MemSaveSnapshotAux(class YamlSaveHelper& yamlSaveHelper);
@@ -103,15 +110,11 @@ BYTE __stdcall MemSetPaging(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExec
 
 BYTE __stdcall IO_F8xx(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
 
-enum SS_CARDTYPE;
 void	SetExpansionMemType(const SS_CARDTYPE type);
 SS_CARDTYPE GetCurrentExpansionMemType(void);
-void	CreateLanguageCard(void);
 
 void	SetRamWorksMemorySize(UINT pages);
 UINT	GetRamWorksActiveBank(void);
-void	SetSaturnMemorySize(UINT banks);
 void	SetMemMainLanguageCard(LPBYTE ptr, bool bMemMain=false);
-class LanguageCardUnit* GetLanguageCard(void);
 
 LPBYTE GetCxRomPeripheral(void);

@@ -30,6 +30,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "../Windows/Win32Frame.h"
 #include "../Registry.h"
 #include "../SerialComms.h"
+#include "../CardManager.h"
+#include "../Uthernet2.h"
+#include "../Tfe/PCapBackend.h"
+#include "../Interface.h"
 #include "../resource/resource.h"
 
 CPageConfig* CPageConfig::ms_this = 0;	// reinit'd in ctor
@@ -89,18 +93,18 @@ INT_PTR CPageConfig::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPA
 		switch (LOWORD(wparam))
 		{
 		case IDC_AUTHENTIC_SPEED:	// Authentic Machine Speed
-			SendDlgItemMessage(hWnd,IDC_SLIDER_CPU_SPEED,TBM_SETPOS,1,SPEED_NORMAL);
-			EnableTrackbar(hWnd,0);
+			SendDlgItemMessage(hWnd, IDC_SLIDER_CPU_SPEED, TBM_SETPOS, 1, SPEED_NORMAL);
+			EnableTrackbar(hWnd, 0);
 			break;
 
 		case IDC_CUSTOM_SPEED:		// Select Custom Speed
-			SetFocus(GetDlgItem(hWnd,IDC_SLIDER_CPU_SPEED));
-			EnableTrackbar(hWnd,1);
+			SetFocus(GetDlgItem(hWnd, IDC_SLIDER_CPU_SPEED));
+			EnableTrackbar(hWnd, 1);
 			break;
 
 		case IDC_SLIDER_CPU_SPEED:	// CPU speed slider
-			CheckRadioButton(hWnd,IDC_AUTHENTIC_SPEED,IDC_CUSTOM_SPEED,IDC_CUSTOM_SPEED);
-			EnableTrackbar(hWnd,1);
+			CheckRadioButton(hWnd, IDC_AUTHENTIC_SPEED, IDC_CUSTOM_SPEED, IDC_CUSTOM_SPEED);
+			EnableTrackbar(hWnd, 1);
 			break;
 
 		case IDC_BENCHMARK:
@@ -112,7 +116,10 @@ INT_PTR CPageConfig::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPA
 
 		case IDC_ETHERNET:
 			ui_tfe_settings_dialog(hWnd);
-			m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = m_PageConfigTfe.m_tfe_enabled ? CT_Uthernet : CT_Empty;
+			m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = m_PageConfigTfe.m_tfe_selected;
+			m_PropertySheetHelper.GetConfigNew().m_tfeInterface = m_PageConfigTfe.m_tfe_interface_name;
+			m_PropertySheetHelper.GetConfigNew().m_tfeVirtualDNS = m_PageConfigTfe.m_tfe_virtual_dns;
+			InitOptions(hWnd);
 			break;
 
 		case IDC_MONOCOLOR:
@@ -125,6 +132,14 @@ INT_PTR CPageConfig::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPA
 		case IDC_CHECK_FS_SHOW_SUBUNIT_STATUS:
 		case IDC_CHECK_50HZ_VIDEO:
 			// Checked in DlgOK()
+			break;
+
+		case IDC_CHECK_VIDHD_IN_SLOT3:
+			{
+				const UINT newState = IsDlgButtonChecked(hWnd, IDC_CHECK_VIDHD_IN_SLOT3) ? 1 : 0;
+				m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3] = newState ? CT_VidHD : CT_Empty;
+				InitOptions(hWnd);
+			}
 			break;
 
 		case IDC_COMPUTER:
@@ -211,7 +226,7 @@ INT_PTR CPageConfig::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPA
 			if (GetCardMgr().IsSSCInstalled())
 			{
 				CSuperSerialCard* pSSC = GetCardMgr().GetSSC();
-				m_PropertySheetHelper.FillComboBox(hWnd, IDC_SERIALPORT, pSSC->GetSerialPortChoices(), pSSC->GetSerialPort());
+				m_PropertySheetHelper.FillComboBox(hWnd, IDC_SERIALPORT, pSSC->GetSerialPortChoices().c_str(), pSSC->GetSerialPort());
 				EnableWindow(GetDlgItem(hWnd, IDC_SERIALPORT), !pSSC->IsActive() ? TRUE : FALSE);
 			}
 			else
@@ -240,8 +255,19 @@ INT_PTR CPageConfig::DlgProcInternal(HWND hWnd, UINT message, WPARAM wparam, LPA
 			}
 
 			{
-				m_PageConfigTfe.m_tfe_enabled = get_tfe_enabled();
-				m_PageConfigTfe.m_tfe_interface_name = get_tfe_interface();
+				SS_CARDTYPE cardInSlot3 = GetCardMgr().QuerySlot(SLOT3);
+				switch (cardInSlot3) {
+				case CT_Uthernet:
+				case CT_Uthernet2:
+					m_PageConfigTfe.m_tfe_selected = cardInSlot3;
+					break;
+				default:
+					m_PageConfigTfe.m_tfe_selected = CT_Empty;
+					break;
+				}
+
+				m_PageConfigTfe.m_tfe_interface_name = PCapBackend::GetRegistryInterface(SLOT3);
+				m_PageConfigTfe.m_tfe_virtual_dns = Uthernet2::GetRegistryVirtualDNS(SLOT3);
 			}
 
 			InitOptions(hWnd);
@@ -316,8 +342,6 @@ void CPageConfig::DlgOK(HWND hWnd)
 		m_PropertySheetHelper.GetConfigNew().m_videoRefreshRate = isNewVideoRate50Hz ? VR_50HZ : VR_60HZ;
 	}
 
-	m_PropertySheetHelper.GetConfigNew().m_tfeInterface = m_PageConfigTfe.m_tfe_interface_name;
-
 	if (bVideoReinit)
 	{
 		win32Frame.FrameRefreshStatus(DRAW_TITLE);
@@ -372,8 +396,13 @@ void CPageConfig::DlgOK(HWND hWnd)
 void CPageConfig::InitOptions(HWND hWnd)
 {
 	const SS_CARDTYPE slot3 = m_PropertySheetHelper.GetConfigNew().m_Slot[SLOT3];
-	const BOOL enableUthernetDialog = slot3 == CT_Empty || slot3 == CT_Uthernet;
+	const BOOL enableUthernetDialog = slot3 == CT_Empty || slot3 == CT_Uthernet || slot3 == CT_Uthernet2;
 	EnableWindow(GetDlgItem(hWnd, IDC_ETHERNET), enableUthernetDialog);
+
+	const bool bIsSlot3VidHD = slot3 == CT_VidHD;
+	CheckDlgButton(hWnd, IDC_CHECK_VIDHD_IN_SLOT3, bIsSlot3VidHD ? BST_CHECKED : BST_UNCHECKED);
+	const BOOL enableVidHD = slot3 == CT_Empty || bIsSlot3VidHD;
+	EnableWindow(GetDlgItem(hWnd, IDC_CHECK_VIDHD_IN_SLOT3), enableVidHD);
 }
 
 // Config->Computer: Menu item to eApple2Type

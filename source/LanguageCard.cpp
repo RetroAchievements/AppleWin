@@ -38,10 +38,18 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 const UINT LanguageCardUnit::kMemModeInitialState = MF_BANK2 | MF_WRITERAM;	// !INTCXROM
 
-LanguageCardUnit::LanguageCardUnit(SS_CARDTYPE type/*=CT_LanguageCardIIe*/) :
-	Card(type),
+LanguageCardUnit * LanguageCardUnit::create(UINT slot)
+{
+	return new LanguageCardUnit(CT_LanguageCardIIe, slot);
+}
+
+LanguageCardUnit::LanguageCardUnit(SS_CARDTYPE type, UINT slot) :
+	Card(type, slot),
 	m_uLastRamWrite(0)
 {
+	if (m_slot != LanguageCardUnit::kSlot0)
+		ThrowErrorInvalidSlot();
+
 	SetMemMainLanguageCard(NULL, true);
 }
 
@@ -50,14 +58,15 @@ LanguageCardUnit::~LanguageCardUnit(void)
 	SetMemMainLanguageCard(NULL);
 }
 
-void LanguageCardUnit::InitializeIO(void)
+void LanguageCardUnit::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(kSlot0, &LanguageCardUnit::IO, &LanguageCardUnit::IO, NULL, NULL, this, NULL);
+	RegisterIoHandler(m_slot, &LanguageCardUnit::IO, &LanguageCardUnit::IO, NULL, NULL, this, NULL);
 }
 
 BYTE __stdcall LanguageCardUnit::IO(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles)
 {
-	LanguageCardUnit* pLC = (LanguageCardUnit*) MemGetSlotParameters(kSlot0);
+	UINT uSlot = ((uAddr & 0xff) >> 4) - 8;
+	LanguageCardUnit* pLC = (LanguageCardUnit*) MemGetSlotParameters(uSlot);
 
 	DWORD memmode = GetMemMode();
 	DWORD lastmemmode = memmode;
@@ -136,8 +145,13 @@ bool LanguageCardUnit::IsOpcodeRMWabs(WORD addr)
 
 //-------------------------------------
 
-LanguageCardSlot0::LanguageCardSlot0(SS_CARDTYPE type/*=CT_LanguageCard*/)
-	: LanguageCardUnit(type)
+LanguageCardSlot0 * LanguageCardSlot0::create(UINT slot)
+{
+	return new LanguageCardSlot0(CT_LanguageCard, slot);
+}
+
+LanguageCardSlot0::LanguageCardSlot0(SS_CARDTYPE type, UINT slot)
+	: LanguageCardUnit(type, slot)
 {
 	m_pMemory = new BYTE[kMemBankSize];
 	SetMemMainLanguageCard(m_pMemory);
@@ -152,20 +166,19 @@ LanguageCardSlot0::~LanguageCardSlot0(void)
 //
 
 static const UINT kUNIT_LANGUAGECARD_VER = 1;
-static const UINT kSLOT_LANGUAGECARD = LanguageCardUnit::kSlot0;
 
 #define SS_YAML_VALUE_CARD_LANGUAGECARD "Language Card"
 
 #define SS_YAML_KEY_MEMORYMODE "Memory Mode"
 #define SS_YAML_KEY_LASTRAMWRITE "Last RAM Write"
 
-std::string LanguageCardSlot0::GetSnapshotMemStructName(void)
+const std::string& LanguageCardSlot0::GetSnapshotMemStructName(void)
 {
 	static const std::string name("Memory Bank");
 	return name;
 }
 
-std::string LanguageCardSlot0::GetSnapshotCardName(void)
+const std::string& LanguageCardSlot0::GetSnapshotCardName(void)
 {
 	static const std::string name(SS_YAML_VALUE_CARD_LANGUAGECARD);
 	return name;
@@ -194,7 +207,7 @@ void LanguageCardSlot0::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 		return;	// No Language Card support for //e and above
 	}
 
-	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), kSLOT_LANGUAGECARD, kUNIT_LANGUAGECARD_VER);
+	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_slot, kUNIT_LANGUAGECARD_VER);
 	YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
 
 	SaveLCState(yamlSaveHelper);
@@ -205,13 +218,10 @@ void LanguageCardSlot0::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	}
 }
 
-bool LanguageCardSlot0::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool LanguageCardSlot0::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
-	if (slot != kSLOT_LANGUAGECARD)
-		throw std::string("Card: wrong slot");
-
 	if (version != kUNIT_LANGUAGECARD_VER)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	// "State"
 	LoadLCState(yamlLoadHelper);
@@ -222,7 +232,7 @@ bool LanguageCardSlot0::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, 
 	}
 
 	if (!yamlLoadHelper.GetSubMap(GetSnapshotMemStructName()))
-		throw std::string("Memory: Missing map name: " + GetSnapshotMemStructName());
+		throw std::runtime_error("Memory: Missing map name: " + GetSnapshotMemStructName());
 
 	yamlLoadHelper.LoadMemory(m_pMemory, kMemBankSize);
 
@@ -235,8 +245,10 @@ bool LanguageCardSlot0::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, 
 
 //-------------------------------------
 
-Saturn128K::Saturn128K(UINT banks)
-	: LanguageCardSlot0(CT_Saturn128K)
+UINT Saturn128K::g_uSaturnBanksFromCmdLine = 0;
+
+Saturn128K::Saturn128K(UINT slot, UINT banks)
+	: LanguageCardSlot0(CT_Saturn128K, slot)
 {
 	m_uSaturnTotalBanks = (banks == 0) ? kMaxSaturnBanks : banks;
 	m_uSaturnActiveBank = 0;
@@ -266,19 +278,14 @@ Saturn128K::~Saturn128K(void)
 	}
 }
 
-void Saturn128K::SetMemorySize(UINT banks)
-{
-	m_uSaturnTotalBanks = banks;
-}
-
 UINT Saturn128K::GetActiveBank(void)
 {
 	return m_uSaturnActiveBank;
 }
 
-void Saturn128K::InitializeIO(void)
+void Saturn128K::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-	RegisterIoHandler(kSlot0, &Saturn128K::IO, &Saturn128K::IO, NULL, NULL, this, NULL);
+	RegisterIoHandler(m_slot, &Saturn128K::IO, &Saturn128K::IO, NULL, NULL, this, NULL);
 }
 
 BYTE __stdcall Saturn128K::IO(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles)
@@ -302,7 +309,8 @@ BYTE __stdcall Saturn128K::IO(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULO
 	1110  $C0NE select 16K Bank 7
 	1111  $C0NF select 16K Bank 8
 */
-	Saturn128K* pLC = (Saturn128K*) MemGetSlotParameters(kSlot0);
+	UINT uSlot = ((uAddr & 0xff) >> 4) - 8;
+	Saturn128K* pLC = (Saturn128K*) MemGetSlotParameters(uSlot);
 
 	_ASSERT(pLC->m_uSaturnTotalBanks);
 	if (!pLC->m_uSaturnTotalBanks)
@@ -365,20 +373,19 @@ BYTE __stdcall Saturn128K::IO(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULO
 //
 
 static const UINT kUNIT_SATURN_VER = 1;
-static const UINT kSLOT_SATURN = LanguageCardUnit::kSlot0;
 
 #define SS_YAML_VALUE_CARD_SATURN128 "Saturn 128"
 
 #define SS_YAML_KEY_NUM_SATURN_BANKS "Num Saturn Banks"
 #define SS_YAML_KEY_ACTIVE_SATURN_BANK "Active Saturn Bank"
 
-std::string Saturn128K::GetSnapshotMemStructName(void)
+const std::string& Saturn128K::GetSnapshotMemStructName(void)
 {
 	static const std::string name("Memory Bank");
 	return name;
 }
 
-std::string Saturn128K::GetSnapshotCardName(void)
+const std::string& Saturn128K::GetSnapshotCardName(void)
 {
 	static const std::string name(SS_YAML_VALUE_CARD_SATURN128);
 	return name;
@@ -393,7 +400,7 @@ void Saturn128K::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 		return;	// No Saturn support for //e and above
 	}
 
-	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), kSLOT_SATURN, kUNIT_SATURN_VER);
+	YamlSaveHelper::Slot slot(yamlSaveHelper, GetSnapshotCardName(), m_slot, kUNIT_SATURN_VER);
 	YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", SS_YAML_KEY_STATE);
 
 	SaveLCState(yamlSaveHelper);
@@ -409,13 +416,10 @@ void Saturn128K::SaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	}
 }
 
-bool Saturn128K::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version)
+bool Saturn128K::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
-	if (slot != kSLOT_SATURN)	// fixme
-		throw std::string("Card: wrong slot");
-
 	if (version != kUNIT_SATURN_VER)
-		throw std::string("Card: wrong version");
+		ThrowErrorInvalidVersion(version);
 
 	// "State"
 	LoadLCState(yamlLoadHelper);
@@ -424,7 +428,7 @@ bool Saturn128K::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT ve
 	UINT activeBank = yamlLoadHelper.LoadUint(SS_YAML_KEY_ACTIVE_SATURN_BANK);
 
 	if (numBanks < 1 || numBanks > kMaxSaturnBanks || activeBank >= numBanks)
-		throw std::string(SS_YAML_KEY_UNIT ": Bad Saturn card state");
+		throw std::runtime_error(SS_YAML_KEY_UNIT ": Bad Saturn card state");
 
 	m_uSaturnTotalBanks = numBanks;
 	m_uSaturnActiveBank = activeBank;
@@ -439,12 +443,10 @@ bool Saturn128K::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT ve
 		}
 
 		// "Memory Bankxx"
-		char szBank[3];
-		sprintf(szBank, "%02X", uBank);
-		std::string memName = GetSnapshotMemStructName() + szBank;
+		std::string memName = GetSnapshotMemStructName() + ByteToHexStr(uBank);
 
 		if (!yamlLoadHelper.GetSubMap(memName))
-			throw std::string("Memory: Missing map name: " + memName);
+			throw std::runtime_error("Memory: Missing map name: " + memName);
 
 		yamlLoadHelper.LoadMemory(m_aSaturnBanks[uBank], kMemBankSize);
 
@@ -456,4 +458,14 @@ bool Saturn128K::LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT slot, UINT ve
 	// NB. MemUpdatePaging(TRUE) called at end of Snapshot_LoadState_v2()
 
 	return true;
+}
+
+void Saturn128K::SetSaturnMemorySize(UINT banks)
+{
+	g_uSaturnBanksFromCmdLine = banks;
+}
+
+UINT Saturn128K::GetSaturnMemorySize()
+{
+	return g_uSaturnBanksFromCmdLine;
 }

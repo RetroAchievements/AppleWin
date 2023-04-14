@@ -39,6 +39,7 @@
     <ClInclude Include="RAInterface\RA_Interface.h" />
     <ClInclude Include="resource\resource.h" />
     <ClInclude Include="resource\winres.h" />
+    <ClInclude Include="source\6522.h" />
     <ClInclude Include="source\6821.h" />
     <ClInclude Include="source\AY8910.h" />
     <ClInclude Include="source\Card.h" />
@@ -62,6 +63,7 @@
     <ClInclude Include="source\Configuration\PropertySheet.h" />
     <ClInclude Include="source\Configuration\PropertySheetDefs.h" />
     <ClInclude Include="source\Configuration\PropertySheetHelper.h" />
+    <ClInclude Include="source\CopyProtectionDongles.h" />
     <ClInclude Include="source\Core.h" />
     <ClInclude Include="source\CPU.h" />
     <ClInclude Include="source\CPU\cpu6502.h" />
@@ -99,6 +101,8 @@
     <ClInclude Include="source\Log.h" />
     <ClInclude Include="source\Memory.h" />
     <ClInclude Include="source\Mockingboard.h" />
+    <ClInclude Include="source\MockingboardCardManager.h" />
+    <ClInclude Include="source\MockingboardDefs.h" />
     <ClInclude Include="source\MouseInterface.h" />
     <ClInclude Include="source\NoSlotClock.h" />
     <ClInclude Include="source\NTSC.h" />
@@ -111,8 +115,6 @@
     <ClInclude Include="source\Riff.h" />
     <ClInclude Include="source\SAM.h" />
     <ClInclude Include="source\SaveState.h" />
-    <ClInclude Include="source\SaveState_Structs_common.h" />
-    <ClInclude Include="source\SaveState_Structs_v1.h" />
     <ClInclude Include="source\SerialComms.h" />
     <ClInclude Include="source\SNESMAX.h" />
     <ClInclude Include="source\SoundCore.h" />
@@ -121,19 +123,25 @@
     <ClInclude Include="source\SSI263.h" />
     <ClInclude Include="source\SSI263Phonemes.h" />
     <ClInclude Include="source\StdAfx.h" />
+    <ClInclude Include="source\StrFormat.h" />
     <ClInclude Include="source\SynchronousEventManager.h" />
     <ClInclude Include="source\Tape.h" />
-    <ClInclude Include="source\Tfe\Bittypes.h" />
+    <ClInclude Include="source\Tfe\DNS.h" />
+    <ClInclude Include="source\Tfe\IPRaw.h" />
+    <ClInclude Include="source\Tfe\NetworkBackend.h" />
     <ClInclude Include="source\Tfe\Bpf.h" />
     <ClInclude Include="source\Tfe\Ip6_misc.h" />
-    <ClInclude Include="source\Tfe\Pcap-stdinc.h" />
     <ClInclude Include="source\Tfe\Pcap.h" />
-    <ClInclude Include="source\Tfe\tfe.h" />
+    <ClInclude Include="source\Tfe\PCapBackend.h" />
     <ClInclude Include="source\Tfe\tfearch.h" />
     <ClInclude Include="source\Tfe\tfesupp.h" />
     <ClInclude Include="source\Tfe\Uilib.h" />
+    <ClInclude Include="source\Uthernet1.h" />
+    <ClInclude Include="source\Uthernet2.h" />
     <ClInclude Include="source\Utilities.h" />
     <ClInclude Include="source\Video.h" />
+    <ClInclude Include="Source\VidHD.h" />
+    <ClInclude Include="source\W5100.h" />
     <ClInclude Include="source\Windows\AppleWin.h" />
     <ClInclude Include="source\Windows\DirectInput.h" />
     <ClInclude Include="source\Windows\HookFilter.h" />
@@ -173,11 +181,14 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="source\6522.cpp" />
     <ClCompile Include="source\6821.cpp" />
     <ClCompile Include="source\AY8910.cpp" />
+    <ClCompile Include="source\Card.cpp" />
     <ClCompile Include="source\CardManager.cpp" />
     <ClCompile Include="source\CmdLine.cpp" />
     <ClCompile Include="source\Configuration\About.cpp" />
+    <ClCompile Include="source\Configuration\Config.cpp" />
     <ClCompile Include="source\Configuration\PageAdvanced.cpp" />
     <ClCompile Include="source\Configuration\PageConfig.cpp" />
     <ClCompile Include="source\Configuration\PageConfigTfe.cpp" />
@@ -186,6 +197,7 @@
     <ClCompile Include="source\Configuration\PageSound.cpp" />
     <ClCompile Include="source\Configuration\PropertySheet.cpp" />
     <ClCompile Include="source\Configuration\PropertySheetHelper.cpp" />
+    <ClCompile Include="source\CopyProtectionDongles.cpp" />
     <ClCompile Include="source\Core.cpp" />
     <ClCompile Include="source\CPU.cpp" />
     <ClCompile Include="source\Debugger\Debugger_Disassembler.cpp" />
@@ -203,6 +215,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">false</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="source\MockingboardCardManager.cpp" />
     <ClCompile Include="source\RGBMonitor.cpp" />
     <ClCompile Include="source\SAM.cpp" />
     <ClCompile Include="source\Debugger\Debug.cpp" />
@@ -253,18 +266,13 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="source\StrFormat.cpp" />
     <ClCompile Include="source\SynchronousEventManager.cpp" />
     <ClCompile Include="source\Tape.cpp" />
-    <ClCompile Include="source\Tfe\tfe.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug v141_xp|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug NoDX|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
-    </ClCompile>
+    <ClCompile Include="source\Tfe\DNS.cpp" />
+    <ClCompile Include="source\Tfe\IPRaw.cpp" />
+    <ClCompile Include="source\Tfe\NetworkBackend.cpp" />
+    <ClCompile Include="source\Tfe\PCapBackend.cpp" />
     <ClCompile Include="source\Tfe\tfearch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug RetroAchievements|Win32'">NotUsing</PrecompiledHeader>
@@ -295,8 +303,11 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release v141_xp|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release NoDX|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="source\Uthernet1.cpp" />
+    <ClCompile Include="source\Uthernet2.cpp" />
     <ClCompile Include="source\Utilities.cpp" />
     <ClCompile Include="source\Video.cpp" />
+    <ClCompile Include="Source\VidHD.cpp" />
     <ClCompile Include="source\Windows\AppleWin.cpp" />
     <ClCompile Include="source\Windows\DirectInput.cpp" />
     <ClCompile Include="source\Windows\HookFilter.cpp" />
@@ -549,13 +560,12 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>echo Performing unit-test: TestCPU6502
-.\Debug\TestCPU6502.exe</Command>
+      <Command>.\Debug\TestCPU6502.exe</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Performing unit-test: TestCPU6502</Message>
@@ -577,7 +587,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
@@ -610,7 +620,7 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
@@ -637,13 +647,12 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>echo Performing unit-test: TestCPU6502
-.\Debug\TestCPU6502.exe</Command>
+      <Command>.\Debug\TestCPU6502.exe</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Performing unit-test: TestCPU6502</Message>
@@ -669,14 +678,13 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>echo Performing unit-test: TestCPU6502
-.\Release\TestCPU6502.exe</Command>
+      <Command>.\Release\TestCPU6502.exe</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Performing unit-test: TestCPU6502</Message>
@@ -702,7 +710,7 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
@@ -740,7 +748,7 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;ddraw_lib\x86\dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;ddraw_lib\x86\ddraw.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
@@ -773,14 +781,13 @@ $(ProjectDir)RAInterface\MakeBuildVer.bat $(ProjectDir)source\RA_BuildVer.h RApp
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>iphlpapi.lib;htmlhelp.lib;comctl32.lib;winmm.lib;dsound.lib;dxguid.lib;version.lib;strmiids.lib;dinput8.lib;user32.lib;gdi32.lib;advapi32.lib;shell32.lib;comdlg32.lib;ole32.lib;wsock32.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <AdditionalManifestDependencies>"type='Win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"</AdditionalManifestDependencies>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>echo Performing unit-test: TestCPU6502
-.\Release\TestCPU6502.exe</Command>
+      <Command>.\Release\TestCPU6502.exe</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Performing unit-test: TestCPU6502</Message>

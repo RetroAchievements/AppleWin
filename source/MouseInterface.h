@@ -11,13 +11,13 @@ public:
 	CMouseInterface(UINT slot);
 	virtual ~CMouseInterface();
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void Destroy() {}
+	virtual void Reset(const bool powerCycle);
+	virtual void Update(const ULONG nExecutedCycles) {}
 
-	void Initialize(LPBYTE pCxRomPeripheral, UINT uSlot);
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
 //	void Uninitialize();
-	void Reset();
-	UINT GetSlot(void) { return m_uSlot; }
+	UINT GetSlot(void) { return m_slot; }
 	static BYTE __stdcall IORead(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles);
 	static BYTE __stdcall IOWrite(WORD PC, WORD uAddr, BYTE bWrite, BYTE uValue, ULONG nExecutedCycles);
 
@@ -42,9 +42,9 @@ public:
 		m_iY = iY;
 	}
 
-	static std::string GetSnapshotCardName(void);
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+	static const std::string& GetSnapshotCardName(void);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 
 protected:
 	void InitializeROM(void);
@@ -106,7 +106,6 @@ protected:
 //	bool	m_bActive;		// Mouse h/w is active within the Apple][ VM
 	bool	m_bEnabled;		// Windows' mouse events get passed to Apple]['s mouse h/w (m_bEnabled == true implies that m_bActive == true)
 	LPBYTE	m_pSlotRom;
-	UINT	m_uSlot;
 
 	SyncEvent m_syncEvent;
 };

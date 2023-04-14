@@ -32,6 +32,13 @@ FrameBase& GetFrame()
 // From CPU.cpp
 regsrec regs;
 
+static eCpuType g_MainCPU = CPU_65C02;
+
+eCpuType GetMainCpu(void)
+{
+	return g_MainCPU;
+}
+
 // From Memory.cpp
 LPBYTE         mem          = NULL;	// TODO: Init
 LPBYTE         memdirty     = NULL;	// TODO: Init
@@ -47,14 +54,8 @@ Update_t ConsoleUpdate ()
 	return 0;
 }
 
-bool ConsoleBufferPush ( const char * pText )
+void ConsoleBufferPush ( const char * pText )
 {
-	return false;
-}
-
-bool ConsoleBufferPushVa ( char* buf, size_t bufsz, const char * pFormat, va_list va )
-{
-	return false;
 }
 
 // From Debugger_DisassemblerData.cpp

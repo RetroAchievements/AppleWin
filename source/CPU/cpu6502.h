@@ -50,6 +50,10 @@ static DWORD Cpu6502(DWORD uTotalCycles, const bool bVideoUpdate)
 		{
 			const UINT uZ80Cycles = z80_mainloop(uTotalCycles, uExecutedCycles); CYC(uZ80Cycles)
 		}
+		else if (NMI(uExecutedCycles, flagc, flagn, flagv, flagz) || IRQ(uExecutedCycles, flagc, flagn, flagv, flagz))
+		{
+			// Allow AppleWin debugger's single-stepping to just step the pending IRQ
+		}
 		else
 		{
 			HEATMAP_X( regs.pc );
@@ -58,7 +62,7 @@ static DWORD Cpu6502(DWORD uTotalCycles, const bool bVideoUpdate)
 			switch (iOpcode)
 			{
 // TODO-MP Optimization Note: ?? Move CYC(#) to array ??
-			case 0x00:            BRK  CYC(7)  break;
+			case 0x00:            BRKn CYC(7)  break;
 			case 0x01: idx        ORA  CYC(6)  break;
 			case 0x02:            HLT  CYC(2)  break;	// invalid
 			case 0x03: idx        ASO  CYC(8)  break;	// invalid
@@ -318,8 +322,6 @@ static DWORD Cpu6502(DWORD uTotalCycles, const bool bVideoUpdate)
 		}
 
 		CheckSynchronousInterruptSources(uExecutedCycles - uPreviousCycles, uExecutedCycles);
-		NMI(uExecutedCycles, flagc, flagn, flagv, flagz);
-		IRQ(uExecutedCycles, flagc, flagn, flagv, flagz);
 
 // NTSC_BEGIN
 		if (bVideoUpdate)

@@ -40,15 +40,11 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "StdAfx.h"
 
 #include "Joystick.h"
-#include "Windows/AppleWin.h"
 #include "CPU.h"
 #include "Memory.h"
 #include "YamlHelper.h"
 #include "Interface.h"
-
-#include "Configuration/PropertySheet.h"
-
-#define BUTTONTIME	5000	// This is the latch (debounce) time in usecs for the joystick buttons
+#include "CopyProtectionDongles.h"
 
 enum {DEVICE_NONE=0, DEVICE_JOYSTICK, DEVICE_KEYBOARD, DEVICE_MOUSE, DEVICE_JOYSTICK_THUMBSTICK2};
 
@@ -86,7 +82,6 @@ static POINT keyvalue[9] = {{PDL_MIN,PDL_MAX},    {PDL_CENTRAL,PDL_MAX},    {PDL
                             {PDL_MIN,PDL_CENTRAL},{PDL_CENTRAL,PDL_CENTRAL},{PDL_MAX,PDL_CENTRAL},
                             {PDL_MIN,PDL_MIN},    {PDL_CENTRAL,PDL_MIN},    {PDL_MAX,PDL_MIN}};
 
-static int   buttonlatch[3] = {0,0,0};
 static BOOL  joybutton[3]   = {0,0,0};
 
 static int   joyshrx[2]     = {8,8};
@@ -99,10 +94,10 @@ static DWORD joytype[2]            = {J0C_JOYSTICK1, J1C_DISABLED};	// Emulation
 
 static BOOL  setbutton[3]   = {0,0,0};	// Used when a mouse button is pressed/released
 
-static int   xpos[2]        = {PDL_CENTRAL,PDL_CENTRAL};
-static int   ypos[2]        = {PDL_CENTRAL,PDL_CENTRAL};
+static int   xpos[2]        = { PDL_MAX,PDL_MAX };
+static int   ypos[2]        = { PDL_MAX,PDL_MAX };
 
-static unsigned __int64 g_nJoyCntrResetCycle = 0;	// Abs cycle that joystick counters were reset
+static UINT64 g_paddleInactiveCycle[4] = { 0 };	// Abs cycle that each paddle becomes inactive after PTRIG strobe
 
 static short g_nPdlTrimX = 0;
 static short g_nPdlTrimY = 0;
@@ -133,12 +128,6 @@ void CheckJoystick0()
     JOYINFO info;
     if (joyGetPos(JOYSTICKID1,&info) == JOYERR_NOERROR)
 	{
-      if ((info.wButtons & JOY_BUTTON1) && !joybutton[0])
-        buttonlatch[0] = BUTTONTIME;
-      if ((info.wButtons & JOY_BUTTON2) && !joybutton[1] &&
-          (joyinfo[joytype[1]] == DEVICE_NONE)	// Only consider 2nd button if NOT emulating a 2nd Apple joystick
-         )
-		   buttonlatch[1] = BUTTONTIME;
       joybutton[0] = ((info.wButtons & JOY_BUTTON1) != 0);
       if (joyinfo[joytype[1]] == DEVICE_NONE)	// Only consider 2nd button if NOT emulating a 2nd Apple joystick
         joybutton[1] = ((info.wButtons & JOY_BUTTON2) != 0);
@@ -180,13 +169,6 @@ void CheckJoystick1()
       result = joyGetPos(JOYSTICKID2, &info);
     if (result == JOYERR_NOERROR)
 	{
-      if ((info.wButtons & JOY_BUTTON1) && !joybutton[2])
-	  {
-        buttonlatch[2] = BUTTONTIME;
-        if(joyinfo[joytype[1]] != DEVICE_NONE)
-          buttonlatch[1] = BUTTONTIME;	// Re-map this button when emulating a 2nd Apple joystick
-	  }
-
       joybutton[2] = ((info.wButtons & JOY_BUTTON1) != 0);
       if(joyinfo[joytype[1]] != DEVICE_NONE)
         joybutton[1] = ((info.wButtons & JOY_BUTTON1) != 0);	// Re-map this button when emulating a 2nd Apple joystick
@@ -412,30 +394,7 @@ BOOL JoyProcessKey(int virtkey, bool extended, bool down, bool autorep)
 
 	//
 
-	if (virtkey == VK_NUMPAD0)
-	{
-		if(down)
-		{
-			if(joyinfo[joytype[1]] != DEVICE_KEYBOARD)
-			{
-				buttonlatch[0] = BUTTONTIME;
-			}
-			else if(joyinfo[joytype[1]] != DEVICE_NONE)
-			{
-				buttonlatch[2] = BUTTONTIME;
-				buttonlatch[1] = BUTTONTIME;	// Re-map this button when emulating a 2nd Apple joystick
-			}
-		}
-	}
-	else if (virtkey == VK_DECIMAL)
-	{
-		if(down)
-		{
-			if(joyinfo[joytype[1]] != DEVICE_KEYBOARD)
-				buttonlatch[1] = BUTTONTIME;
-		}
-	}
-	else if ((down && !autorep) || (GetPropertySheet().GetJoystickCenteringControl() == JOYSTICK_MODE_CENTERING))
+	if ((down && !autorep) || (GetPropertySheet().GetJoystickCenteringControl() == JOYSTICK_MODE_CENTERING))
 	{
 		int xkeys  = 0;
 		int ykeys  = 0;
@@ -524,10 +483,9 @@ BYTE __stdcall JoyportReadButton(WORD address, ULONG nExecutedCycles)
 		switch (address)
 		{
 			case 0x61:
-				pressed = (buttonlatch[0] || joybutton[0] || setbutton[0] /*|| keydown[JK_OPENAPPLE]*/);
+				pressed = (joybutton[0] || setbutton[0] /*|| keydown[JK_OPENAPPLE]*/);
 				if(joyinfo[joytype[1]] != DEVICE_KEYBOARD)	// BUG? joytype[1] should be [0] ?
 					pressed = (pressed || keydown[JK_BUTTON0]);
-				buttonlatch[0] = 0;
 				break;
 
 			case 0x62:	// Left or Up
@@ -568,8 +526,7 @@ BYTE __stdcall JoyportReadButton(WORD address, ULONG nExecutedCycles)
 
 static BOOL CheckButton0Pressed(void)
 {
-	BOOL pressed =	buttonlatch[0] ||
-					joybutton[0] ||
+	BOOL pressed =	joybutton[0] ||
 					setbutton[0] ||
 					keydown[JK_OPENAPPLE];
 
@@ -581,8 +538,7 @@ static BOOL CheckButton0Pressed(void)
 
 static BOOL CheckButton1Pressed(void)
 {
-	BOOL pressed =	buttonlatch[1] ||
-					joybutton[1] ||
+	BOOL pressed =	joybutton[1] ||
 					setbutton[1] ||
 					keydown[JK_CLOSEDAPPLE];
 
@@ -617,8 +573,9 @@ BYTE __stdcall JoyReadButton(WORD pc, WORD address, BYTE, BYTE, ULONG nExecutedC
 			{
 				pressed = !swapButtons0and1 ? CheckButton0Pressed() : CheckButton1Pressed();
 				const UINT button0 = !swapButtons0and1 ? 0 : 1;
-				buttonlatch[button0] = 0;
 				DoAutofire(button0, pressed);
+				if(CopyProtectionDonglePB0() >= 0)				//If a copy protection dongle needs PB0, this overrides the joystick
+					pressed = CopyProtectionDonglePB0();
 			}
 			break;
 
@@ -626,13 +583,16 @@ BYTE __stdcall JoyReadButton(WORD pc, WORD address, BYTE, BYTE, ULONG nExecutedC
 			{
 				pressed = !swapButtons0and1 ? CheckButton1Pressed() : CheckButton0Pressed();
 				const UINT button1 = !swapButtons0and1 ? 1 : 0;
-				buttonlatch[button1] = 0;
 				DoAutofire(button1, pressed);
+				if (CopyProtectionDonglePB1() >= 0)				//If a copy protection dongle needs PB1, this overrides the joystick
+					pressed = CopyProtectionDonglePB1();
 			}
 			break;
 
 		case 0x63:
-			if (IS_APPLE2 && (joyinfo[joytype[1]] == DEVICE_NONE))
+			if (CopyProtectionDonglePB2() >= 0)					//If a copy protection dongle needs PB2, this overrides the joystick
+				pressed = CopyProtectionDonglePB2();
+			else if (IS_APPLE2 && (joyinfo[joytype[1]] == DEVICE_NONE))
 			{
 				// Apple II/II+ with no joystick has the "SHIFT key mod"
 				// See Sather's Understanding The Apple II p7-36
@@ -640,10 +600,9 @@ BYTE __stdcall JoyReadButton(WORD pc, WORD address, BYTE, BYTE, ULONG nExecutedC
 			}
 			else
 			{
-				pressed = (buttonlatch[2] || joybutton[2] || setbutton[2]);
+				pressed = (joybutton[2] || setbutton[2]);
 				DoAutofire(2, pressed);
 			}
-			buttonlatch[2] = 0;
 			break;
 	}
 
@@ -671,20 +630,13 @@ static const double PDL_CNTR_INTERVAL = 2816.0 / 255.0;	// 11.04 (From KEGS)
 
 BYTE __stdcall JoyReadPosition(WORD programcounter, WORD address, BYTE, BYTE, ULONG nExecutedCycles)
 {
-	int nJoyNum = (address & 2) ? 1 : 0;	// $C064..$C067
-
 	CpuCalcCycles(nExecutedCycles);
 
-	ULONG nPdlPos = (address & 1) ? ypos[nJoyNum] : xpos[nJoyNum];
-
-	// This is from KEGS. It helps games like Championship Lode Runner & Boulderdash
-	if(nPdlPos >= 255)
-		nPdlPos = 280;
-
-	BOOL nPdlCntrActive = g_nCumulativeCycles <= (g_nJoyCntrResetCycle + (unsigned __int64) ((double)nPdlPos * PDL_CNTR_INTERVAL));
+	BOOL nPdlCntrActive = g_nCumulativeCycles <= g_paddleInactiveCycle[address & 3];
 
 	// If no joystick connected, then this is always active (GH#778)
-	if (joyinfo[joytype[nJoyNum]] == DEVICE_NONE)
+	const UINT joyNum = (address & 2) ? 1 : 0;	// $C064..$C067
+	if (joyinfo[joytype[joyNum]] == DEVICE_NONE)
 		nPdlCntrActive = TRUE;
 
 	return MemReadFloatingBus(nPdlCntrActive, nExecutedCycles);
@@ -702,12 +654,27 @@ void JoyReset()
 void JoyResetPosition(ULONG nExecutedCycles)
 {
 	CpuCalcCycles(nExecutedCycles);
-	g_nJoyCntrResetCycle = g_nCumulativeCycles;
 
 	if(joyinfo[joytype[0]] == DEVICE_JOYSTICK)
 		CheckJoystick0();
 	if((joyinfo[joytype[1]] == DEVICE_JOYSTICK) || (joyinfo[joytype[1]] == DEVICE_JOYSTICK_THUMBSTICK2))
 		CheckJoystick1();
+
+	// If any of the timers are still running then strobe has no effect (GH#985)
+	for (UINT pdl = 0; pdl < 4; pdl++)
+	{
+		if (g_nCumulativeCycles <= g_paddleInactiveCycle[pdl])
+			continue;
+
+		const UINT joyNum = (pdl & 2) ? 1 : 0;
+		UINT pdlPos = (pdl & 1) ? ypos[joyNum] : xpos[joyNum];
+
+		// This is from KEGS. It helps games like Championship Lode Runner, Boulderdash & Learning with Leeper(GH#1128)
+		if (pdlPos >= 255)
+			pdlPos = 287;
+
+		g_paddleInactiveCycle[pdl] = g_nCumulativeCycles + (UINT64)((double)pdlPos * PDL_CNTR_INTERVAL);
+	}
 }
 
 //===========================================================================
@@ -729,9 +696,6 @@ void JoySetButton(eBUTTON number, eBUTTONSTATE down)
   }
 
   setbutton[number] = down;
-
-  if (down)
-    buttonlatch[number] = BUTTONTIME;
 }
 
 //===========================================================================
@@ -826,22 +790,6 @@ void JoySetPosition(int xvalue, int xrange, int yvalue, int yrange)
   ypos[nJoyNum] = (yvalue*255)/yrange;
 }
  
-//===========================================================================
-
-// Update the latch (debounce) time for each button
-void JoyUpdateButtonLatch(const UINT nExecutionPeriodUsec)
-{
-	for (UINT i=0; i<3; i++)
-	{
-		if (buttonlatch[i])
-		{
-			buttonlatch[i] -= nExecutionPeriodUsec;
-			if (buttonlatch[i] < 0)
-				buttonlatch[i] = 0;
-		}
-	}
-}
-
 //===========================================================================
 
 BOOL JoyUsingMouse()
@@ -990,8 +938,9 @@ void JoyportControl(const UINT uControl)
 #define SS_YAML_KEY_JOY0TRIMY "Joystick0 TrimY"
 #define SS_YAML_KEY_JOY1TRIMX "Joystick1 TrimX"
 #define SS_YAML_KEY_JOY1TRIMY "Joystick1 TrimY"
+#define SS_YAML_KEY_PDL_INACTIVE_CYCLE "Paddle%1d Inactive Cycle"
 
-static std::string JoyGetSnapshotStructName(void)
+static const std::string& JoyGetSnapshotStructName(void)
 {
 	static const std::string name("Joystick");
 	return name;
@@ -1000,23 +949,42 @@ static std::string JoyGetSnapshotStructName(void)
 void JoySaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 {
 	YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", JoyGetSnapshotStructName().c_str());
-	yamlSaveHelper.SaveHexUint64(SS_YAML_KEY_COUNTERRESETCYCLE, g_nJoyCntrResetCycle);
 	yamlSaveHelper.SaveInt(SS_YAML_KEY_JOY0TRIMX, JoyGetTrim(true));
 	yamlSaveHelper.SaveInt(SS_YAML_KEY_JOY0TRIMY, JoyGetTrim(false));
 	yamlSaveHelper.Save("%s: %d # not implemented yet\n", SS_YAML_KEY_JOY1TRIMX, 0);	// not implemented yet
 	yamlSaveHelper.Save("%s: %d # not implemented yet\n", SS_YAML_KEY_JOY1TRIMY, 0);	// not implemented yet
+
+	for (UINT n = 0; n < 4; n++)
+	{
+		std::string str = StrFormat(SS_YAML_KEY_PDL_INACTIVE_CYCLE, n);
+		yamlSaveHelper.SaveHexUint64(str.c_str(), g_paddleInactiveCycle[n]);
+	}
 }
 
-void JoyLoadSnapshot(YamlLoadHelper& yamlLoadHelper)
+void JoyLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version)
 {
 	if (!yamlLoadHelper.GetSubMap(JoyGetSnapshotStructName()))
 		return;
 
-	g_nJoyCntrResetCycle = yamlLoadHelper.LoadUint64(SS_YAML_KEY_COUNTERRESETCYCLE);
 	JoySetTrim(yamlLoadHelper.LoadInt(SS_YAML_KEY_JOY0TRIMX), true);
 	JoySetTrim(yamlLoadHelper.LoadInt(SS_YAML_KEY_JOY0TRIMY), false);
 	yamlLoadHelper.LoadInt(SS_YAML_KEY_JOY1TRIMX);	// dump value
 	yamlLoadHelper.LoadInt(SS_YAML_KEY_JOY1TRIMY);	// dump value
+
+	if (version >= 7)
+	{
+		for (UINT n = 0; n < 4; n++)
+		{
+			std::string str = StrFormat(SS_YAML_KEY_PDL_INACTIVE_CYCLE, n);
+			g_paddleInactiveCycle[n] = yamlLoadHelper.LoadUint64(str);
+		}
+	}
+	else
+	{
+		UINT64 resetCycle = yamlLoadHelper.LoadUint64(SS_YAML_KEY_COUNTERRESETCYCLE);
+		for (UINT n = 0; n < 4; n++)
+			g_paddleInactiveCycle[n] = resetCycle;
+	}
 
 	yamlLoadHelper.PopMap();
 }

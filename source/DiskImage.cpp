@@ -198,11 +198,6 @@ UINT ImageGetNumTracks(ImageInfo* const pImageInfo)
 	return pImageInfo ? pImageInfo->uNumTracks : 0;
 }
 
-bool ImageIsWriteProtected(ImageInfo* const pImageInfo)
-{
-	return pImageInfo ? pImageInfo->bWriteProtected : true;
-}
-
 bool ImageIsMultiFileZip(ImageInfo* const pImageInfo)
 {
 	return pImageInfo ? (pImageInfo->uNumValidImagesInZip > 1) : false;

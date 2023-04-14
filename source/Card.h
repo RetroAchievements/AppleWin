@@ -23,20 +23,43 @@ enum SS_CARDTYPE
 	CT_Saturn128K,		// Saturn 128K (but may be populated with less RAM, in multiples of 16K)
 	CT_FourPlay,		// 4 port Atari 2600 style digital joystick card
 	CT_SNESMAX,			// 2 port Nintendo NES/SNES controller serial interface card
+	CT_VidHD,
+	CT_Uthernet2,
 };
 
-enum SLOTS { SLOT0=0, SLOT1, SLOT2, SLOT3, SLOT4, SLOT5, SLOT6, SLOT7, NUM_SLOTS, SLOT_AUX };
+enum SLOTS { SLOT0=0, SLOT1, SLOT2, SLOT3, SLOT4, SLOT5, SLOT6, SLOT7, NUM_SLOTS, SLOT_AUX, GAME_IO_CONNECTOR };
+
+class YamlSaveHelper;
+class YamlLoadHelper;
 
 class Card
 {
 public:
-	Card(void) : m_type(CT_Empty) {}
-	Card(SS_CARDTYPE type) : m_type(type) {}
+	Card(SS_CARDTYPE type, UINT slot) : m_type(type), m_slot(slot) {}
 	virtual ~Card(void) {}
 
-	virtual void Init(void) = 0;
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral) = 0;
+	virtual void Destroy() = 0;
 	virtual void Reset(const bool powerCycle) = 0;
+	virtual void Update(const ULONG nExecutedCycles) = 0;
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper) = 0;
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version) = 0;
+
 	SS_CARDTYPE QueryType(void) { return m_type; }
+
+	std::string GetCardName(void);
+	static std::string GetCardName(const SS_CARDTYPE cardType);
+	static SS_CARDTYPE GetCardType(const std::string & card);
+
+	// static versions for non-Card cards
+	static void ThrowErrorInvalidSlot(SS_CARDTYPE type, UINT slot);
+	static void ThrowErrorInvalidVersion(SS_CARDTYPE type, UINT version);
+
+protected:
+	UINT m_slot;
+
+	void ThrowErrorInvalidSlot();
+	void ThrowErrorInvalidVersion(UINT version);
 
 private:
 	SS_CARDTYPE m_type;
@@ -47,11 +70,15 @@ private:
 class EmptyCard : public Card
 {
 public:
-	EmptyCard(void) {}
+	EmptyCard(UINT slot) : Card(CT_Empty, slot) {}
 	virtual ~EmptyCard(void) {}
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral) {}
+	virtual void Destroy() {}
+	virtual void Reset(const bool powerCycle) {}
+	virtual void Update(const ULONG nExecutedCycles) {}
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper) {}
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version) { _ASSERT(0); return false; }
 };
 
 //
@@ -59,9 +86,13 @@ public:
 class DummyCard : public Card	// For cards that currently can't be instantiated (ie. don't exist as a class)
 {
 public:
-	DummyCard(SS_CARDTYPE type) : Card(type) {}
+	DummyCard(SS_CARDTYPE type, UINT slot) : Card(type, slot) {}
 	virtual ~DummyCard(void) {}
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
+	virtual void Destroy() {}
+	virtual void Reset(const bool powerCycle) {}
+	virtual void Update(const ULONG nExecutedCycles);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 };

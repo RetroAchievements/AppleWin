@@ -46,7 +46,6 @@ Writes the following: (in 1 continuous write operation)
 
 #include "DiskFormatTrack.h"
 #include "Disk.h"
-#include "Log.h"
 #include "YamlHelper.h"
 
 // Occurs on these conditions:
@@ -269,12 +268,11 @@ void FormatTrack::DecodeLatchNibble(BYTE floppylatch, bool bIsWrite, bool bIsSyn
 			if (!bIsWrite)
 			{
 				BYTE addrPrologue = m_bAddressPrologueIsDOS3_2 ? (BYTE)kADDR_PROLOGUE_DOS3_2 : (BYTE)kADDR_PROLOGUE_DOS3_3;
-				char str[100];
-				sprintf_s(str, sizeof(str), "read D5AA%02X detected - Vol:%02X Trk:%02X Sec:%02X Chk:%02X %s", addrPrologue, m_VolTrkSecChk[0], m_VolTrkSecChk[1], m_VolTrkSecChk[2], m_VolTrkSecChk[3], chk?"":"(bad)");
-				m_strReadD5AAxxDetected = str;
+				m_strReadD5AAxxDetected = StrFormat("read D5AA%02X detected - Vol:%02X Trk:%02X Sec:%02X Chk:%02X %s",
+					addrPrologue, m_VolTrkSecChk[0], m_VolTrkSecChk[1], m_VolTrkSecChk[2], m_VolTrkSecChk[3], chk?"":"(bad)");
 				if (!m_bSuppressReadD5AAxxDetected)
 				{
-					LOG_DISK("%s\r\n", str);
+					LOG_DISK("%s\r\n", m_strReadD5AAxxDetected.c_str());
 				}
 			}
 #endif
@@ -357,7 +355,7 @@ void FormatTrack::SaveSnapshot(class YamlSaveHelper& yamlSaveHelper)
 void FormatTrack::LoadSnapshot(class YamlLoadHelper& yamlLoadHelper)
 {
 	if (!yamlLoadHelper.GetSubMap(SS_YAML_KEY_FORMAT_TRACK))
-		throw std::string("Card: Expected key: ") + std::string(SS_YAML_KEY_FORMAT_TRACK);
+		throw std::runtime_error("Card: Expected key: " SS_YAML_KEY_FORMAT_TRACK);
 
 	m_bmWrittenSectorAddrFields   = yamlLoadHelper.LoadUint(SS_YAML_KEY_WRITTEN_SECTOR_ADDR_FIELDS);
 	m_WriteTrackStartIndex        = yamlLoadHelper.LoadUint(SS_YAML_KEY_WRITE_TRACK_START_IDX);

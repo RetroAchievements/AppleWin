@@ -6,23 +6,23 @@ class SAMCard : public Card
 {
 public:
 	SAMCard(UINT slot) :
-		Card(CT_SAM),
-		m_slot(slot)
+		Card(CT_SAM, slot)
 	{
 	}
 	virtual ~SAMCard(void) {}
 
-	virtual void Init(void) {};
-	virtual void Reset(const bool powerCycle) {};
+	virtual void Destroy(void) {}
+	virtual void Reset(const bool powerCycle) {}
+	virtual void Update(const ULONG nExecutedCycles) {}
 
-	void InitializeIO(LPBYTE pCxRomPeripheral, UINT slot);
+	virtual void InitializeIO(LPBYTE pCxRomPeripheral);
 
 	static BYTE __stdcall IOWrite(WORD pc, WORD addr, BYTE bWrite, BYTE value, ULONG nExecutedCycles);
 
-	static std::string GetSnapshotCardName(void);
-	void SaveSnapshot(class YamlSaveHelper& yamlSaveHelper);
-	bool LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+	static const std::string& GetSnapshotCardName(void);
+	virtual void SaveSnapshot(YamlSaveHelper& yamlSaveHelper);
+	virtual bool LoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT version);
 
 private:
-	UINT m_slot;
+	// no state
 };
