@@ -64,7 +64,6 @@ DEBUG_BUTTON            BITMAP                  "DEBUG.BMP"
 DRIVE1_BUTTON           BITMAP                  "DRIVE1.BMP"
 DRIVE2_BUTTON           BITMAP                  "DRIVE2.BMP"
 SETUP_BUTTON            BITMAP                  "SETUP.BMP"
-CHARSET40               BITMAP                  "CHARSET4.BMP"
 DISKOFF_BITMAP          BITMAP                  "DISKOFF.BMP"
 DISKREAD_BITMAP         BITMAP                  "DISKREAD.BMP"
 DISKWRITE_BITMAP        BITMAP                  "DISKWRIT.BMP"
@@ -261,7 +260,7 @@ BEGIN
     CONTROL         "The Free&ze's non-autostart F8 rom (Apple ][ or ][+ only)",IDC_THE_FREEZES_F8_ROM_FW,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,201,194,10
     LTEXT           "&Game I/O Connector:",IDC_STATIC,5,220,82,8
-    COMBOBOX        IDC_COMBO_GAME_IO_CONNECTOR,89,218,114,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    COMBOBOX        IDC_COMBO_GAME_IO_CONNECTOR,80,218,128,100,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
 END
 
 
@@ -303,7 +302,7 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "AppleWin"
             VALUE "FileDescription", "Apple //e Emulator for Windows"
-            VALUE "LegalCopyright", " 1994-2023 Michael O'Brien, Oliver Schmidt, Tom Charlesworth, Michael Pohoreski, Nick Westgate, Linards Ticmanis"
+            VALUE "LegalCopyright", " 1994-2024 Michael O'Brien, Oliver Schmidt, Tom Charlesworth, Michael Pohoreski, Nick Westgate, Linards Ticmanis"
             VALUE "ProductName", "Apple //e Emulator"
 #ifdef USE_RETROACHIEVEMENTS
             VALUE "Comments", "https://github.com/RetroAchievements/AppleWin"
@@ -348,6 +347,8 @@ IDR_DISK2_13SECTOR_FW   FIRMWARE                "Disk2-13sector.rom"
 IDR_DISK2_16SECTOR_FW   FIRMWARE                "Disk2.rom"
 IDR_SSC_FW              FIRMWARE                "SSC.rom"
 IDR_HDDRVR_FW           FIRMWARE                "Hddrvr.bin"
+IDR_HDDRVR_V2_FW        FIRMWARE                "Hddrvr-v2.bin"
+IDR_HDC_SMARTPORT_FW    FIRMWARE                "HDC-SmartPort.bin"
 IDR_PRINTDRVR_FW        FIRMWARE                "Parallel.rom"
 IDR_MOCKINGBOARD_D_FW   FIRMWARE                "Mockingboard-D.rom"
 IDR_MOUSEINTERFACE_FW   FIRMWARE                "MouseInterface.rom"
@@ -363,7 +364,7 @@ IDR_APPLE2_ROM          ROM                     "Apple2.rom"
 IDR_APPLE2_PLUS_ROM     ROM                     "Apple2_Plus.rom"
 IDR_APPLE2_JPLUS_ROM    ROM                     "Apple2_JPlus.rom"
 IDR_APPLE2E_ROM         ROM                     "Apple2e.rom"
-IDR_APPLE2E_ENHANCED_ROM ROM                     "Apple2e_Enhanced.rom"
+IDR_APPLE2E_ENHANCED_ROM ROM                    "Apple2e_Enhanced.rom"
 IDR_PRAVETS_82_ROM      ROM                     "Pravets82.rom"
 IDR_PRAVETS_8M_ROM      ROM                     "Pravets8M.rom"
 IDR_PRAVETS_8C_ROM      ROM                     "Pravets8C.rom"
@@ -376,7 +377,9 @@ IDR_FREEZES_F8_ROM      ROM                     "FREEZES_NON-AUTOSTART_F8_ROM.ro
 // VIDEO ROM
 //
 
+IDR_APPLE2_VIDEO_ROM          ROM               "Apple2_Video.rom"
 IDR_APPLE2_JPLUS_VIDEO_ROM    ROM               "Apple2_JPlus_Video.rom"
+IDR_APPLE2E_ENHANCED_VIDEO_ROM ROM              "Apple2e_Enhanced_Video.rom"
 IDR_BASE64A_VIDEO_ROM         ROM               "Base64A_German_Video.rom"
 
 /////////////////////////////////////////////////////////////////////////////

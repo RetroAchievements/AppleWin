@@ -71,13 +71,29 @@ static YamlHelper yamlHelper;
 // v6: Added 'Unit Miscellaneous' for NoSlotClock(NSC)
 // v7: Extended: joystick (added 'Paddle Inactive Cycle')
 // v8: Added 'Unit Game I/O Connector' for Game I/O Connector
-#define UNIT_APPLE2_VER 8
+// v9: Extended: memory (added 'Last Slot to Set Main Mem LC', 'MMU LC Mode')
+#define UNIT_APPLE2_VER 9
 
 #define UNIT_SLOTS_VER 1
 
-#define UNIT_GAME_IO_CONNECTOR_VER 1
+// See CopyProtectionDongle.cppS
+#define UNIT_GAME_IO_CONNECTOR_VER 3
 
 #define UNIT_MISC_VER 1
+
+//-----------------------------------------------------------------------------
+
+static bool g_ignoreHdcFirmware = false;
+
+bool Snapshot_GetIgnoreHdcFirmware()
+{
+	return g_ignoreHdcFirmware;
+}
+
+void Snapshot_SetIgnoreHdcFirmware(const bool ignoreHdcFirmware)
+{
+	g_ignoreHdcFirmware = ignoreHdcFirmware;
+}
 
 //-----------------------------------------------------------------------------
 
@@ -296,7 +312,7 @@ static void ParseSlots(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 		SS_CARDTYPE type = Card::GetCardType(card);
 		bool bRes = false;
 
-		if (slot == 0)
+		if (slot == SLOT0)
 		{
 			SetExpansionMemType(type);	// calls GetCardMgr().Insert() & InsertAux()
 		}
@@ -344,7 +360,7 @@ static void ParseUnit()
 	}
 	else if (unit == GetSnapshotUnitGameIOConnectorName())
 	{
-		CopyProtectionDongleLoadSnapshot(yamlLoadHelper, unitVersion);
+		CopyProtectionDongleLoadSnapshot(yamlLoadHelper, unitVersion, UNIT_GAME_IO_CONNECTOR_VER);
 	}
 	else if (unit == GetSnapshotUnitMiscName())
 	{

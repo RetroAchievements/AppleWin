@@ -9,6 +9,7 @@ void LogFileTimeUntilFirstKeyReadReset(void);
 void LogFileTimeUntilFirstKeyRead(void);
 
 extern const UINT16* GetOldAppleWinVersion(void);
+extern UINT16 g_AppleWinVersion[4];
 extern std::string g_VERSIONSTRING;	// Constructed in WinMain()
 
 void SetAppleWinVersion(UINT16 major, UINT16 minor, UINT16 fix, UINT16 fix_minor);
@@ -39,6 +40,7 @@ extern bool      g_bFrameAdvance;
 extern std::string g_sStartDir;
 extern std::string g_sProgramDir;
 extern std::string g_sCurrentDir;
+extern std::string g_sBuiltinSymbolsDir;
 
 bool SetCurrentImageDir(const std::string& pszImageDir);
 

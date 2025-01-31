@@ -288,10 +288,13 @@ void LoadConfiguration(bool loadImages)
 		GetCurrentDirectory(sizeof(szFilename), szFilename);
 	SetCurrentImageDir(szFilename);
 
-	if (loadImages && GetCardMgr().QuerySlot(SLOT7) == CT_GenericHDD)
+	for (UINT slot = SLOT1; slot <= SLOT7; slot++)
 	{
-		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(SLOT7)).LoadLastDiskImage(HARDDISK_1);
-		dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(SLOT7)).LoadLastDiskImage(HARDDISK_2);
+		if (loadImages && GetCardMgr().QuerySlot(slot) == CT_GenericHDD)
+		{
+			for (UINT i = 0; i < NUM_HARDDISKS; i++)
+				dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(slot)).LoadLastDiskImage(i);
+		}
 	}
 
 	//
@@ -436,29 +439,33 @@ void InsertHardDisks(const UINT slot, LPCSTR szImageName_harddisk[NUM_HARDDISKS]
 {
 	_ASSERT(slot == 5 || slot == 7);
 
-	if (!szImageName_harddisk[HARDDISK_1] && !szImageName_harddisk[HARDDISK_2])
+	// If no HDDs then just return (and don't insert an HDC into this slot)
+	bool res = true;
+	for (UINT i = 0; i < NUM_HARDDISKS; i++)
+		res &= szImageName_harddisk[i] == NULL;
+	if (res)
 		return;
 
 	if (GetCardMgr().QuerySlot(slot) != CT_GenericHDD)
 		GetCardMgr().Insert(slot, CT_GenericHDD);	// Enable the Harddisk controller card
 
-	bool bRes = true;
-
-	if (szImageName_harddisk[HARDDISK_1])
+	res = true;
+	for (UINT i = 0; i < NUM_HARDDISKS; i++)
 	{
-		bRes = DoHardDiskInsert(slot, HARDDISK_1, szImageName_harddisk[HARDDISK_1]);
-		LogFileOutput("Init: DoHardDiskInsert(HDD1), res=%d\n", bRes);
-		GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);	// harddisk activity LED
-		bBoot = true;
+		if (szImageName_harddisk[i])
+		{
+			res &= DoHardDiskInsert(slot, i, szImageName_harddisk[i]);
+			LogFileOutput("Init: DoHardDiskInsert(HDD-%d), res=%d\n", i, res);
+
+			if (i == HARDDISK_1)
+			{
+				GetFrame().FrameRefreshStatus(DRAW_LEDS | DRAW_DISK_STATUS);	// harddisk activity LED
+				bBoot = true;
+			}
+		}
 	}
 
-	if (szImageName_harddisk[HARDDISK_2])
-	{
-		bRes &= DoHardDiskInsert(slot, HARDDISK_2, szImageName_harddisk[HARDDISK_2]);
-		LogFileOutput("Init: DoHardDiskInsert(HDD2), res=%d\n", bRes);
-	}
-
-	if (!bRes)
+	if (!res)
 		GetFrame().FrameMessageBox("Failed to insert harddisk(s) - see log file", "Warning", MB_ICONASTERISK | MB_OK);
 }
 
@@ -498,7 +505,7 @@ void GetAppleWindowTitle()
 
 	if (g_hCustomRomF8 != INVALID_HANDLE_VALUE)
 		g_pAppTitle += TEXT(" (custom rom)");
-	else if (GetPropertySheet().GetTheFreezesF8Rom() && IS_APPLE2)
+	else if (GetPropertySheet().GetTheFreezesF8Rom() && IsApple2PlusOrClone(GetApple2Type()))
 		g_pAppTitle += TEXT(" (The Freeze's non-autostart F8 rom)");
 
 	switch (g_nAppMode)
@@ -558,9 +565,10 @@ void ResetMachineState()
  // todo: consolidate CtrlReset() and ResetMachineState()
 void CtrlReset()
 {
-	if (!IS_APPLE2)
+	if (IsAppleIIeOrAbove(GetApple2Type()))
 	{
 		// For A][ & A][+, reset doesn't reset the LC switches (UTAII:5-29)
+		// TODO: What about Saturn cards? Presumably the same as the A][ & A][+ slot0 LC?
 		MemResetPaging();
 
 		// For A][ & A][+, reset doesn't reset the video mode (UTAII:4-4)

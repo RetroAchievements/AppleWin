@@ -29,7 +29,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "W5100.h"
 #include "../Registry.h"
 
-
 // Virtual DNS
 // Virtual DNS is an extension to the W5100
 // It enables DNS resolution by setting P3 = 1 for IP / TCP and UDP
@@ -69,20 +68,14 @@ typedef int socklen_t;
 #define SOCK_EWOULDBLOCK EWOULDBLOCK
 #define SOCK_EINPROGRESS EINPROGRESS
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <unistd.h>
-#include <sys/types.h>
+#include <fcntl.h>
 #include <errno.h>
 
-#endif
-
-// fix SOCK_NONBLOCK for e.g. macOS
-#ifndef SOCK_NONBLOCK
-// DISCALIMER
-// totally untested, use at your own risk
-#include <fcntl.h>
-#define SOCK_NONBLOCK O_NONBLOCK
 #endif
 
 // Dest MAC + Source MAC + Ether Type
@@ -912,11 +905,8 @@ void Uthernet2::resetRXTXBuffers(const size_t i)
 void Uthernet2::openSystemSocket(const size_t i, const int type, const int protocol, const int status)
 {
     Socket &s = mySockets[i];
-#ifdef _MSC_VER
+
     const Socket::socket_t fd = socket(AF_INET, type, protocol);
-#else
-    const Socket::socket_t fd = socket(AF_INET, type | SOCK_NONBLOCK, protocol);
-#endif
     if (fd == INVALID_SOCKET)
     {
 #ifdef U2_LOG_STATE
@@ -929,9 +919,23 @@ void Uthernet2::openSystemSocket(const size_t i, const int type, const int proto
     {
 #ifdef _MSC_VER
         u_long on = 1;
-        ioctlsocket(fd, FIONBIO, &on);
+        const int res = ioctlsocket(fd, FIONBIO, &on);
+#else
+        const int current = fcntl(fd, F_GETFL);
+        const int res = fcntl(fd, F_SETFL, current | O_NONBLOCK);
 #endif
-        s.setFD(fd, status);
+        if (res)
+        {
+#ifdef U2_LOG_STATE
+            const char *proto = (status == W5100_SN_SR_SOCK_UDP) ? "UDP" : "TCP";
+            LogFileOutput("U2: %s[%" SIZE_T_FMT "]: socket error: %" ERROR_FMT "\n", proto, i, STRERROR(sock_error()));
+#endif
+            s.clearFD();
+        }
+        else
+        {
+            s.setFD(fd, status);
+        }
     }
 }
 
@@ -1464,7 +1468,15 @@ BYTE __stdcall u2_C0(WORD programcounter, WORD address, BYTE write, BYTE value, 
 
 void Uthernet2::InitializeIO(LPBYTE pCxRomPeripheral)
 {
-    RegisterIoHandler(m_slot, u2_C0, u2_C0, nullptr, nullptr, this, nullptr);
+    const std::string interfaceName = PCapBackend::GetRegistryInterface(m_slot);
+    myNetworkBackend = GetFrame().CreateNetworkBackend(interfaceName);
+    if (!myNetworkBackend->isValid())
+    {
+        // Interface doesn't exist or user picked an interface that isn't Ethernet!
+        GetFrame().FrameMessageBox("Uthernet II interface isn't valid!\nReconfigure the Interface via 'Ethernet Settings'.", "Uthernet Interface", MB_ICONEXCLAMATION | MB_SETFOREGROUND);
+    }
+
+    RegisterIoHandler(m_slot, u2_C0, u2_C0, IO_Null, IO_Null, this, nullptr);
 }
 
 void Uthernet2::getMACAddress(const uint32_t address, const MACAddress * & mac)
