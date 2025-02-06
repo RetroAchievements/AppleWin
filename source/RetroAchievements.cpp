@@ -12,6 +12,7 @@
 #include "Core.h"
 #include "Disk.h"
 #include "Interface.h"
+#include "Joystick.h"
 #include "Harddisk.h"
 #include "Keyboard.h"
 #include "Memory.h"
@@ -25,6 +26,8 @@ bool should_activate = true;
 
 bool confirmed_quitting = false;
 bool is_initialized = false;
+
+ControllerInput overlay_input;
 
 void reset_file_info(FileInfo *file)
 {
@@ -184,6 +187,8 @@ void RA_InitSystem()
     }
     else
     {
+        memset(&overlay_input, 0, sizeof(overlay_input));
+
         RA_Init(GetFrame().g_hFrameWindow, RA_AppleWin, RAPPLEWIN_VERSION);
         RA_InitShared();
         RA_AttemptLogin(false);
@@ -435,6 +440,64 @@ int RA_ConfirmQuit()
         confirmed_quitting = RA_ConfirmLoadNewRom(true);
 
     return confirmed_quitting;
+}
+
+void RA_NavigateOverlayIfVisible()
+{
+    if (RA_IsOverlayFullyVisible())
+        RA_NavigateOverlay(&overlay_input);
+}
+
+void RA_ProcessOverlayKey(int wparam, int down)
+{
+    switch (wparam)
+    {
+    case VK_UP:
+        overlay_input.m_bUpPressed = down;
+        break;
+    case VK_DOWN:
+        overlay_input.m_bDownPressed = down;
+        break;
+    case VK_LEFT:
+        overlay_input.m_bLeftPressed = down;
+        break;
+    case VK_RIGHT:
+        overlay_input.m_bRightPressed = down;
+        break;
+    case VK_RETURN:
+        overlay_input.m_bConfirmPressed = down;
+        break;
+    case VK_BACK:
+        overlay_input.m_bCancelPressed = down;
+        break;
+    case VK_ESCAPE:
+        overlay_input.m_bQuitPressed = down;
+        break;
+    case VK_NUMPAD8:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bUpPressed = down;
+        break;
+    case VK_NUMPAD2:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bDownPressed = down;
+        break;
+    case VK_NUMPAD4:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bLeftPressed = down;
+        break;
+    case VK_NUMPAD6:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bRightPressed = down;
+        break;
+    case VK_NUMPAD0:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bConfirmPressed = down;
+        break;
+    case VK_DECIMAL:
+        if (JoyUsingKeyboardNumpad())
+            overlay_input.m_bCancelPressed = down;
+        break;
+    }
 }
 
 #endif

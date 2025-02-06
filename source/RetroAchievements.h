@@ -50,6 +50,8 @@ void RA_ClearTitle();
 void RA_ProcessReset();
 int RA_HandleMenuEvent(int id);
 int RA_ConfirmQuit();
+void RA_NavigateOverlayIfVisible();
+void RA_ProcessOverlayKey(int wparam, int down);
 
 #endif /* RETROACHIEVEMENTS_H */
 

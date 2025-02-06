@@ -1355,6 +1355,7 @@ LRESULT Win32Frame::WndProc(
 #if DEBUG_KEY_MESSAGES
 			LogOutput("WM_KEYDOWN: %08X (scanCode=%04X)\n", wparam, (lparam>>16)&0xfff);
 #endif
+
 			if (!IsJoyKey &&
 				(g_nAppMode != MODE_LOGO))	// !MODE_LOGO - not emulating so don't pass to the VM's keyboard
 			{
@@ -1397,6 +1398,12 @@ LRESULT Win32Frame::WndProc(
 					KeybAnyKeyDown(WM_KEYDOWN, wparam, extended);
 			}
 		}
+#if USE_RETROACHIEVEMENTS
+		else if (g_nAppMode == MODE_PAUSED && RA_IsOverlayFullyVisible())
+		{
+			RA_ProcessOverlayKey(wparam, 1);
+		}
+#endif
 		else if (g_nAppMode == MODE_DEBUG)
 		{		
 			DebuggerProcessKey(wparam); // Debugger already active, re-direct key to debugger
@@ -1461,6 +1468,10 @@ LRESULT Win32Frame::WndProc(
 #endif
 			if (!bIsJoyKey)
 				KeybAnyKeyDown(WM_KEYUP, wparam, extended);
+
+#ifdef USE_RETROACHIEVEMENTS
+			RA_ProcessOverlayKey(wparam, 0);
+#endif
 		}
 		break;
 
