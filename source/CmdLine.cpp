@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "SoundCore.h"
 #include "SNESMAX.h"
 #include "Interface.h"
+#include "Harddisk.h"
 
 CmdLine g_cmdLine;
 std::string g_sConfigFile; // INI file to use instead of Registry
@@ -156,6 +157,18 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 			lpNextArg = GetNextArg(lpNextArg);
 			g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_2] = lpCmdLine;
 		}
+		else if (strcmp(lpCmdLine, "-s0") == 0)	// Language Card options for Apple II/II+
+		{
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+
+			if (strcmp(lpCmdLine, "saturn") == 0 || strcmp(lpCmdLine, "saturn128") == 0)
+				g_cmdLine.uSaturnBanks = Saturn128K::kMaxSaturnBanks;
+			else if (strcmp(lpCmdLine, "saturn64") == 0)
+				g_cmdLine.uSaturnBanks = Saturn128K::kMaxSaturnBanks / 2;
+			else if (strcmp(lpCmdLine, "languagecard") == 0 || strcmp(lpCmdLine, "lc") == 0)
+				g_cmdLine.bSlot0LanguageCard = true;
+		}
 		else if (lpCmdLine[0] == '-' && lpCmdLine[1] == 's' && lpCmdLine[2] >= '1' && lpCmdLine[2] <= '7')
 		{
 			const UINT slot = lpCmdLine[2] - '0';
@@ -174,7 +187,46 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 					g_cmdLine.slotInfo[slot].isDiskII13 = true;
 				}
 				if (strcmp(lpCmdLine, "hdc") == 0)
+				{
 					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
+				}
+				if (strcmp(lpCmdLine, "hdc-sp") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
+					g_cmdLine.slotInfo[slot].useHdcFirmwareMode = HdcSmartPort;
+				}
+				if (strcmp(lpCmdLine, "hdc-bm2") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
+					g_cmdLine.slotInfo[slot].useHdcFirmwareMode = HdcBlockMode2Devices;
+				}
+				if (strcmp(lpCmdLine, "hdc-bm4") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_GenericHDD;
+					g_cmdLine.slotInfo[slot].useHdcFirmwareMode = HdcBlockMode4Devices;
+				}
+				if (strcmp(lpCmdLine, "saturn") == 0 || strcmp(lpCmdLine, "saturn128") == 0)	// Support Saturn128 card in slot 1-7 too (GH#1279)
+				{
+					g_cmdLine.slotInsert[slot] = CT_Saturn128K;
+				}
+				if (strcmp(lpCmdLine, "megaaudio") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_MegaAudio;
+					g_cmdLine.supportExtraMBCardTypes = true;
+				}
+				if (strcmp(lpCmdLine, "sdmusic") == 0)
+				{
+					g_cmdLine.slotInsert[slot] = CT_SDMusic;
+					g_cmdLine.supportExtraMBCardTypes = true;
+				}
+				if (strcmp(lpCmdLine, "6522a-bad") == 0)
+				{
+					g_cmdLine.slotInfo[slot].useBad6522A = true;
+				}
+				if (strcmp(lpCmdLine, "6522b-bad") == 0)
+				{
+					g_cmdLine.slotInfo[slot].useBad6522B = true;
+				}
 				if (strcmp(lpCmdLine, "parallel") == 0)
 				{
 					if (slot == SLOT1)
@@ -212,11 +264,12 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 					g_cmdLine.szImageName_drive[slot][drive] = lpCmdLine;
 				}
 			}
-			else if (lpCmdLine[3] == 'h' && (lpCmdLine[4] == '1' || lpCmdLine[4] == '2'))	// -s[1..7]h[1|2] <dsk-image>
+			else if (lpCmdLine[3] == 'h' && (lpCmdLine[4] >= '1' || lpCmdLine[4] <= '8'))	// -s[1..7]h[1|2|...|8] <dsk-image>
 			{
-				const UINT drive = lpCmdLine[4] == '1' ? HARDDISK_1 : HARDDISK_2;
+				const UINT drive = lpCmdLine[4] - '1';
+				bool badDrive = drive >= NUM_HARDDISKS;
 
-				if (slot != SLOT5 && slot != SLOT7)
+				if (badDrive || (slot != SLOT5 && slot != SLOT7))
 				{
 					LogFileOutput("Unsupported arg: %s\n", lpCmdLine);
 				}
@@ -236,11 +289,30 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 				LogFileOutput("Unsupported arg: %s\n", lpCmdLine);
 			}
 		}
+		else if (strcmp(lpCmdLine, "-harddisknumblocks") == 0)		// number of blocks to report for ProDOS
+		{
+			lpCmdLine = GetCurrArg(lpNextArg);
+			lpNextArg = GetNextArg(lpNextArg);
+			g_cmdLine.uHarddiskNumBlocks = atoi(lpCmdLine);
+			if (g_cmdLine.uHarddiskNumBlocks > kHarddiskMaxNumBlocks)
+			{
+				g_cmdLine.uHarddiskNumBlocks = kHarddiskMaxNumBlocks;
+			}
+			else
+			{
+				if (g_cmdLine.uHarddiskNumBlocks < 0)
+					g_cmdLine.uHarddiskNumBlocks = 0;
+			}
+		}
 		else if (strcmp(lpCmdLine, "-load-state") == 0)
 		{
 			lpCmdLine = GetCurrArg(lpNextArg);
 			lpNextArg = GetNextArg(lpNextArg);
 			g_cmdLine.szSnapshotName = lpCmdLine;
+		}
+		else if (strcmp(lpCmdLine, "-load-state-ignore-hdc-fw") == 0)	// For testing - Use in combination with -load-state
+		{
+			g_cmdLine.snapshotIgnoreHdcFirmware = true;
 		}
 		else if (strcmp(lpCmdLine, "-f") == 0 || strcmp(lpCmdLine, "-full-screen") == 0)
 		{
@@ -317,18 +389,6 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 				g_cmdLine.uRamWorksExPages = 1;
 		}
 #endif
-		else if (strcmp(lpCmdLine, "-s0") == 0)
-		{
-			lpCmdLine = GetCurrArg(lpNextArg);
-			lpNextArg = GetNextArg(lpNextArg);
-
-			if (strcmp(lpCmdLine, "saturn") == 0 || strcmp(lpCmdLine, "saturn128") == 0)
-				g_cmdLine.uSaturnBanks = Saturn128K::kMaxSaturnBanks;
-			else if (strcmp(lpCmdLine, "saturn64") == 0)
-				g_cmdLine.uSaturnBanks = Saturn128K::kMaxSaturnBanks/2;
-			else if (strcmp(lpCmdLine, "languagecard") == 0 || strcmp(lpCmdLine, "lc") == 0)
-				g_cmdLine.bSlot0LanguageCard = true;
-		}
 		else if (strcmp(lpCmdLine, "-f8rom") == 0)		// Use custom 2K ROM at [$F800..$FFFF]
 		{
 			lpCmdLine = GetCurrArg(lpNextArg);
@@ -481,6 +541,10 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			RGB_SetInvertBit7(true);
 		}
+		else if (strcmp(lpCmdLine, "-mac-lc-card-dlgr") == 0)	// GH#1258
+		{
+			RGB_SetMacLCCardDLGR(true);
+		}
 		else if (strcmp(lpCmdLine, "-screenshot-and-exit") == 0)	// GH#616: For testing - Use in combination with -load-state
 		{
 			g_cmdLine.szScreenshotFilename = GetCurrArg(lpNextArg);
@@ -597,9 +661,21 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 			lpNextArg = GetNextArg(lpNextArg);
 			g_cmdLine.wavFileMockingboard = lpCmdLine;
 		}
-		else if (strcmp(lpCmdLine, "-no-disk2-stepper-defer") == 0)	// a debug switch (likely to be removed in a future version)
+		else if (strcmp(lpCmdLine, "-mb-audit") == 0)	// enable selection of additional sound cards, eg. for mb-audit
+		{
+			g_cmdLine.supportExtraMBCardTypes = true;
+		}
+		else if (strcmp(lpCmdLine, "-no-disk2-stepper-defer") == 0)	// a debug switch added at 1.30.11 / GH#1110 (likely to be removed in a future version)
 		{
 			g_cmdLine.noDisk2StepperDefer = true;
+		}
+		else if (strcmp(lpCmdLine, "-hdc-firmware-v1") == 0)	// a debug switch added at 1.30.18 / GH#1277 (likely to be removed in a future version)
+		{
+			g_cmdLine.useHdcFirmwareV1 = true;
+		}
+		else if (strcmp(lpCmdLine, "-hdc-firmware-v2") == 0)
+		{
+			g_cmdLine.useHdcFirmwareV2 = true;
 		}
 		else	// unsupported
 		{

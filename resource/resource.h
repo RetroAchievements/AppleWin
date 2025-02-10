@@ -28,11 +28,13 @@
 #define IDR_MENU                        125
 #define IDR_APPLE2_ROM                  126
 #define IDR_APPLE2_PLUS_ROM             127
-#define IDR_APPLE2E_ROM                 128
-#define IDR_APPLE2E_ENHANCED_ROM        129
-#define IDD_TFE_SETTINGS_DIALOG         131
-#define IDR_PRINTDRVR_FW                132
-#define IDD_PROPPAGE_ADVANCED           132
+#define IDR_APPLE2_VIDEO_ROM            128
+#define IDR_APPLE2E_ROM                 129
+#define IDR_APPLE2E_ENHANCED_ROM        130
+#define IDR_APPLE2E_ENHANCED_VIDEO_ROM  131
+#define IDD_TFE_SETTINGS_DIALOG         132
+#define IDR_PRINTDRVR_FW                133
+#define IDD_PROPPAGE_ADVANCED           133
 #define IDR_SSC_FW                      134
 #define IDR_MOCKINGBOARD_D_FW           135
 #define IDR_MOUSEINTERFACE_FW           136
@@ -52,6 +54,8 @@
 #define IDR_APPLE2_JPLUS_VIDEO_ROM      152
 #define IDR_BASE_64A_ROM                153
 #define IDR_BASE64A_VIDEO_ROM           154
+#define IDR_HDDRVR_V2_FW                155
+#define IDR_HDC_SMARTPORT_FW            156
 #define IDC_KEYB_BUFFER_ENABLE          1005
 #define IDC_SAVESTATE                   1006
 #define IDC_SAVESTATE_ON_EXIT           1007

@@ -1,4 +1,27 @@
 /*
+2.9.2.0 Fixed: Debugger: Step-over WAIT can fail #1194
+2.9.1.26 Fixed: When adding symbols list the address first then the name for readability
+2.9.1.25 Fixed: R P ## wasn't setting P flag status register.
+2.9.1.24 Fixed: Disassembly line when at PC for BW mode. GH #1231
+2.9.1.23 Fixed: Show floating-point values in scientific notation.
+2.9.1.22 Fixed: `df FAC` was incorrectly getting marked up as `db`
+2.9.1.21 Fixed: `df` showing zero was displaying 0 instead 0.0
+2.9.1.20 Fixed: Changed DISK INFO to have 1 line abbreviation for disk state
+2.9.1.19 Added: QoL to DISK INFO.
+    Colorized numbers and status to improve readability.
+    Also shows the .WOZ current shift register.
+2.9.1.18 Fixed: NTSC LOAD was failing to import BMPs exported from GIMP.
+    To export a 64x256 bitmap from GIMP:
+      1. File, Export As...
+      2. Use a file extension of .bmp
+      3. Export Image as BMP
+         Compatibility Options
+           [x] Do not write color space information
+         Advanced Options
+           32 Bits
+             (x) X8 R8 G8 B8
+    In the debugger load your .bmp file:
+      NTSC LOAD palette.bmp
 2.9.1.17 Fixed: Ctrl-Space failing to step over a long sub-routine (and wasn't providing any feedback on why it failed.) GH #1194
     Increased the max steps to 0xFFFFF (from 0xFFFF)
     If step-over succeeds the debugger's feedback is:

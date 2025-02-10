@@ -9,6 +9,90 @@ https://github.com/AppleWin/AppleWin/issues/new
 Tom Charlesworth
 
 
+1.30.20.0 - 16 Nov 2024
+-----------------------
+- [Change #1312] Support Hayden's Applesoft compiler protection key.
+  - For use with Hayden's 1981 AppleSoft compiler (DOS 3.2 and DOS 3.3 pre-release versions).
+- [Change #1337] HDC controller: support Format command (both SmartPort and ProDOS block device):
+  - [Bug #88] Fix for Oz-DOS (uses ProDOS block device command).
+  - SP Status command: 'General Status': set format-allowed & write-protected flags
+  - For read-only HDD images: support them as write-protected.
+- [Change #1319] For II/II+/Unenhanced //e use the new SmartPort firmware, but with $Cs07 = 0x3C:
+  - This now defaults to supporting 4 block mode devices (instead of the previous 2).
+- [Change #1295] Help doc: add troubleshooting note about "High DPI scaling override", eg. for 2K or 4K monitors.
+- [Change #1290] Save-state: add absolute path to disk & hard disk image. [@audetto]
+- [Bug #1333] Mockingboard: fix edge-case for 6522 Timer1/2 read/write (cycle accuracy). Test added to (future) mb-audit v1.56.
+- [Bug #1321] Uthernet/Uthernet II cards: fix $Csxx space not reading as floating-bus.
+- [Bug #1227] Fix issue with not being able to insert a 3.5" 800K image (after failing to insert it into a 5.25" drive).
+- [PR #1335] Help doc: add some 'quick-start' info to the Keyboard page.
+
+
+1.30.19.0 - 28 Jul 2024
+-----------------------
+- [Change #1207] Support for SmartPort hard disk controller for Enhanced //e. [Thanks to @burniouf, with additional testing and input from: @alupin65, @inexorabletash, @univta0001]
+  - New HDC SmartPort firmware written by @burniouf.
+  - Enhanced //e defaults to using SmartPort firmware, and older Apple II's still use the older v2 firmware.
+  - Supports up to 8 SmartPort units per HDC (currently limited to 4GiB capacity for each unit).
+  - Supports up to 4 ProDOS block devices per HDC (previously was 2).
+  - Command line support only for slot 5 HDC (-s5 hdc) and hard disks after unit-2 (eg. -s5h3 <pathname>, -s7h3 <pathname>, etc).
+  - [Bug #563] Fixes "UniDOS 3.3 v2.0.1".
+- [Change #175] Improvements to the SSI263 emulation (mostly edge cases). Use in conjunction with mb-audit v1.53.
+- [Bug #926, #1315] DiskII Interface: 'DRIVES OFF' forces the control flipflops to clear. Fixes Infocom's Shogun & Zork0. [@sicklittlemonkey]
+- [Bug #1308] Fix for corrupt 't' glyph. [@xotmatrix] and use actual II+ and Enhanced //e video character ROMs.
+- [Bug #1285] Fix crash in 6502 emulation at 0xFFFF boundary.
+
+
+1.30.18.0 - 23 Mar 2024
+-----------------------
+- [Change #1272] New HDC firmware v2 to support returning HDD size in Y:X for status call. [@peteri]
+  - [Change #1277] Add (debug) cmd line switch to revert to HDC firmware v1: -hdc-firmware-v1.
+- [Change #1279] Support Saturn RAM card in slot 3 for any Apple II model (for Robo Systems' RoboCAD 2).
+- [Change #1159] Speaker: change from mono to stereo sound buffer.
+- [Change #1247] Robocom's Interface Module dongle: use actual values for 1000 & 1500 series dongles.
+- [Bug #1261] Fix for $C010 which should not read the keyboard latch on Apple II and Apple II+.
+- [Bug #1257] 6502/65C02: Fix JSR for edge-case where JSR ABS16 is on stack and SP points to ABS16!
+- [Bug #1276] Phasor in Echo+ mode: fix the chip-select polarity.
+
+
+1.30.17.0 - 31 Dec 2023
+-----------------------
+- [Bug #1262] Fix loading save-state for RAMWorks III card with 2 or more aux 64K banks.
+- [Bug #1260] Fix for read 6522's IRB for "Werewolf!" game's Mockingboard detection not working.
+- [PR #1253] Update to minizip 1.1. [@kiyolee]
+- [PR #1252] Update to libyaml 0.2.5. [@kiyolee]
+- [PR #1251] Update to zlib 1.3. [@kiyolee]
+- [PR #1250] Internal: Win64 DirectSound fix. [@kiyolee]
+- [Change #755] Internal: remove de-optimisation for Z80 code.
+- Debugger: Change DebuggerAutoRun.txt script's pathname max size from 80 to 260 chars.
+
+
+1.30.16.0 - 26 Nov 2023
+-----------------------
+- [Change #1258]  New command line: -mac-lc-card-dlgr to support the DLGR display bug in the 'Apple IIe card for Mac LC'.
+  - NB. This switch only has an effect when in either "Color (Composite Idealized)" or "RGB Card/Monitor" video modes.
+- [Bug #1197] Phasor: 6522's AY RESET always resets both attached AYs, regardless of Phasor mode or chip-select bits.
+
+
+1.30.15.0 - 29 Jul 2023
+-----------------------
+- [Change #1162] Fix joysticks not detected: first & second devices are not always at index 0 & 1. [@fabricecaruso]
+- [Change #429, #1237] Joystick axis shaping: allow analog sticks to reach corners.
+- [Change #1247] Support Robocom Ltd's BitStik Interface Module protection key.
+- [Change #1198] Support Dynatech Microsoftware / Cortechs Corp's CodeWriter protection key.
+- [Bug #1240] Fix for very large (>800KiB) 5.25 WOZ files.
+- [Bug #1215] Fix for: Disk Status getting ?? for Sectors in ProDOS.
+- [Bug #1238] Debugger: 2.9.1.25 Fixed: R P ## wasn't setting P flag status register.
+- [Bug #1231] Debugger: Fix disassembly of current line is illegible in "black & white" mode.
+- [Bug #1204] Debugger: Crash due to debugger command line length.
+- [Bug #1194] Debugger: Step-over WAIT can fail.
+- [Change #1230] Debugger: Allow alternate directory for built-in symbols.
+- [Change #1229] Debugger: df ("define float") QoL.
+- [Change #1212] Debugger: DISK INFO QoL.
+- [Change #1209] Debugger: Update BMP import from GIMP 2.10 with X8 R8 G8 B8.
+- [Change #1203] Debugger: Debugger: Step-over QoL.
+- [Change #1200] Debugger: Debugger: Stop reason QoL.
+
+
 1.30.14.1 - 11 Mar 2023
 -----------------------
 - [Bug #1193] Fix for reading AY regs after AY Function set to INACTIVE. (Fix for mb-audit v1.3.)

@@ -56,9 +56,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "YamlHelper.h"
 
 // In this file allocate the 64KB of RAM with aligned memory allocations (0x10000)
-// to ease mapping between Apple ][ and host memory space (while debugging).
-
-// this is not available in Visual Studio
+// to ease mapping between Apple ][ and host memory space (while debugging) & also to fix GH#1285.
+// This is not available in Windows CRT:
 // https://en.cppreference.com/w/c/memory/aligned_alloc
 
 #ifdef _MSC_VER
@@ -66,6 +65,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define ALIGNED_ALLOC(size) (LPBYTE)VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE)
 #define ALIGNED_FREE(ptr) VirtualFree(ptr, 0, MEM_RELEASE)
 #else
+#include <unistd.h>
+#include <sys/mman.h>
 // use plain "new" in gcc (where debugging needs are less important)
 #define ALIGNED_ALLOC(size) new BYTE[size]
 #define ALIGNED_FREE(ptr) delete [] ptr
@@ -76,20 +77,20 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 // . Sather uses INTCXROM instead of SLOTCXROM' (used by the Apple//e Tech Ref Manual), so keep to this
 //   convention too since UTAIIe is the reference for most of the logic that we implement in the emulator.
 
-#define  SW_80STORE    (memmode & MF_80STORE)
-#define  SW_ALTZP      (memmode & MF_ALTZP)
-#define  SW_AUXREAD    (memmode & MF_AUXREAD)
-#define  SW_AUXWRITE   (memmode & MF_AUXWRITE)
-#define  SW_BANK2      (memmode & MF_BANK2)
-#define  SW_HIGHRAM    (memmode & MF_HIGHRAM)
-#define  SW_HIRES      (memmode & MF_HIRES)
-#define  SW_PAGE2      (memmode & MF_PAGE2)
-#define  SW_SLOTC3ROM  (memmode & MF_SLOTC3ROM)
-#define  SW_INTCXROM   (memmode & MF_INTCXROM)
-#define  SW_WRITERAM   (memmode & MF_WRITERAM)
-#define  SW_IOUDIS     (memmode & MF_IOUDIS)
-#define  SW_ALTROM0    (memmode & MF_ALTROM0)	// For Copam Base64A
-#define  SW_ALTROM1    (memmode & MF_ALTROM1)	// For Copam Base64A
+#define  SW_80STORE    (g_memmode & MF_80STORE)
+#define  SW_ALTZP      (g_memmode & MF_ALTZP)
+#define  SW_AUXREAD    (g_memmode & MF_AUXREAD)
+#define  SW_AUXWRITE   (g_memmode & MF_AUXWRITE)
+#define  SW_BANK2      (g_memmode & MF_BANK2)
+#define  SW_HIGHRAM    (g_memmode & MF_HIGHRAM)
+#define  SW_HIRES      (g_memmode & MF_HIRES)
+#define  SW_PAGE2      (g_memmode & MF_PAGE2)
+#define  SW_SLOTC3ROM  (g_memmode & MF_SLOTC3ROM)
+#define  SW_INTCXROM   (g_memmode & MF_INTCXROM)
+#define  SW_WRITERAM   (g_memmode & MF_WRITERAM)
+#define  SW_IOUDIS     (g_memmode & MF_IOUDIS)
+#define  SW_ALTROM0    (g_memmode & MF_ALTROM0)	// For Copam Base64A
+#define  SW_ALTROM1    (g_memmode & MF_ALTROM1)	// For Copam Base64A
 
 /*
 MEMORY MANAGEMENT SOFT SWITCHES
@@ -224,7 +225,7 @@ static LPBYTE	pCxRomPeripheral	= NULL;
 
 static LPBYTE g_pMemMainLanguageCard = NULL;
 
-static DWORD   memmode      = LanguageCardUnit::kMemModeInitialState;
+static DWORD   g_memmode = LanguageCardUnit::kMemModeInitialState;
 static BOOL    modechanging = 0;				// An Optimisation: means delay calling UpdatePaging() for 1 instruction
 
 static UINT    memrompages = 1;
@@ -242,7 +243,15 @@ static LPBYTE	RWpages[kMaxExMemoryBanks];		// pointers to RW memory banks
 static const UINT kNumAnnunciators = 4;
 static bool g_Annunciator[kNumAnnunciators] = {};
 
+static const UINT num64KPages = 2;  // number of 64K pages used to create hardware circular buffer
+#ifdef _MSC_VER
+static HANDLE g_hMemImage = NULL;	// NB. When not initialised, this handle is NULL (not INVALID_HANDLE_VALUE)
+#else
+static FILE * g_hMemTempFile = NULL;
+#endif
+
 BYTE __stdcall IO_Annunciator(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nCycles);
+static void FreeMemImage(void);
 
 //=============================================================================
 
@@ -371,25 +380,27 @@ UINT GetRamWorksActiveBank(void)
 
 static BOOL GetLastRamWrite(void)
 {
-	if (GetCardMgr().GetLanguageCard())
-		return GetCardMgr().GetLanguageCard()->GetLastRamWrite();
+	if (GetCardMgr().GetLanguageCardMgr().GetLanguageCard())
+		return GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->GetLastRamWrite();
 	return 0;
 }
 
 static void SetLastRamWrite(BOOL count)
 {
-	if (GetCardMgr().GetLanguageCard())
-		GetCardMgr().GetLanguageCard()->SetLastRamWrite(count);
+	if (GetCardMgr().GetLanguageCardMgr().GetLanguageCard())
+		GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->SetLastRamWrite(count);
 }
 
 //
 
-void SetMemMainLanguageCard(LPBYTE ptr, bool bMemMain /*=false*/)
+void SetMemMainLanguageCard(LPBYTE ptr, UINT slot, bool bMemMain /*=false*/)
 {
 	if (bMemMain)
 		g_pMemMainLanguageCard = memmain+0xC000;
 	else
 		g_pMemMainLanguageCard = ptr;
+
+	GetCardMgr().GetLanguageCardMgr().SetLastSlotToSetMainMemLC(slot);
 }
 
 LPBYTE GetCxRomPeripheral(void)
@@ -417,7 +428,10 @@ static BYTE __stdcall IOWrite_C00x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULON
 static BYTE __stdcall IORead_C01x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
 	if (IS_APPLE2)	// Include Pravets machines too?
-		return KeybReadFlag();
+	{
+		KeybClearStrobe();
+		return IO_Null(pc, addr, bWrite, d, nExecutedCycles);	// GH#1261
+	}
 
 	bool res = false;
 	switch (addr & 0xf)
@@ -445,7 +459,7 @@ static BYTE __stdcall IORead_C01x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG
 
 static BYTE __stdcall IOWrite_C01x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULONG nExecutedCycles)
 {
-	return KeybReadFlag();
+	return KeybClearStrobe();
 }
 
 //-------------------------------------
@@ -643,12 +657,12 @@ static BYTE __stdcall IOWrite_C07x(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULON
 	case 0xC:	return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 	case 0xD:	return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 	case 0xE:	if (IS_APPLE2C())
-					SetMemMode(memmode | MF_IOUDIS);	// On: disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch
+					SetMemMode(g_memmode | MF_IOUDIS);	// On: disable IOU access for addresses $C058 to $C05F; enable access to DHIRES switch
 				else
 					return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 				break;
 	case 0xF:	if (IS_APPLE2C())
-					SetMemMode(memmode & ~MF_IOUDIS);	// Off: enable IOU access for addresses $C058 to $C05F; disable access to DHIRES switch
+					SetMemMode(g_memmode & ~MF_IOUDIS);	// Off: enable IOU access for addresses $C058 to $C05F; disable access to DHIRES switch
 				else
 					return IO_Null(pc, addr, bWrite, d, nExecutedCycles);
 				break;
@@ -802,7 +816,7 @@ static BYTE __stdcall IO_Cxxx(WORD programcounter, WORD address, BYTE write, BYT
 		if ((address >= APPLE_SLOT_BEGIN) && (address <= APPLE_SLOT_END))
 		{
 			const UINT uSlot = (address>>8)&0x7;
-			if (uSlot != 3)
+			if (IS_APPLE2 || uSlot != SLOT3)
 			{
 				if (ExpansionRom[uSlot])
 					IO_SELECT |= 1<<uSlot;
@@ -827,7 +841,7 @@ static BYTE __stdcall IO_Cxxx(WORD programcounter, WORD address, BYTE write, BYT
 		if (IO_SELECT && IO_STROBE)
 		{
 			// Enable Peripheral Expansion ROM
-			UINT uSlot=1;
+			UINT uSlot = SLOT1;
 			for (; uSlot<NUM_SLOTS; uSlot++)
 			{
 				if (IO_SELECT & (1<<uSlot))
@@ -893,8 +907,8 @@ static BYTE __stdcall IO_Cxxx(WORD programcounter, WORD address, BYTE write, BYT
 		const UINT uSlot = (address>>8)&0x7;
 		const bool bPeripheralSlotRomEnabled = IS_APPLE2 ? true	// A][
 													     :		// A//e or above
-			  ( !SW_INTCXROM   &&					// Peripheral (card) ROMs enabled in $C100..$C7FF
-		      !(!SW_SLOTC3ROM  && uSlot == 3) );	// Internal C3 ROM disabled in $C300 when slot == 3
+			  ( !SW_INTCXROM   &&						// Peripheral (card) ROMs enabled in $C100..$C7FF
+		      !(!SW_SLOTC3ROM  && uSlot == SLOT3) );	// Internal C3 ROM disabled in $C300 when slot == 3
 
 		// Fix for GH#149 and GH#164
 		if (bPeripheralSlotRomEnabled && !IsCardInSlot(uSlot))	// Slot is empty
@@ -987,7 +1001,7 @@ void RegisterIoHandler(UINT uSlot, iofunction IOReadC0, iofunction IOWriteC0, io
 	IORead[uSlot+8]		= IOReadC0;
 	IOWrite[uSlot+8]	= IOWriteC0;
 
-	if (uSlot == 0)		// Don't trash C0xx handlers
+	if (uSlot == SLOT0)		// Don't trash C0xx handlers
 		return;
 
 	//
@@ -1073,14 +1087,14 @@ static bool IsCardInSlot(UINT slot)
 
 DWORD GetMemMode(void)
 {
-	return memmode;
+	return g_memmode;
 }
 
 void SetMemMode(DWORD uNewMemMode)
 {
 #if defined(_DEBUG) && 0
 	static DWORD dwOldDiff = 0;
-	DWORD dwDiff = memmode ^ uNewMemMode;
+	DWORD dwDiff = g_memmode ^ uNewMemMode;
 	dwDiff &= ~(MF_SLOTC3ROM | MF_INTCXROM);
 	if (dwOldDiff != dwDiff)
 	{
@@ -1115,7 +1129,7 @@ void SetMemMode(DWORD uNewMemMode)
 		OutputDebugString(str.c_str());
 	}
 #endif
-	memmode = uNewMemMode;
+	g_memmode = uNewMemMode;
 }
 
 //===========================================================================
@@ -1127,18 +1141,15 @@ static void UpdatePaging(BOOL initialize);
 // . CtrlReset() Soft-reset (Ctrl+Reset) for //e
 void MemResetPaging()
 {
-	ResetPaging(0);		// Initialize=0
+	ResetPaging(FALSE);	// Initialize=0
 }
 
+// Call by:
+// . MemResetPaging() -> ResetPaging(FALSE)
+// . MemReset()       -> ResetPaging(TRUE)
 static void ResetPaging(BOOL initialize)
 {
-	SetLastRamWrite(0);
-
-	if (IsApple2PlusOrClone(GetApple2Type()) && GetCardMgr().QuerySlot(SLOT0) == CT_Empty)
-		SetMemMode(0);
-	else
-		SetMemMode(LanguageCardUnit::kMemModeInitialState);
-
+	GetCardMgr().GetLanguageCardMgr().Reset(initialize);
 	UpdatePaging(initialize);
 }
 
@@ -1258,8 +1269,11 @@ static void UpdatePaging(BOOL initialize)
 	// PAGING SHADOW TABLE
 	//
 	// NB. the condition 'loop <= 1' is there because:
-	// . Page0 (ZP)    : memdirty[0] is set when the 6502 CPU does a ZP-write, but perhaps older versions didn't set this flag (eg. the asm version?).
-	// . Page1 (stack) : memdirty[1] is NOT set when the 6502 CPU writes to this page with JSR, etc.
+	// . Page0 (ZP) and Page1 (stack) are written to so often that it's almost certain that they'll be dirty every time this function is called.
+	// Note also that:
+	// . Page0 (ZP)    : memdirty[0] is set when the 6502 CPU writes to ZP.
+	// . Page1 (stack) : memdirty[1] is NOT set when the 6502 CPU writes to this page with JSR, PHA, etc.
+	// Ultimately this is an optimisation (due to Page1 writes not setting memdirty[1]) and Page0 could be optimised to also not set memdirty[0].
 
 	for (loop = 0x00; loop < 0x100; loop++)
 	{
@@ -1287,7 +1301,7 @@ void MemDestroy()
 {
 	ALIGNED_FREE(memaux);
 	ALIGNED_FREE(memmain);
-	ALIGNED_FREE(memimage);
+	FreeMemImage();
 
 	delete [] memdirty;
 	delete [] memrom;
@@ -1296,7 +1310,7 @@ void MemDestroy()
 	delete [] pCxRomPeripheral;
 
 #ifdef RAMWORKS
-	for (UINT i=1; i<g_uMaxExPages; i++)
+	for (UINT i=1; i<kMaxExMemoryBanks; i++)
 	{
 		if (RWpages[i])
 		{
@@ -1332,19 +1346,6 @@ bool MemCheckSLOTC3ROM()
 bool MemCheckINTCXROM()
 {
 	return SW_INTCXROM ? true : false;
-}
-
-//===========================================================================
-
-static void BackMainImage(void)
-{
-	for (UINT loop = 0; loop < 256; loop++)
-	{
-		if (memshadow[loop] && ((*(memdirty+loop) & 1) || (loop <= 1)))
-			memcpy(memshadow[loop], mem+(loop << 8), 256);
-
-		*(memdirty+loop) &= ~1;
-	}
 }
 
 //===========================================================================
@@ -1434,12 +1435,29 @@ LPBYTE MemGetMainPtr(const WORD offset)
 
 //===========================================================================
 
+static void BackMainImage(void)
+{
+	for (UINT loop = 0; loop < 256; loop++)
+	{
+		if (memshadow[loop] && ((*(memdirty + loop) & 1) || (loop <= 1)))
+			memcpy(memshadow[loop], mem + (loop << 8), 256);
+
+		*(memdirty + loop) &= ~1;
+	}
+}
+
+//-------------------------------------
+
 // Used by:
 // . Savestate: MemSaveSnapshotMemory(), MemLoadSnapshotAux()
+// . VidHD    : SaveSnapshot(), LoadSnapshot()
 // . Debugger : CmdMemorySave(), CmdMemoryLoad()
-LPBYTE MemGetBankPtr(const UINT nBank)
+LPBYTE MemGetBankPtr(const UINT nBank, const bool isSaveSnapshotOrDebugging/*=true*/)
 {
-	BackMainImage();	// Flush any dirty pages to back-buffer
+	// Only call BackMainImage() when a consistent 64K bank is needed, eg. for saving snapshot or debugging
+	// - for snapshot *loads* it's redundant, and worse it can corrupt pages 0 & 1 for aux banks, so must be avoided (GH#1262)
+	if (isSaveSnapshotOrDebugging)
+		BackMainImage();	// Flush any dirty pages to back-buffer
 
 #ifdef RAMWORKS
 	if (nBank > g_uMaxExPages)
@@ -1503,12 +1521,153 @@ bool MemIsAddrCodeMemory(const USHORT addr)
 
 //===========================================================================
 
+static void FreeMemImage(void)
+{
+#ifdef _MSC_VER
+	if (g_hMemImage)
+	{
+		for (UINT i = 0; i < num64KPages; i++)
+			UnmapViewOfFile(memimage + i * _6502_MEM_LEN);
+
+		CloseHandle(g_hMemImage);
+		g_hMemImage = NULL;
+	}
+	else
+	{
+		ALIGNED_FREE(memimage);
+	}
+#else
+	if (g_hMemTempFile)
+	{
+		// unmap the whole region, everything inside will be unmapped too
+		munmap(memimage, num64KPages * _6502_MEM_LEN);
+
+		fclose(g_hMemTempFile);
+		g_hMemTempFile = NULL;
+	}
+	else
+	{
+		ALIGNED_FREE(memimage);
+	}
+#endif
+}
+
+static LPBYTE AllocMemImage(void)
+{
+#ifdef _MSC_VER
+	LPBYTE baseAddr = NULL;
+
+	// Allocate memory for 'memimage' (and the alias 'mem')
+	// . Setup so we have 2 consecutive virtual 64K regions pointing to the same physical 64K region.
+	// . This is a fix (and optimisation) for 6502 opcodes that do a 16-bit read at 6502 address $FFFF. (GH#1285)
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+	bool res = (info.dwAllocationGranularity == _6502_MEM_LEN);
+
+	if (res)
+	{
+		UINT retry = 10;
+		do
+		{
+			res = false;
+			const SIZE_T totalVirtualSize = _6502_MEM_LEN * num64KPages;
+			baseAddr = (LPBYTE)VirtualAlloc(0, totalVirtualSize, MEM_RESERVE, PAGE_NOACCESS);
+			if (baseAddr == NULL)
+				break;
+			VirtualFree(baseAddr, 0, MEM_RELEASE);
+
+			// Create a file mapping object of [64K] size that is backed by the system paging file.
+			g_hMemImage = CreateFileMapping(INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, _6502_MEM_LEN, NULL);
+			// NB. Returns NULL on failure (not INVALID_HANDLE_VALUE)
+			if (g_hMemImage == NULL)
+				break;
+
+			UINT count = 0;
+			while (count < num64KPages)
+			{
+				// MSDN: "To specify a suggested base address for the view, use the MapViewOfFileEx function. However, this practice is not recommended."
+				// The OS (ie. another process) may've beaten us to this suggested baseAddr. This is why we retry multiple times.
+				if (!MapViewOfFileEx(g_hMemImage, FILE_MAP_ALL_ACCESS, 0, 0, _6502_MEM_LEN, baseAddr + count * _6502_MEM_LEN))
+					break;
+				count++;
+			}
+
+			res = (count == num64KPages);
+			if (res)
+				break;
+
+			// Failed this time, so clean-up and retry...
+			FreeMemImage();
+		}
+		while (retry--);
+
+#if 1
+		if (res)	// test
+		{
+			baseAddr[0x0000] = 0x11;
+			baseAddr[0xffff] = 0x22;
+			USHORT value = *((USHORT*)(baseAddr + 0xffff));
+			_ASSERT(value == 0x1122);
+		}
+#endif
+	}
+	else
+	{
+		LogFileOutput("MemInitialize: SYSETEM_INFO.wAllocationGranularity = 0x%08X.\n", info.dwAllocationGranularity);
+	}
+
+	if (!res)
+	{
+		LogFileOutput("MemInitialize: Failed to map 2 adjacent virtual 64K pages (reverting to old method).\n");
+		baseAddr = ALIGNED_ALLOC(_6502_MEM_LEN);
+	}
+
+	return baseAddr;
+#else
+	g_hMemTempFile = tmpfile();
+	if (g_hMemTempFile)
+	{
+		const int fd = fileno(g_hMemTempFile);
+		if (!ftruncate(fd, _6502_MEM_LEN))
+		{
+			LPBYTE baseAddr = static_cast<LPBYTE>(mmap(NULL, num64KPages * _6502_MEM_LEN, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+			if (baseAddr)
+			{
+				bool ok = true;
+				for (UINT i = 0; i < num64KPages; i++)
+				{
+					void * target = baseAddr + i * _6502_MEM_LEN;
+					void * addr = mmap(target, _6502_MEM_LEN, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0);
+					ok = ok && (target == addr);
+				}
+				// we could fclose the file here
+				// but we keep it as a reminder of how to free the memory later
+				if (ok)
+				{
+					return baseAddr;
+				}
+				// revert to ALIGNED_ALLOC
+				munmap(baseAddr, num64KPages * _6502_MEM_LEN);
+			}
+		}
+
+		fclose(g_hMemTempFile);
+		g_hMemTempFile = NULL;
+	}
+
+	LogFileOutput("MemInitialize: Failed to map 2 adjacent virtual 64K pages (reverting to old method).\n");
+	return ALIGNED_ALLOC(_6502_MEM_LEN);
+#endif
+}
+
+//===========================================================================
+
 void MemInitialize()
 {
 	// ALLOCATE MEMORY FOR THE APPLE MEMORY IMAGE AND ASSOCIATED DATA STRUCTURES
 	memaux   = ALIGNED_ALLOC(_6502_MEM_LEN);	// NB. alloc even if model is Apple II/II+, since it's used by VidHD card
 	memmain  = ALIGNED_ALLOC(_6502_MEM_LEN);
-	memimage = ALIGNED_ALLOC(_6502_MEM_LEN);
+	memimage = AllocMemImage();
 
 	memdirty = new BYTE[0x100];
 	memrom   = new BYTE[0x3000 * MaxRomPages];
@@ -1770,6 +1929,9 @@ void MemInitializeFromSnapshot(void)
 		// NB. Copied to /mem/ by UpdatePaging(TRUE)
 	}
 
+	GetCardMgr().GetLanguageCardMgr().SetMemModeFromSnapshot();
+
+	// Finally setup the paging tables
 	MemUpdatePaging(TRUE);
 
 	//
@@ -1942,7 +2104,7 @@ void MemReset()
 	mem = memimage;
 
 	// INITIALIZE PAGING, FILLING IN THE 64K MEMORY IMAGE
-	ResetPaging(TRUE);		// Initialize=1, init memmode
+	ResetPaging(TRUE);		// Initialize=1, init g_memmode
 	MemAnnunciatorReset();
 
 	// INITIALIZE & RESET THE CPU
@@ -2006,7 +2168,7 @@ static void DebugFlip(WORD address, ULONG nExecutedCycles)
 BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE value, ULONG nExecutedCycles)
 {
 	address &= 0xFF;
-	DWORD lastmemmode = memmode;
+	DWORD lastmemmode = g_memmode;
 #if defined(_DEBUG) && defined(DEBUG_FLIP_TIMINGS)
 	DebugFlip(address, nExecutedCycles);
 #endif
@@ -2016,22 +2178,22 @@ BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE 
 	{
 		switch (address)
 		{
-			case 0x00: SetMemMode(memmode & ~MF_80STORE);    break;
-			case 0x01: SetMemMode(memmode |  MF_80STORE);    break;
-			case 0x02: SetMemMode(memmode & ~MF_AUXREAD);    break;
-			case 0x03: SetMemMode(memmode |  MF_AUXREAD);    break;
-			case 0x04: SetMemMode(memmode & ~MF_AUXWRITE);   break;
-			case 0x05: SetMemMode(memmode |  MF_AUXWRITE);   break;
-			case 0x06: SetMemMode(memmode & ~MF_INTCXROM);   break;
-			case 0x07: SetMemMode(memmode |  MF_INTCXROM);   break;
-			case 0x08: SetMemMode(memmode & ~MF_ALTZP);      break;
-			case 0x09: SetMemMode(memmode |  MF_ALTZP);      break;
-			case 0x0A: SetMemMode(memmode & ~MF_SLOTC3ROM);  break;
-			case 0x0B: SetMemMode(memmode |  MF_SLOTC3ROM);  break;
-			case 0x54: SetMemMode(memmode & ~MF_PAGE2);      break;
-			case 0x55: SetMemMode(memmode |  MF_PAGE2);      break;
-			case 0x56: SetMemMode(memmode & ~MF_HIRES);      break;
-			case 0x57: SetMemMode(memmode |  MF_HIRES);      break;
+			case 0x00: SetMemMode(g_memmode & ~MF_80STORE);    break;
+			case 0x01: SetMemMode(g_memmode |  MF_80STORE);    break;
+			case 0x02: SetMemMode(g_memmode & ~MF_AUXREAD);    break;
+			case 0x03: SetMemMode(g_memmode |  MF_AUXREAD);    break;
+			case 0x04: SetMemMode(g_memmode & ~MF_AUXWRITE);   break;
+			case 0x05: SetMemMode(g_memmode |  MF_AUXWRITE);   break;
+			case 0x06: SetMemMode(g_memmode & ~MF_INTCXROM);   break;
+			case 0x07: SetMemMode(g_memmode |  MF_INTCXROM);   break;
+			case 0x08: SetMemMode(g_memmode & ~MF_ALTZP);      break;
+			case 0x09: SetMemMode(g_memmode |  MF_ALTZP);      break;
+			case 0x0A: SetMemMode(g_memmode & ~MF_SLOTC3ROM);  break;
+			case 0x0B: SetMemMode(g_memmode |  MF_SLOTC3ROM);  break;
+			case 0x54: SetMemMode(g_memmode & ~MF_PAGE2);      break;
+			case 0x55: SetMemMode(g_memmode |  MF_PAGE2);      break;
+			case 0x56: SetMemMode(g_memmode & ~MF_HIRES);      break;
+			case 0x57: SetMemMode(g_memmode |  MF_HIRES);      break;
 #ifdef RAMWORKS
 			case 0x71: // extended memory aux page number
 			case 0x73: // Ramworks III set aux page number
@@ -2059,10 +2221,10 @@ BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE 
 	{
 		switch (address)
 		{
-			case 0x58: SetMemMode(memmode & ~MF_ALTROM0);  break;
-			case 0x59: SetMemMode(memmode |  MF_ALTROM0);  break;
-			case 0x5A: SetMemMode(memmode & ~MF_ALTROM1);  break;
-			case 0x5B: SetMemMode(memmode |  MF_ALTROM1);  break;
+			case 0x58: SetMemMode(g_memmode & ~MF_ALTROM0);  break;
+			case 0x59: SetMemMode(g_memmode |  MF_ALTROM0);  break;
+			case 0x5A: SetMemMode(g_memmode & ~MF_ALTROM1);  break;
+			case 0x5B: SetMemMode(g_memmode |  MF_ALTROM1);  break;
 		}
 	}
 
@@ -2071,10 +2233,10 @@ BYTE __stdcall MemSetPaging(WORD programcounter, WORD address, BYTE write, BYTE 
 
 	// IF THE MEMORY PAGING MODE HAS CHANGED, UPDATE OUR MEMORY IMAGES AND
 	// WRITE TABLES.
-	if ((lastmemmode != memmode) || modechanging)
+	if ((lastmemmode != g_memmode) || modechanging)
 	{
 		// NB. Must check MF_SLOTC3ROM too, as IoHandlerCardsIn() depends on both MF_INTCXROM|MF_SLOTC3ROM
-		if ((lastmemmode & (MF_INTCXROM|MF_SLOTC3ROM)) != (memmode & (MF_INTCXROM|MF_SLOTC3ROM)))
+		if ((lastmemmode & (MF_INTCXROM|MF_SLOTC3ROM)) != (g_memmode & (MF_INTCXROM|MF_SLOTC3ROM)))
 		{
 			if (!SW_INTCXROM)
 			{
@@ -2116,6 +2278,9 @@ bool MemOptimizeForModeChanging(WORD programcounter, WORD address)
 {
 	if (IsAppleIIeOrAbove(GetApple2Type()))
 	{
+		if (programcounter > 0xFFFC)	// Prevent out of bounds access!
+			return false;
+
 		// IF THE EMULATED PROGRAM HAS JUST UPDATED THE MEMORY WRITE MODE AND IS
 		// ABOUT TO UPDATE THE MEMORY READ MODE, HOLD OFF ON ANY PROCESSING UNTIL
 		// IT DOES SO.
@@ -2129,6 +2294,8 @@ bool MemOptimizeForModeChanging(WORD programcounter, WORD address)
 				return true;
 		}
 
+		// TODO: support Saturn in any slot.
+		// NB. GH#602 asks for any examples of this happening:
 		if ((address >= 0x80) && (address <= 0x8F) && (programcounter < 0xC000) &&	// Now: LC
 			(((*(LPDWORD)(mem+programcounter) & 0x00FFFEFF) == 0x00C0048D) ||		// Next: STA $C004(RAMWRTOFF) or STA $C005(RAMWRTON)
 			 ((*(LPDWORD)(mem+programcounter) & 0x00FFFEFF) == 0x00C0028D)))		//    or STA $C002(RAMRDOFF)  or STA $C003(RAMRDON)
@@ -2158,7 +2325,7 @@ void MemAnnunciatorReset(void)
 
 	if (IsCopamBase64A(GetApple2Type()))
 	{
-		SetMemMode(memmode & ~(MF_ALTROM0|MF_ALTROM1));
+		SetMemMode(g_memmode & ~(MF_ALTROM0|MF_ALTROM1));
 		UpdatePaging(FALSE);	// Initialize=FALSE
 	}
 }
@@ -2201,6 +2368,8 @@ void MemRemoveNoSlotClock(void)
 #define SS_YAML_KEY_EXPANSIONROMTYPE "Expansion ROM Type"
 #define SS_YAML_KEY_PERIPHERALROMSLOT "Peripheral ROM Slot"
 #define SS_YAML_KEY_ANNUNCIATOR "Annunciator"
+#define SS_YAML_KEY_LASTSLOTTOSETMAINMEMLC "Last Slot to Set Main Mem LC"
+#define SS_YAML_KEY_MMULCMODE "MMU LC Mode"
 
 //
 
@@ -2265,16 +2434,20 @@ void MemSaveSnapshot(YamlSaveHelper& yamlSaveHelper)
 	// Scope so that "Memory" & "Main Memory" are at same indent level
 	{
 		YamlSaveHelper::Label state(yamlSaveHelper, "%s:\n", MemGetSnapshotStructName().c_str());
-		DWORD saveMemMode = memmode;
-		if (IsApple2PlusOrClone(GetApple2Type()))
-			saveMemMode &= ~MF_LANGCARD_MASK;		// For II,II+: clear LC bits - set later by slot-0 LC or Saturn
-		yamlSaveHelper.SaveHexUint32(SS_YAML_KEY_MEMORYMODE, saveMemMode);
-		if (!IsApple2PlusOrClone(GetApple2Type()))	// NB. This is set later for II,II+ by slot-0 LC or Saturn
+		// LC bits
+		// . For II,II+: set later by slot-0 LC or Saturn
+		// . For //e,//c: set in SS_YAML_KEY_MMULCMODE
+		yamlSaveHelper.SaveHexUint32(SS_YAML_KEY_MEMORYMODE, g_memmode & ~MF_LANGCARD_MASK);	// Clear LC bits
+		if (!IsApple2PlusOrClone(GetApple2Type()))	// NB. Thesed are set later for II,II+ by slot-0 LC or Saturn
+		{
+			yamlSaveHelper.SaveHexUint32(SS_YAML_KEY_MMULCMODE, g_memmode & MF_LANGCARD_MASK);
 			yamlSaveHelper.SaveUint(SS_YAML_KEY_LASTRAMWRITE, GetLastRamWrite() ? 1 : 0);
+		}
 		yamlSaveHelper.SaveHexUint8(SS_YAML_KEY_IOSELECT, IO_SELECT);
 		yamlSaveHelper.SaveHexUint8(SS_YAML_KEY_IOSELECT_INT, INTC8ROM ? 1 : 0);
 		yamlSaveHelper.SaveUint(SS_YAML_KEY_EXPANSIONROMTYPE, (UINT) g_eExpansionRomType);
 		yamlSaveHelper.SaveUint(SS_YAML_KEY_PERIPHERALROMSLOT, g_uPeripheralRomSlot);
+		yamlSaveHelper.SaveUint(SS_YAML_KEY_LASTSLOTTOSETMAINMEMLC, GetCardMgr().GetLanguageCardMgr().GetLastSlotToSetMainMemLC());
 
 		for (UINT i=0; i<kNumAnnunciators; i++)
 		{
@@ -2313,18 +2486,36 @@ bool MemLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 
 	if (unitVersion == 1)
 	{
-		SetMemMode( yamlLoadHelper.LoadUint(SS_YAML_KEY_MEMORYMODE) ^ MF_INTCXROM );	// Convert from SLOTCXROM to INTCXROM
-		SetLastRamWrite( yamlLoadHelper.LoadUint(SS_YAML_KEY_LASTRAMWRITE) ? TRUE : FALSE );
+		UINT uMemMode = yamlLoadHelper.LoadUint(SS_YAML_KEY_MEMORYMODE) ^ MF_INTCXROM;	// Convert from SLOTCXROM to INTCXROM
+		SetMemMode(uMemMode);
+
+		if (GetCardMgr().GetLanguageCardMgr().GetLanguageCard())
+			GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->SetLCMemMode(uMemMode & MF_LANGCARD_MASK);
+
+		SetLastRamWrite(yamlLoadHelper.LoadUint(SS_YAML_KEY_LASTRAMWRITE) ? TRUE : FALSE);
 	}
 	else
 	{
 		UINT uMemMode = yamlLoadHelper.LoadUint(SS_YAML_KEY_MEMORYMODE);
-		if (IsApple2PlusOrClone(GetApple2Type()))
-			uMemMode &= ~MF_LANGCARD_MASK;	// For II,II+: clear LC bits - set later by slot-0 LC or Saturn
+		if (IsApple2PlusOrClone(GetApple2Type()) || unitVersion >= 9)
+			uMemMode &= ~MF_LANGCARD_MASK;	// For II,II+: clear LC bits - set later by slot-0 LC or Saturn (or some other slot-n Saturn)
+											// For //e,//c: (>=v9) clear LC bits - set later after reading all cards and we know which card contributes these bits
+											// For //e (<9): don't clear, as only old versions only supported the IIe LC from the MMU
 		SetMemMode(uMemMode);
 
-		if (!IsApple2PlusOrClone(GetApple2Type()))
-			SetLastRamWrite( yamlLoadHelper.LoadUint(SS_YAML_KEY_LASTRAMWRITE) ? TRUE : FALSE );	// NB. This is set later for II,II+ by slot-0 LC or Saturn
+		if (!IsApple2PlusOrClone(GetApple2Type()))	// NB. These are set later for II,II+ by slot-0 LC or Saturn
+		{
+			if (unitVersion < 9)
+			{
+				GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->SetLCMemMode(uMemMode & MF_LANGCARD_MASK);
+			}
+			else
+			{
+				UINT LCMemMode = yamlLoadHelper.LoadUint(SS_YAML_KEY_MMULCMODE);
+				GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->SetLCMemMode(LCMemMode);
+			}
+			SetLastRamWrite(yamlLoadHelper.LoadUint(SS_YAML_KEY_LASTRAMWRITE) ? TRUE : FALSE);
+		}
 	}
 
 	if (unitVersion >= 3)
@@ -2334,6 +2525,12 @@ bool MemLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 			std::string annunciator = SS_YAML_KEY_ANNUNCIATOR + std::string(1,'0'+i);
 			g_Annunciator[i] = yamlLoadHelper.LoadBool(annunciator.c_str());
 		}
+	}
+
+	GetCardMgr().GetLanguageCardMgr().SetLastSlotToSetMainMemLCFromSnapshot(SLOT0);
+	if (unitVersion >= 9)
+	{
+		GetCardMgr().GetLanguageCardMgr().SetLastSlotToSetMainMemLCFromSnapshot(yamlLoadHelper.LoadUint(SS_YAML_KEY_LASTSLOTTOSETMAINMEMLC));
 	}
 
 	yamlLoadHelper.PopMap();
@@ -2356,11 +2553,8 @@ bool MemLoadSnapshot(YamlLoadHelper& yamlLoadHelper, UINT unitVersion)
 
 	yamlLoadHelper.PopMap();
 
-	//
-
-	// NB. MemUpdatePaging(TRUE) called at end of Snapshot_LoadState_v2()
-	UpdatePaging(1);	// Initialize=1 (Still needed, even with call to MemUpdatePaging() - why?)
-						// TC-TODO: At this point, the cards haven't been loaded, so the card's expansion ROM is unknown - so pointless(?) calling this now
+	// NB. MemInitializeFromSnapshot()->MemUpdatePaging() called at end of Snapshot_LoadState_v2()
+	// . At this point, the cards haven't been loaded (no aux mem & any card's expansion ROM is unknown) - so pointless calling MemUpdatePaging() at this stage (GH#1267)
 
 	return true;
 }
@@ -2447,7 +2641,7 @@ static void MemLoadSnapshotAuxCommon(YamlLoadHelper& yamlLoadHelper, const std::
 
 	for(UINT uBank = 1; uBank <= g_uMaxExPages; uBank++)
 	{
-		LPBYTE pBank = MemGetBankPtr(uBank);
+		LPBYTE pBank = MemGetBankPtr(uBank, false);
 		if (!pBank)
 		{
 			pBank = RWpages[uBank-1] = ALIGNED_ALLOC(_6502_MEM_LEN);

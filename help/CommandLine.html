@@ -28,14 +28,24 @@
 		-s5d2 &lt;pathname&gt;<br>
 		Start with a floppy disk in slot 5 drive-2 (must be used with '-s5 diskii' or '-s5 diskii13').<br><br>
 		-h1 &lt;pathname&gt;<br>
-		Start with hard disk 1 plugged-in (and auto power-on the Apple II). NB. Hard disk controller card gets enabled.<br><br>
+		Start with hard disk 1 plugged in (and auto power-on the Apple II). NB. Hard disk controller card in slot 7 gets enabled.<br><br>
 		-h2 &lt;pathname&gt;<br>
-		Start with hard disk 2 plugged-in. NB. Hard disk controller card gets enabled.<br><br>
+		Start with hard disk 2 plugged in. NB. Hard disk controller card in slot 7 gets enabled.<br><br>
 		-s5h1 &lt;pathname&gt;<br>
-		Start with hard disk 1 plugged-in slot 5 (must be used with '-s5 hdc').<br><br>
+		Start with hard disk 1 plugged into HDC in slot 5 (must be used with '-s5 hdc').<br><br>
 		-s5h2 &lt;pathname&gt;<br>
-		Start with hard disk 2 plugged-in slot 5 (must be used with '-s5 hdc').<br><br>
-		NB. For -d1,-d2,-s5d1,-s5d2,-h1,-h2,-s5h1,-s5h2, if pathname is "", then the disk is ejected or the hard disk is unplugged.<br><br>
+		Start with hard disk 2 plugged into HDC in  slot 5 (must be used with '-s5 hdc').<br><br>
+		-s5h&lt;1|2|3|4|5|6|7|8&gt; &lt;pathname&gt;<br>
+		Start with hard disk n plugged into HDC in  slot 5 (must be used with '-s5 hdc').<br>
+		NB. Only SmartPort firmware for enhanced //e supports hard disks 5-8.<br><br>
+		-s7h1 &lt;pathname&gt;<br>
+		Start with hard disk 1 plugged into HDC in slot 7 (must be used with '-s7 hdc').<br><br>
+		-s7h2 &lt;pathname&gt;<br>
+		Start with hard disk 2 plugged into HDC in slot 7 (must be used with '-s7 hdc').<br><br>
+		-s7h&lt;1|2|3|4|5|6|7|8&gt; &lt;pathname&gt;<br>
+		Start with hard disk n plugged into HDC in slot 7 (must be used with '-s7 hdc').<br>
+		NB. Only SmartPort firmware for enhanced //e supports hard disks 5-8.<br><br>
+		NB. For -d1,-d2,-s5d1,-s5d2,-h1,-h2,-s5h*,-s7h*, if pathname is "", then the disk is ejected or the hard disk is unplugged.<br><br>
 		-model &lt;apple2|apple2p|apple2jp|apple2e|apple2ee&gt;<br>
 		Select the machine model: Apple II, Apple II+, Apple II J-Plus, Apple //e, Enhanced Apple //e.<br><br>
 		-clock-multiplier &lt;value&gt;<br>
@@ -43,12 +53,16 @@
 		-s0 &lt;saturn|saturn64|saturn128&gt;<br>
 		Insert a Saturn 64K or Saturn 128K card into slot 0 in the Apple II or II+ machines (or similar clone).<br>
 		Where -s0 saturn is an alias for -s0 saturn128.<br><br>
+		-s3 &lt;saturn|saturn128&gt;<br>
+		Insert a Saturn 128K card into slot 3 in any Apple II machine.<br>
+		Use this configuration for Robocom Ltd's (Robo Systems') CAD software in combination with the Interface Module protection dongle in the Game I/O Connector.<br><br>
 		-s0 &lt;languagecard|lc&gt;<br>
 		Insert an Apple 16K Language Card into slot 0 in the original Apple II and use the F8 auto-start ROM.<br>
 		NB. The Apple II+ already defaults to having a Language Card, so this switch is not required.<br><br>
 		-s&lt;N&gt; empty<br>
 		Remove any card from slot N (N=1-7).<br>
-		NB. '-s7 empty' is useful to allow a floppy disk to boot from slot 6, drive 1. Use in combination with -d1.<br><br>
+		NB. '-s7 empty' is useful to allow a floppy disk to boot from slot 6, drive 1. Use in combination with -d1.<br>
+		NB. '-s6 empty' persists this state to the Registry and there's currently no GUI option to re-insert a Disk II controller card into slot 6. So you must use '-s6 diskii' to re-enable the card in slot 6.<br><br>
 		-s1 parallel<br>
 		Insert a parallel printer card into slot 1.<br><br>
 		-s2 ssc<br>
@@ -65,9 +79,12 @@
 		Remove the hard disk controller card from slot 7 on AppleWin exit.<br><br>
 		-s5 hdc<br>
 		-s7 hdc<br>
-		Insert a hard disk controller card into slot 5 or 7.<br><br>
+		Insert a hard disk controller card into slot 5 or 7.<br>
+		NB. For enhanced //e, the firmware will support SmartPort commands (and up to 8 hard disk devices).<br><br>
 		-d1-disconnected, -d2-disconnected<br>
 		Disconnect drive-1 and/or drive-2 from the Disk II controller card in slot 6.<br><br>
+		-harddisknumblocks &lt;number of ProDOS blocks&gt;<br>
+		Set the number of blocks returned by a ProDOS status call. Use -harddisknumblocks 32767 to have the same autoexpanding behavior as older AppleWin versions.<br><br>
 		-no-nsc<br>
 		Remove the No-Slot clock (NSC).<br><br>
 		-r &lt;number of pages&gt;<br>
@@ -185,6 +202,9 @@
 		-rgb-card-invert-bit7<br>
 		Force the RGB card to invert bit7 in MIX mode. Enables the correct rendering for Dragon Wars.<br>
 		Use in conjunction with the 'Color (RGB Card/Monitor)' video mode.<br><br>
+		-mac-lc-card-dlgr<br>
+		Support the DLGR display bug in the 'Apple IIe card for Mac LC'.<br>
+		NB. This switch only has an effect when in either "Color (Composite Idealized)" or "RGB Card/Monitor" video modes.<br><br>
 		-50hz<br>
 		Support 50Hz(PAL) video refresh rate and PAL 1.016MHz base CPU clock.<br><br>
 		-60hz<br>
@@ -200,9 +220,9 @@
 		<br>
 		-wav-speaker &lt;file.wav&gt;<br>
 		Save the speaker audio to a .wav file.<br>
-		Warning: there's no file size limit, so it just keeps saving until AppleWin exits (~5MB per minute).<br>
+		Warning: there's no file size limit, so it just keeps saving until AppleWin exits (~10MB per minute).<br>
 		<br>
-		Save the Mockingboard audio to a .wav file.<br>
+		Save the Mockingboard audio (but not speech) to a .wav file.<br>
 		-wav-mockingboard &lt;file.wav&gt;<br>
 		Warning: there's no file size limit, so it just keeps saving until AppleWin exits (~10MB per minute).<br>
 		<br>
@@ -220,5 +240,19 @@
 		<br><br>
 		-screenshot-and-exit<br>
 		For testing. Use in combination with -load-state.<br><br>
+		-load-state-ignore-hdc-fw<br>
+		For testing. Use in combination with -load-state.<br><br>
+		-hdc-firmware-v1<br>
+		Force all attached hard disk controllers to use the old v1 firmware (as per pre-AppleWin 1.30.17).
+		<ul>
+			<li>NB. Switch likely to be removed after a few releases.</li>
+		</ul>
+		-s&lt;n&gt; hdc-[sp|bm2|bm4]
+		<ul>
+			<li>hdc-sp: Force HDC SmartPort firmware for II/II+/Unenhanced //e machines (now won't autoboot from HDD-1).</li>
+			<li>hdc-bm2: Modify HDC firmware: $Cn07=$3C (block mode, not SmartPort), and $CnFE to report supporting 2 block mode devices.</li>
+			<li>hdc-bm4: Modify HDC firmware: $Cn07=$3C (block mode, not SmartPort), and $CnFE to report supporting 4 block mode devices.</li>
+		</ul>
+		<br><br>
 	</body>
 </html>

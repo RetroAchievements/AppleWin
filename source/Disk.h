@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include <vector>
 #include "Card.h"
+#include "Log.h"
 #include "DiskLog.h"
 #include "DiskFormatTrack.h"
 #include "DiskImage.h"
@@ -161,19 +162,22 @@ public:
 	void UnplugDrive(const int drive);
 
 	bool IsConditionForFullSpeed(void);
-	void NotifyInvalidImage(const int drive, LPCTSTR pszImageFilename, const ImageError_e Error);
-	UINT GetCurrentFirmware(void) { return m_is13SectorFirmware ? 13 : 16; }
-	int GetCurrentDrive(void);
-	int GetCurrentTrack(void);
-	float GetCurrentPhase(void);
+	void NotifyInvalidImage(const int drive, const std::string & szImageFilename, const ImageError_e Error);
+
 	UINT GetCurrentBitOffset(void);
+	UINT GetCurrentFirmware(void) { return m_is13SectorFirmware ? 13 : 16; }
 	double GetCurrentExtraCycles(void);
+	float GetCurrentPhase(void);
+	int GetCurrentDrive(void);
+	BYTE GetCurrentShiftReg(void);
+	int GetCurrentTrack(void);
+
 	float GetPhase(const int drive);
 	int GetTrack(const int drive);
 	static std::string FormatIntFracString(float phase, bool hex);
 	std::string GetCurrentTrackString(void);
 	std::string GetCurrentPhaseString(void);
-	LPCTSTR GetCurrentState(void);
+	LPCTSTR GetCurrentState(Disk_Status_e& eDiskState_);
 	bool UserSelectNewDiskImage(const int drive, LPCSTR pszFilename="");
 	bool DriveSwap(void);
 	bool IsDriveConnected(int drive) { return m_floppyDrive[drive].m_isConnected; }

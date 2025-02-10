@@ -72,8 +72,9 @@ static const DWORD g_aDiskFullScreenColorsLED[ NUM_DISK_STATUS ] =
 	RGB(  0,  0,  0), // DISK_STATUS_OFF   BLACK
 	RGB(  0,255,  0), // DISK_STATUS_READ  GREEN
 	RGB(255,  0,  0), // DISK_STATUS_WRITE RED
-	RGB(255,128,  0)  // DISK_STATUS_PROT  ORANGE
-//	RGB(  0,  0,255)  // DISK_STATUS_PROT  -blue-
+	RGB(255,128,  0), // DISK_STATUS_PROT  ORANGE
+	RGB(  0,  0,255), // DISK_STATUS_EMPTY -blue-
+	RGB(  0,128,128)  // DISK_STATUS_SPIN  -cyan-
 };
 
 void Win32Frame::SetAltEnterToggleFullScreen(bool mode)
@@ -231,6 +232,8 @@ void Win32Frame::CreateGdiObjects(void)
 	g_hDiskWindowedLED[ DISK_STATUS_READ ] = (HBITMAP)LOADBUTTONBITMAP(TEXT("DISKREAD_BITMAP"));
 	g_hDiskWindowedLED[ DISK_STATUS_WRITE] = (HBITMAP)LOADBUTTONBITMAP(TEXT("DISKWRITE_BITMAP"));
 	g_hDiskWindowedLED[ DISK_STATUS_PROT ] = (HBITMAP)LOADBUTTONBITMAP(TEXT("DISKPROT_BITMAP"));
+	g_hDiskWindowedLED[ DISK_STATUS_EMPTY] = (HBITMAP)LOADBUTTONBITMAP(TEXT("DISKOFF_BITMAP"));
+	g_hDiskWindowedLED[ DISK_STATUS_SPIN ] = (HBITMAP)LOADBUTTONBITMAP(TEXT("DISKREAD_BITMAP"));
 
 	btnfacebrush    = CreateSolidBrush(GetSysColor(COLOR_BTNFACE));
 	btnfacepen      = CreatePen(PS_SOLID,1,GetSysColor(COLOR_BTNFACE));
@@ -614,10 +617,11 @@ void Win32Frame::FrameDrawDiskStatus()
 void Win32Frame::GetTrackSector(UINT slot, int& drive1Track, int& drive2Track, int& activeFloppy)
 {
 	//        DOS3.3   ProDOS
-	// Slot   $B7E9    $BE3C(DEFSLT=Default Slot)      ; ref: Beneath Apple ProDOS 8-3
+	// Slot   $B7E9    $BE3C(DEFSLT=Default Slot)      ; ref: Beneath Apple ProDOS 8-3. Not ProDOS v1.9 (16-JUL-90)
 	// Drive  $B7EA    $BE3D(DEFDRV=Default Drive)     ; ref: Beneath Apple ProDOS 8-3
 	// Track  $B7EC    LC1 $D356
 	// Sector $B7ED    LC1 $D357
+	// Unit   -        LC1 $D359					   ; ref: Beneath Apple ProDOS 1.20 and 1.30 Supplement, p83
 	// RWTS            LC1 $D300
 
 	drive1Track = drive2Track = activeFloppy = 0;
@@ -662,9 +666,9 @@ void Win32Frame::GetTrackSector(UINT slot, int& drive1Track, int& drive2Track, i
 	{
 		// we can't just read from mem[ 0xD357 ] since it might be bank-switched from ROM
 		// and we need the Language Card RAM
-		const int nProDOSslot = mem[0xBE3C];
 		const int nProDOStrack = *MemGetMainPtr(0xC356); // LC1 $D356
 		const int nProDOSsector = *MemGetMainPtr(0xC357); // LC1 $D357
+		const int nProDOSslot = *MemGetMainPtr(0xC359) / 16; // LC1 $D359
 
 		if ((nProDOSslot == slot)
 			&& (nProDOStrack >= 0 && nProDOStrack < 40)

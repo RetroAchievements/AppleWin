@@ -669,12 +669,12 @@ static void OneTimeInitialization(HINSTANCE passinstance)
 	// Currently only support one RIFF file
 	if (!g_cmdLine.wavFileSpeaker.empty())
 	{
-		if (RiffInitWriteFile(g_cmdLine.wavFileSpeaker.c_str(), SPKR_SAMPLE_RATE, 1))
+		if (RiffInitWriteFile(g_cmdLine.wavFileSpeaker.c_str(), SPKR_SAMPLE_RATE, Spkr_GetNumChannels()))
 			Spkr_OutputToRiff();
 	}
 	else if (!g_cmdLine.wavFileMockingboard.empty())
 	{
-		if (RiffInitWriteFile(g_cmdLine.wavFileMockingboard.c_str(), 44100, 2))
+		if (RiffInitWriteFile(g_cmdLine.wavFileMockingboard.c_str(), MockingboardCard::SAMPLE_RATE, MockingboardCard::NUM_MB_CHANNELS))
 			GetCardMgr().GetMockingboardCardMgr().OutputToRiff();
 	}
 
@@ -812,33 +812,58 @@ static void RepeatInitialization(void)
 			GetCardMgr().GetParallelPrinterCard()->SetEnableDumpToRealPrinter(true);
 		}
 
-		if (g_cmdLine.slotInsert[SLOT3] != CT_Empty && g_cmdLine.slotInsert[SLOT3] == CT_VidHD)	// For now just support VidHD in slot 3
+		if (g_cmdLine.slotInsert[SLOT3] != CT_Empty)
 		{
-			GetCardMgr().Insert(SLOT3, g_cmdLine.slotInsert[SLOT3]);
+			// NB. Only support Saturn in slot 3, otherwise there's more Config UI to change
+			if (g_cmdLine.slotInsert[SLOT3] == CT_VidHD || g_cmdLine.slotInsert[SLOT3] == CT_Saturn128K)	// For now just support VidHD and Saturn128 in slot 3)
+				GetCardMgr().Insert(SLOT3, g_cmdLine.slotInsert[SLOT3]);
+		}
+
+		if (g_cmdLine.slotInsert[SLOT4] != CT_Empty)
+		{
+			GetCardMgr().Insert(SLOT4, g_cmdLine.slotInsert[SLOT4]);
 		}
 
 		if (g_cmdLine.slotInsert[SLOT5] != CT_Empty)
 		{
-			if (GetCardMgr().QuerySlot(SLOT5) != CT_Disk2)	// Ignore if already got Disk2 in slot 5
+			if (GetCardMgr().QuerySlot(SLOT5) != g_cmdLine.slotInsert[SLOT5])	// Ignore if already got this card type in slot 5
 				GetCardMgr().Insert(SLOT5, g_cmdLine.slotInsert[SLOT5]);
 		}
 
 		if (g_cmdLine.slotInsert[SLOT6] == CT_Disk2)	// For now just support Disk2 in slot 6
 		{
-			if (GetCardMgr().QuerySlot(SLOT6) != CT_Disk2)	// Ignore if already got Disk2 in slot 6
+			if (GetCardMgr().QuerySlot(SLOT6) != g_cmdLine.slotInsert[SLOT6])	// Ignore if already got this card type in slot 6
 				GetCardMgr().Insert(SLOT6, g_cmdLine.slotInsert[SLOT6]);
 		}
 
 		if (g_cmdLine.slotInsert[SLOT7] != CT_Empty)
 		{
-			if (GetCardMgr().QuerySlot(SLOT7) != CT_GenericHDD)	// Ignore if already got HDC in slot 7
+			if (GetCardMgr().QuerySlot(SLOT7) != g_cmdLine.slotInsert[SLOT7])	// Ignore if already got this card type in slot 7
 				GetCardMgr().Insert(SLOT7, g_cmdLine.slotInsert[SLOT7]);
 		}
 
 		for (UINT i = SLOT0; i < NUM_SLOTS; i++)
 		{
 			if (GetCardMgr().QuerySlot(i) == CT_Disk2 && g_cmdLine.slotInfo[i].isDiskII13)
+			{
 				dynamic_cast<Disk2InterfaceCard&>(GetCardMgr().GetRef(i)).SetFirmware13Sector();
+			}
+			else if (GetCardMgr().QuerySlot(i) == CT_GenericHDD)
+			{
+				dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(i)).SetUserNumBlocks(g_cmdLine.uHarddiskNumBlocks);
+				if (g_cmdLine.useHdcFirmwareV1)
+					dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(i)).UseHdcFirmwareV1();
+				if (g_cmdLine.useHdcFirmwareV2)
+					dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(i)).UseHdcFirmwareV2();
+				dynamic_cast<HarddiskInterfaceCard&>(GetCardMgr().GetRef(i)).SetHdcFirmwareMode(g_cmdLine.slotInfo[i].useHdcFirmwareMode);
+			}
+			else if (GetCardMgr().GetMockingboardCardMgr().IsMockingboard(i))
+			{
+				if (g_cmdLine.slotInfo[i].useBad6522A)
+					dynamic_cast<MockingboardCard&>(GetCardMgr().GetRef(i)).UseBad6522A();
+				if (g_cmdLine.slotInfo[i].useBad6522B)
+					dynamic_cast<MockingboardCard&>(GetCardMgr().GetRef(i)).UseBad6522B();
+			}
 		}
 
 		// Create window after inserting/removing VidHD card (as it affects width & height)
@@ -892,10 +917,12 @@ static void RepeatInitialization(void)
 			g_cmdLine.szImageName_drive[SLOT6][DRIVE_1] = g_cmdLine.szImageName_drive[SLOT6][DRIVE_2] = NULL;	// Don't insert on a restart
 
 			InsertHardDisks(SLOT5, g_cmdLine.szImageName_harddisk[SLOT5], temp);
-			g_cmdLine.szImageName_harddisk[SLOT5][HARDDISK_1] = g_cmdLine.szImageName_harddisk[SLOT5][HARDDISK_2] = NULL;	// Don't insert on a restart
+			for (UINT i = 0; i < NUM_HARDDISKS; i++)
+				g_cmdLine.szImageName_harddisk[SLOT5][i] = NULL;	// Don't insert on a restart
 
 			InsertHardDisks(SLOT7, g_cmdLine.szImageName_harddisk[SLOT7], g_cmdLine.bBoot);
-			g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_1] = g_cmdLine.szImageName_harddisk[SLOT7][HARDDISK_2] = NULL;	// Don't insert on a restart
+			for (UINT i = 0; i < NUM_HARDDISKS; i++)
+				g_cmdLine.szImageName_harddisk[SLOT7][i] = NULL;	// Don't insert on a restart
 
 			if (g_cmdLine.bSlotEmpty[SLOT7])
 			{
@@ -910,6 +937,9 @@ static void RepeatInitialization(void)
 
 		if (g_cmdLine.bRemoveNoSlotClock)
 			MemRemoveNoSlotClock();
+
+		if (g_cmdLine.supportExtraMBCardTypes)
+			GetCardMgr().GetMockingboardCardMgr().SetEnableExtraCardTypes(true);
 
 		if (g_cmdLine.noDisk2StepperDefer)
 			GetCardMgr().GetDisk2CardMgr().SetStepperDefer(false);
@@ -984,6 +1014,7 @@ static void RepeatInitialization(void)
 			// Override value just loaded from Registry by LoadConfiguration()
 			// . NB. Registry value is not updated with this cmd-line value
 			Snapshot_SetFilename(g_cmdLine.szSnapshotName);
+			Snapshot_SetIgnoreHdcFirmware(g_cmdLine.snapshotIgnoreHdcFirmware);
 			Snapshot_LoadState();
 			g_cmdLine.bBoot = true;
 			g_cmdLine.szSnapshotName = NULL;

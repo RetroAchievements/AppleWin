@@ -236,10 +236,10 @@
       <Filter>Source Files\Emulator</Filter>
     </ClCompile>
     <ClCompile Include="RAInterface\RA_Interface.cpp">
-      <Filter>Source Files\RetroAcheivements</Filter>
+      <Filter>Source Files\RetroAchievements</Filter>
     </ClCompile>
     <ClCompile Include="source\RetroAchievements.cpp">
-      <Filter>Source Files\RetroAcheivements</Filter>
+      <Filter>Source Files\RetroAchievements</Filter>
     </ClCompile>
     <ClCompile Include="source\Card.cpp">
       <Filter>Source Files\Emulator</Filter>
@@ -586,13 +586,13 @@
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
     <ClInclude Include="source\RetroAchievements.h">
-      <Filter>Source Files\RetroAcheivements</Filter>
+      <Filter>Source Files\RetroAchievements</Filter>
     </ClInclude>
     <ClInclude Include="RAInterface\RA_Interface.h">
-      <Filter>Source Files\RetroAcheivements</Filter>
+      <Filter>Source Files\RetroAchievements</Filter>
     </ClInclude>
     <ClInclude Include="RAInterface\RA_Emulators.h">
-      <Filter>Source Files\RetroAcheivements</Filter>
+      <Filter>Source Files\RetroAchievements</Filter>
     </ClInclude>
     <ClInclude Include="Source\VidHD.h">
       <Filter>Source Files\Video</Filter>
@@ -631,6 +631,9 @@
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
     <ClInclude Include="source\MockingboardDefs.h">
+      <Filter>Source Files\Emulator</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MemoryDefs.h">
       <Filter>Source Files\Emulator</Filter>
     </ClInclude>
   </ItemGroup>
@@ -888,7 +891,7 @@
     <Filter Include="Source Files\Windows">
       <UniqueIdentifier>{95d0abc3-4007-4eb0-8222-4579b565de23}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\RetroAcheivements">
+    <Filter Include="Source Files\RetroAchievements">
       <UniqueIdentifier>{1c951825-8be9-4a15-b82a-557567a3b6ec}</UniqueIdentifier>
     </Filter>
   </ItemGroup>

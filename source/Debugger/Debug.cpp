@@ -57,7 +57,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #define MAKE_VERSION(a,b,c,d) ((a<<24) | (b<<16) | (c<<8) | (d))
 
 	// See /docs/Debugger_Changelog.txt for full details
-	const int DEBUGGER_VERSION = MAKE_VERSION(2,9,1,17);
+	const int DEBUGGER_VERSION = MAKE_VERSION(2,9,2,0);
 
 
 // Public _________________________________________________________________________________________
@@ -3644,7 +3644,7 @@ Update_t CmdFlag (int nArgs)
 //     DISK # PROTECT #                              // Write-protect disk on/off
 //     DISK # "<filename>"                           // Mount filename as floppy disk
 // TODO:
-//     DISK # READ  <Track> <Sector> <NumSec> <Addr>	 // Read Track/Sector(s)
+//     DISK # READ  <Track> <Sector> <NumSec> <Addr>     // Read Track/Sector(s)
 //     DISK # READ  <Track> <Sector> Addr:Addr           // Read Track/Sector(s)
 //     DISK # WRITE <Track> <Sector> Addr:Addr           // Write Track/Sector(s)
 // Examples:
@@ -3685,17 +3685,43 @@ Update_t CmdDisk (int nArgs)
 
 	if (iParam == PARAM_DISK_INFO)
 	{
-		if (nArgs > 2)
+		if (nArgs > 1)
 			return HelpLastCommand();
 
-		ConsoleBufferPushFormat("FW%2d: D%d at T$%s, phase $%s, bitOffset $%04X, extraCycles %.2f, %s",
+		Disk_Status_e eDiskState;
+		LPCTSTR       sDiskState = diskCard.GetCurrentState(eDiskState);
+		BYTE          nShiftReg  = diskCard.GetCurrentShiftReg();
+
+		static const char *aDiskStatusCHC[NUM_DISK_STATUS] =
+		{
+			 CHC_INFO     "%s" CHC_DEFAULT  "    " CHC_NUM_HEX "    " // DISK_STATUS_OFF
+			,CHC_COMMAND  "%s" CHC_DEFAULT  " << " CHC_NUM_HEX "%02X" // DISK_STATUS_READ
+			,CHC_ERROR    "%s" CHC_DEFAULT  " >> " CHC_NUM_HEX "%02X" // DISK_STATUS_WRITE
+			,CHC_WARNING  "%s" CHC_DEFAULT  " >| " CHC_NUM_HEX "%02X" // DISK_STATUS_PROT
+			,CHC_INFO     "%s" CHC_DEFAULT "     " CHC_NUM_HEX "    " // DISK_STATUS_EMPTY
+			,CHC_INFO     "%s" CHC_DEFAULT "     " CHC_NUM_HEX "    " // DISK_STATUS_SPIN
+		};
+
+		std::string Format(
+			/*CHC_DEFAULT*/ "FW"           CHC_NUM_DEC "%2d"  CHC_ARG_SEP ":"
+			  CHC_DEFAULT   " D"           CHC_NUM_DEC "%d"
+			  CHC_DEFAULT   " T$"          CHC_NUM_HEX "%s"   CHC_ARG_SEP ","
+			  CHC_DEFAULT   " Phase $"     CHC_NUM_HEX "%s"   CHC_ARG_SEP ","
+			  CHC_DEFAULT   " bitOffset $" CHC_ADDRESS "%04X" CHC_ARG_SEP ","
+			  CHC_DEFAULT   " Cycles "     CHC_NUM_DEC "%.2f" CHC_ARG_SEP ", "
+		);
+		Format += aDiskStatusCHC[eDiskState];
+
+		ConsolePrintFormat(
+			Format.c_str(),
 			diskCard.GetCurrentFirmware(),
 			diskCard.GetCurrentDrive() + 1,
 			diskCard.GetCurrentTrackString().c_str(),
 			diskCard.GetCurrentPhaseString().c_str(),
 			diskCard.GetCurrentBitOffset(),
 			diskCard.GetCurrentExtraCycles(),
-			diskCard.GetCurrentState()
+			sDiskState,
+			nShiftReg
 		);
 
 		return ConsoleUpdate();
@@ -5078,8 +5104,8 @@ Update_t CmdNTSC (int nArgs)
 					ConsoleBufferPush( pPrefixText );	// TODO: Add a ": " separator
 
 #if _DEBUG
-					LogOutput( "Filename.length.1: %d\n", len1 );
-					LogOutput( "Filename.length.2: %d\n", len2 );
+					LogOutput( "Filename.length.1: %" SIZE_T_FMT "\n", len1 );
+					LogOutput( "Filename.length.2: %" SIZE_T_FMT "\n", len2 );
 					OutputDebugString( sPaletteFilePath.c_str() );
 #endif
 					// File path is too long
@@ -5546,6 +5572,10 @@ Update_t CmdNTSC (int nArgs)
 							&&  (bmp.nGreenMask == 0x00FF0000 )
 							&&  (bmp.nBlueMask  == 0x0000FF00 ))
 								bSwizzle = true;
+							if ((bmp.nRedMask   == 0x00FF0000 ) // Gimp 32 Bits, X8 R8 G8 B8
+							&&  (bmp.nGreenMask == 0x0000FF00 )
+							&&  (bmp.nBlueMask  == 0x000000FF ))
+								bSwizzle = false;
 						}
 					}
 				}
@@ -6065,6 +6095,7 @@ Update_t CmdRegisterSet (int nArgs)
 				case PARAM_REG_SP: regs.sp = b | 0x100; break;
 				case PARAM_REG_X : regs.x  = b; break;
 				case PARAM_REG_Y : regs.y  = b; break;
+				case PARAM_FLAGS : regs.ps = b; break;
 				default:        return Help_Arg_1( CMD_REGISTER_SET );
 			}
 		}
@@ -6364,29 +6395,25 @@ Update_t CmdOutputRun (int nArgs)
 	MemoryTextFile_t script; 
 
 	const std::string pFileName = g_aArgs[ 1 ].sArg;
-
 	std::string sFileName;
-	std::string sMiniFileName; // [CONSOLE_WIDTH];
-
-//	if (g_aArgs[1].bType & TYPE_QUOTED_2)
-
-	sMiniFileName = pFileName.substr(0, MIN(pFileName.size(), CONSOLE_WIDTH));
-//	strcat( sMiniFileName, ".aws" ); // HACK: MAGIC STRING
 
 	if (pFileName[0] == PATH_SEPARATOR || pFileName[1] == ':')	// NB. Any prefix quote has already been stripped
 	{
 		// Abs pathname
-		sFileName = sMiniFileName;
+		sFileName = pFileName;
 	}
 	else
 	{
 		// Rel pathname
-		sFileName = g_sCurrentDir + sMiniFileName;
+		sFileName = g_sCurrentDir + pFileName;
 	}
 
 	if (script.Read( sFileName ))
 	{
 		g_bScriptReadOk = true;
+
+		ConsolePrintFormat("%sRun script: ", CHC_INFO);
+		ConsolePrintFormat("%s%s", CHC_PATH, sFileName.c_str());	// Output pathname to console to indicate the script has been read
 
 		int nLine = script.GetNumLines();
 
@@ -6401,7 +6428,7 @@ Update_t CmdOutputRun (int nArgs)
 	}
 	else
 	{
-		ConsolePrintFormat("%sCouldn't load filename:", CHC_ERROR);
+		ConsolePrintFormat("%sCouldn't load script:", CHC_WARNING);
 		ConsolePrintFormat("%s%s", CHC_STRING, sFileName.c_str());
 	}
 
@@ -7154,6 +7181,9 @@ void WindowUpdateConsoleDisplayedSize ()
 		g_nConsoleDisplayWidth = CONSOLE_WIDTH - 1;
 		g_bConsoleFullWidth = true;
 	}
+
+	g_nConsoleInputMaxLen      = g_nConsoleDisplayWidth-1; // -1 prompt at Start-of-Line, -1 for cursor at End-of-Line
+	g_nConsoleInputScrollWidth = g_nConsoleDisplayWidth-1; // Maximum number of characters for the horizontol scrolling window on the input line
 #else
 	g_nConsoleDisplayWidth = (CONSOLE_WIDTH / 2) + 10;
 	g_bConsoleFullWidth = false;
@@ -8690,7 +8720,7 @@ void DebugContinueStepping (const bool bCallerWillUpdateDisplay/*=false*/)
 			else if (g_bDebugBreakpointHit & BP_HIT_INVALID)
 				stopReason = "Invalid opcode";
 			else if (g_bDebugBreakpointHit & BP_HIT_OPCODE)
-				stopReason = "Opcode match";
+				stopReason = StrFormat("Opcode match at " CHC_ARG_SEP "$" CHC_ADDRESS "%04X", regs.pc);
 			else if (g_bDebugBreakpointHit & BP_HIT_REG)
 			{
 					if (g_pDebugBreakpointHit)
@@ -8994,14 +9024,30 @@ void DebugInitialize ()
 		// Look in g_sCurrentDir, otherwise try g_sProgramDir
 
 		std::string pathname = g_sCurrentDir + debuggerAutoRunName;
-		strncpy_s(g_aArgs[1].sArg, MAX_ARG_LEN, pathname.c_str(), _TRUNCATE);
-		CmdOutputRun(1);
+		errno_t error = strncpy_s(g_aArgs[1].sArg, MAX_PATH, pathname.c_str(), pathname.size());
+		if (error != 0)
+		{
+			ConsolePrintFormat("%sPathname too long:", CHC_ERROR);
+			ConsolePrintFormat("%s%s", CHC_STRING, pathname.c_str());
+		}
+		else
+		{
+			CmdOutputRun(1);
+		}
 
 		if (!g_bScriptReadOk)
 		{
 			pathname = g_sProgramDir + debuggerAutoRunName;
-			strncpy_s(g_aArgs[1].sArg, MAX_ARG_LEN, pathname.c_str(), _TRUNCATE);
-			CmdOutputRun(1);
+			error = strncpy_s(g_aArgs[1].sArg, MAX_PATH, pathname.c_str(), pathname.size());
+			if (error != 0)
+			{
+				ConsolePrintFormat("%sPathname too long:", CHC_ERROR);
+				ConsolePrintFormat("%s%s", CHC_STRING, pathname.c_str());
+			}
+			else
+			{
+				CmdOutputRun(1);
+			}
 		}
 	}
 
@@ -9047,7 +9093,7 @@ void DebuggerInputConsoleChar ( TCHAR ch )
 			return;
 	}
 	
-	if (g_nConsoleInputChars > (g_nConsoleDisplayWidth-1))
+	if (g_nConsoleInputChars > g_nConsoleInputMaxLen)
 		return;
 
 	if ((ch >= CHAR_SPACE) && (ch <= 126)) // HACK MAGIC # 32 -> ' ', # 126 

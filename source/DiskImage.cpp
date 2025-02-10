@@ -70,17 +70,27 @@ ImageError_e ImageOpen(	const std::string & pszImageFilename,
 	if (pImageInfo->pImageType && pImageInfo->pImageType->GetType() == eImageHDV)
 	{
 		if (bExpectFloppy)
+		{
+			ImageClose(*ppImageInfo);
+			*ppImageInfo = NULL;
 			Err = eIMAGE_ERROR_UNSUPPORTED_HDV;
+		}
+
+		if (Err == eIMAGE_ERROR_NONE)
+			*pWriteProtected = pImageInfo->bWriteProtected;
+
 		return Err;
 	}
 
 	// THE FILE MATCHES A KNOWN FORMAT
 
 	_ASSERT(bExpectFloppy);
-	if (!bExpectFloppy)
+	if (!bExpectFloppy || !pImageInfo->uNumTracks)
+	{
+		ImageClose(*ppImageInfo);
+		*ppImageInfo = NULL;
 		return eIMAGE_ERROR_UNSUPPORTED;
-
-	_ASSERT(pImageInfo->uNumTracks);
+	}
 
 	*pWriteProtected = pImageInfo->bWriteProtected;
 

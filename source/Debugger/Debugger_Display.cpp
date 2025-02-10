@@ -1246,8 +1246,10 @@ void DrawConsoleCursor ()
 	int nLineHeight = GetConsoleLineHeightPixels();
 	int y = 0;
 
+	const int nInputWidth = min( g_nConsoleInputChars, g_nConsoleInputScrollWidth ); // NOTE: Keep in Sync! DrawConsoleInput() and DrawConsoleCursor()
+
 	RECT rect;
-	rect.left   = (g_nConsoleInputChars + g_nConsolePromptLen) * nWidth;
+	rect.left   = (nInputWidth + g_nConsolePromptLen) * nWidth;
 	rect.top    = GetConsoleTopPixels( y );
 	rect.bottom = rect.top + nLineHeight; //g_nFontHeight;
 	rect.right  = rect.left + nWidth;
@@ -1295,9 +1297,31 @@ void DrawConsoleInput ()
 	RECT rect;
 	GetConsoleRect( 0, rect );
 
-	// Console background is drawn in DrawWindowBackground_Info
-//	DrawConsoleLine( g_aConsoleInput, 0 );
-	PrintText( g_aConsoleInput, rect );
+	// For long input only show last g_nConsoleInputScrollWidth characters
+	if (g_nConsoleInputChars > g_nConsoleInputScrollWidth)
+	{
+		assert(g_nConsoleInputScrollWidth <= CONSOLE_WIDTH); // NOTE: To support a wider input line the size of g_aConsoleInput[] must be increased
+
+		//	g_nConsoleInputMaxLen      = 16;
+		//	g_nConsoleInputScrollWidth = 10;
+		//
+		//  123456789ABCDEF  g_aConsoleInput[]
+		//                 ^ g_nConsoleInputChars       = 15
+		//  [--------]       g_nConsoleInputScrollWidth = 10
+		// >6789ABCDEF_      g_nConsoleInputMaxLen      = 16
+		static char aScrollingInput[ CONSOLE_WIDTH+1 ];
+		aScrollingInput[0] = g_aConsoleInput[0];                                           // 1. Start-of-Line
+
+		const int nInputOffset =      g_nConsoleInputChars - g_nConsoleInputScrollWidth  ; // 2. Middle
+		const int nInputWidth  = min( g_nConsoleInputChars,  g_nConsoleInputScrollWidth ); // NOTE: Keep in Sync! DrawConsoleInput() and DrawConsoleCursor()
+		strncpy( aScrollingInput+1, g_aConsoleInput + 1 + nInputOffset, nInputWidth );     // +1 to skip prompt
+
+		aScrollingInput[ g_nConsoleInputScrollWidth+1 ] = 0;                               // 3. End-of-Line leave room for cursor
+
+		PrintText( aScrollingInput, rect );
+	}
+	else
+		 PrintText( g_aConsoleInput, rect );
 }
 
 
@@ -1411,7 +1435,7 @@ WORD DrawDisassemblyLine ( int iLine, const WORD nBaseAddress )
 	int  bAddressIsBookmark = Bookmark_Find( nBaseAddress );
 
 	DebugColors_e iBackground = BG_DISASM_1;
-	DebugColors_e iForeground = FG_DISASM_MNEMONIC; // FG_DISASM_TEXT;
+	DebugColors_e iForeground = FG_DISASM_ADDRESS;
 	bool bCursorLine = false;
 
 	if (((! g_bDisasmCurBad) && (iLine == g_nDisasmCurLine))
@@ -1474,21 +1498,12 @@ WORD DrawDisassemblyLine ( int iLine, const WORD nBaseAddress )
 		}
 		else
 		{
-			iForeground = FG_DISASM_MNEMONIC;
+			iForeground = FG_DISASM_ADDRESS;
 		}
 	}
 
 	DebuggerSetColorBG( DebuggerGetColor( iBackground ) );
 	DebuggerSetColorFG( DebuggerGetColor( iForeground ) );
-
-	// Address
-	if (! bCursorLine)
-		DebuggerSetColorFG( DebuggerGetColor( FG_DISASM_ADDRESS ) );
-//	else
-//	{
-//		DebuggerSetColorBG( GetDebuggerMemDC(), DebuggerGetColor( FG_DISASM_BOOKMARK ) ); // swapped
-//		DebuggerSetColorFG( GetDebuggerMemDC(), DebuggerGetColor( BG_DISASM_BOOKMARK ) ); // swapped
-//	}
 
 	if ( g_bConfigDisasmAddressView )
 	{
@@ -2115,7 +2130,7 @@ void DrawMemory ( int line, int iMemDump )
 #if DISPLAY_MEMORY_TITLE
 	if (eDevice == DEV_MB_SUBUNIT)
 	{
-		sAddress = StrFormat("%c: SY & AY", 'A' + subUnit);
+		sAddress = StrFormat("%c:%cSY & AY", 'A' + subUnit, !MB.subUnit[subUnit].is6522Bad ? ' ' : '!');
 	}
 	else if (eDevice == DEV_AY8913_PAIR)
 	{
@@ -2145,6 +2160,8 @@ void DrawMemory ( int line, int iMemDump )
 		PrintTextCursorX(" at ", rect2);
 
 	DebuggerSetColorFG(DebuggerGetColor(FG_INFO_ADDRESS));
+	if (MB.subUnit[subUnit].is6522Bad && eDevice == DEV_MB_SUBUNIT)
+		DebuggerSetColorFG(DebuggerGetColor(FG_INFO_ADDRESS_SY6522_AY8913_BAD));
 	PrintTextCursorY(sAddress.c_str(), rect2);
 #endif
 
@@ -2579,7 +2596,7 @@ void _DrawSoftSwitchLanguageCardBank( RECT & rect, const int iBankDisplay, int b
 		int iActiveBank = -1;
 		char cMemType = '?'; // Default to RAMWORKS
 		if (GetCurrentExpansionMemType() == CT_RamWorksIII) { cMemType = 'r'; iActiveBank = GetRamWorksActiveBank(); }
-		if (GetCurrentExpansionMemType() == CT_Saturn128K)  { cMemType = 's'; iActiveBank = GetCardMgr().GetLanguageCard()->GetActiveBank(); }
+		if (GetCurrentExpansionMemType() == CT_Saturn128K)  { cMemType = 's'; iActiveBank = GetCardMgr().GetLanguageCardMgr().GetLanguageCard()->GetActiveBank(); }
 
 		if (iActiveBank >= 0)
 		{

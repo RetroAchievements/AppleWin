@@ -3,7 +3,7 @@
 class SY6522
 {
 public:
-	SY6522(UINT slot) : m_slot(slot)
+	SY6522(UINT slot, bool isMegaAudio) : m_slot(slot), m_isMegaAudio(isMegaAudio), m_isBusDriven(false), m_bad6522(false)
 	{
 		for (UINT i = 0; i < kNumTimersPer6522; i++)
 			m_syncEvent[i] = NULL;
@@ -20,6 +20,11 @@ public:
 		m_syncEvent[1] = event1;
 	}
 
+	void InitBadState(bool bad6522)
+	{
+		m_bad6522 = bad6522;
+	}
+
 	void Reset(const bool powerCycle);
 
 	void StartTimer1(void);
@@ -28,7 +33,6 @@ public:
 	void StopTimer2(void);
 	bool IsTimer2Active(void) { return m_timer2Active; }
 
-	void UpdatePortAForHiZ(void);
 	void UpdateIFR(BYTE clr_ifr, BYTE set_ifr = 0);
 
 	void UpdateTimer1(USHORT clocks);
@@ -49,11 +53,14 @@ public:
 		_ASSERT(0);
 		return 0;
 	}
+	BYTE GetBusViewOfORB(void) { return m_regs.ORB & m_regs.DDRB; }	// Return how the AY8913 sees ORB on the bus (ie. not CPU's view which will be OR'd with !DDRB)
 	USHORT GetRegT1C(void) { return m_regs.TIMER1_COUNTER.w; }
 	USHORT GetRegT2C(void) { return m_regs.TIMER2_COUNTER.w; }
 	void GetRegs(BYTE regs[SIZE_6522_REGS]) { memcpy(&regs[0], (BYTE*)&m_regs, SIZE_6522_REGS); }	// For debugger
-	void SetRegORA(BYTE reg) { m_regs.ORA = reg; }
+	void SetRegIRA(BYTE reg) { m_regs.ORA = reg; }
 	bool IsTimer1IrqDelay(void) { return m_timer1IrqDelay ? true : false; }
+	void SetBusBeingDriven(bool state) { m_isBusDriven = state; }
+	bool IsBad(void) { return m_bad6522; }
 
 	BYTE Read(BYTE nReg);
 	void Write(BYTE nReg, BYTE nValue);
@@ -90,6 +97,7 @@ private:
 
 	UINT GetOpcodeCyclesForRead(BYTE reg);
 	UINT GetOpcodeCyclesForWrite(BYTE reg);
+	UINT GetOpcodeCycles(BYTE reg, UINT zpOpcodeCycles, UINT opcodeCycles, BYTE zpOpcode, BYTE opcode, bool abs16x, bool abs16y, bool indx, bool indy);
 
 	void StartTimer2(void);
 	void StartTimer1_LoadStateV1(void);
@@ -143,4 +151,11 @@ private:
 
 	class SyncEvent* m_syncEvent[kNumTimersPer6522];
 	UINT m_slot;
+	bool m_isMegaAudio;
+	bool m_isBusDriven;
+
+	static const UINT kExtraMegaAudioTimerCycles = kExtraTimerCycles + 1;
+
+	// For mb-audit
+	bool m_bad6522;
 };
